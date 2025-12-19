@@ -31,12 +31,15 @@ export interface RunState {
     allowlist: string[];
     denylist: string[];
   };
+  current_branch?: string;
+  planned_run_branch?: string;
   risk_score: number;
   last_error?: string;
   retries: number;
   checkpoint_commit_sha?: string;
   last_successful_phase?: Phase;
   resume_token?: string;
+  tier_reasons?: string[];
   started_at: string;
   updated_at: string;
   stop_reason?: string;
@@ -66,6 +69,7 @@ export interface RepoContext {
   git_root: string;
   default_branch: string;
   run_branch: string;
+  current_branch: string;
   changed_files: string[];
   touched_packages: string[];
 }

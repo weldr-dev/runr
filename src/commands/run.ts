@@ -2,10 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig, resolveConfigPath } from '../config/load.js';
 import { RunStore } from '../store/run-store.js';
-import { buildRepoContext } from '../repo/context.js';
 import { git, gitOptional } from '../repo/git.js';
+import { buildMilestonesFromTask } from '../supervisor/planner.js';
 import { createInitialState, stopRun, updatePhase } from '../supervisor/state-machine.js';
-import { checkLockfiles, checkScope } from '../supervisor/scope-guard.js';
+import { runPreflight } from './preflight.js';
 
 export interface RunOptions {
   repo: string;
@@ -13,8 +13,11 @@ export interface RunOptions {
   time: number;
   config?: string;
   allowDeps: boolean;
+  allowDirty: boolean;
   web: boolean;
   dryRun: boolean;
+  noBranch: boolean;
+  noWrite: boolean;
 }
 
 function makeRunId(): string {
@@ -48,6 +51,30 @@ async function ensureRunBranch(
   await git(['checkout', '-b', runBranch, defaultBranch], gitRoot);
 }
 
+function formatSummaryLine(input: {
+  runId: string;
+  runDir: string;
+  repoRoot: string;
+  currentBranch: string;
+  plannedRunBranch: string;
+  guardOk: boolean;
+  tiers: string[];
+  tierReasons: string[];
+  noWrite: boolean;
+}): string {
+  return [
+    `run_id=${input.runId}`,
+    `run_dir=${input.runDir}`,
+    `repo_root=${input.repoRoot}`,
+    `current_branch=${input.currentBranch}`,
+    `planned_run_branch=${input.plannedRunBranch}`,
+    `guard=${input.guardOk ? 'pass' : 'fail'}`,
+    `tiers=${input.tiers.join('|')}`,
+    `tier_reasons=${input.tierReasons.join('|') || 'none'}`,
+    `no_write=${input.noWrite ? 'true' : 'false'}`
+  ].join(' ');
+}
+
 export async function runCommand(options: RunOptions): Promise<void> {
   const repoPath = path.resolve(options.repo);
   const taskPath = path.resolve(options.task);
@@ -57,81 +84,117 @@ export async function runCommand(options: RunOptions): Promise<void> {
 
   const runId = makeRunId();
   const slug = slugFromTask(taskPath);
-  const runStore = RunStore.init(runId);
+  const milestones = buildMilestonesFromTask(taskText);
+  const milestoneRiskLevel = milestones[0]?.risk_level ?? 'medium';
 
-  runStore.writeConfigSnapshot(config);
-  runStore.writeArtifact('task.md', taskText);
-
-  const repoContext = await buildRepoContext(
+  const preflight = await runPreflight({
     repoPath,
     runId,
     slug,
-    config.repo.default_branch ?? 'main'
-  );
-
-  runStore.appendEvent({
-    type: 'run_started',
-    source: 'cli',
-    payload: {
-      repo: repoContext,
-      task: taskPath,
-      time_budget_minutes: options.time,
-      allow_deps: options.allowDeps,
-      web: options.web
-    }
+    config,
+    allowDeps: options.allowDeps,
+    allowDirty: options.allowDirty,
+    milestoneRiskLevel
   });
 
-  const scopeCheck = checkScope(
-    repoContext.changed_files,
-    config.scope.allowlist,
-    config.scope.denylist
-  );
-  const lockfileCheck = checkLockfiles(
-    repoContext.changed_files,
-    config.scope.lockfiles,
-    options.allowDeps
-  );
+  const runDir = path.resolve('runs', runId);
+  const runStore = options.noWrite ? null : RunStore.init(runId);
 
-  if (!scopeCheck.ok || !lockfileCheck.ok) {
-    let state = createInitialState({
-      run_id: runId,
-      repo_path: repoPath,
-      task_text: taskText,
-      allowlist: config.scope.allowlist,
-      denylist: config.scope.denylist
-    });
-    state = stopRun(state, 'guard_violation');
-    runStore.writeState(state);
+  if (runStore) {
+    runStore.writeConfigSnapshot(config);
+    runStore.writeArtifact('task.md', taskText);
     runStore.appendEvent({
-      type: 'guard_violation',
+      type: 'run_started',
       source: 'cli',
       payload: {
-        scope_violations: scopeCheck.violations,
-        lockfile_violations: lockfileCheck.violations
+        repo: preflight.repo_context,
+        task: taskPath,
+        time_budget_minutes: options.time,
+        allow_deps: options.allowDeps,
+        allow_dirty: options.allowDirty,
+        web: options.web,
+        no_branch: options.noBranch,
+        dry_run: options.dryRun
       }
     });
-    const summary = [
-      '# Summary',
-      '',
-      'Run stopped due to guard violations.',
-      '',
-      'Scope violations:',
-      scopeCheck.violations.length ? `- ${scopeCheck.violations.join('\\n- ')}` : '- None',
-      '',
-      'Lockfile violations:',
-      lockfileCheck.violations.length
-        ? `- ${lockfileCheck.violations.join('\\n- ')}`
-        : '- None'
-    ].join('\\n');
-    runStore.writeSummary(summary);
+    runStore.appendEvent({
+      type: 'preflight',
+      source: 'cli',
+      payload: {
+        guard: preflight.guard,
+        tiers: preflight.tiers,
+        tier_reasons: preflight.tier_reasons
+      }
+    });
+  }
+
+  const summaryLine = formatSummaryLine({
+    runId,
+    runDir,
+    repoRoot: preflight.repo_context.git_root,
+    currentBranch: preflight.repo_context.current_branch,
+    plannedRunBranch: preflight.repo_context.run_branch,
+    guardOk: preflight.guard.ok,
+    tiers: preflight.tiers,
+    tierReasons: preflight.tier_reasons,
+    noWrite: options.noWrite
+  });
+
+  if (!preflight.guard.ok) {
+    if (runStore) {
+      let state = createInitialState({
+        run_id: runId,
+        repo_path: repoPath,
+        task_text: taskText,
+        allowlist: config.scope.allowlist,
+        denylist: config.scope.denylist
+      });
+      state.current_branch = preflight.repo_context.current_branch;
+      state.planned_run_branch = preflight.repo_context.run_branch;
+      state.tier_reasons = preflight.tier_reasons;
+      state = stopRun(state, 'guard_violation');
+      runStore.writeState(state);
+      runStore.appendEvent({
+        type: 'guard_violation',
+        source: 'cli',
+        payload: {
+          guard: preflight.guard
+        }
+      });
+      const summary = [
+        '# Summary',
+        '',
+        'Run stopped due to guard violations.',
+        '',
+        'Guard reasons:',
+        preflight.guard.reasons.length
+          ? `- ${preflight.guard.reasons.join('\n- ')}`
+          : '- None',
+        '',
+        'Scope violations:',
+        preflight.guard.scope_violations.length
+          ? `- ${preflight.guard.scope_violations.join('\n- ')}`
+          : '- None',
+        '',
+        'Lockfile violations:',
+        preflight.guard.lockfile_violations.length
+          ? `- ${preflight.guard.lockfile_violations.join('\n- ')}`
+          : '- None'
+      ].join('\n');
+      runStore.writeSummary(summary);
+    }
+    console.log(summaryLine);
     return;
   }
 
-  await ensureRunBranch(
-    repoContext.git_root,
-    repoContext.run_branch,
-    repoContext.default_branch
-  );
+  const noBranchEffective = options.noBranch || options.dryRun || options.noWrite;
+  if (!noBranchEffective) {
+    await ensureRunBranch(
+      preflight.repo_context.git_root,
+      preflight.repo_context.run_branch,
+      preflight.repo_context.default_branch
+    );
+  }
 
   let state = createInitialState({
     run_id: runId,
@@ -140,18 +203,30 @@ export async function runCommand(options: RunOptions): Promise<void> {
     allowlist: config.scope.allowlist,
     denylist: config.scope.denylist
   });
+  state.current_branch = preflight.repo_context.current_branch;
+  state.planned_run_branch = preflight.repo_context.run_branch;
+  state.tier_reasons = preflight.tier_reasons;
   state = updatePhase(state, 'PLAN');
-  runStore.writeState(state);
+  if (runStore) {
+    runStore.writeState(state);
+  }
 
   if (options.dryRun) {
-    runStore.appendEvent({
-      type: 'run_dry_stop',
-      source: 'cli',
-      payload: { reason: 'dry_run' }
-    });
-    runStore.writeSummary('# Summary\n\nRun initialized in dry-run mode.');
+    if (runStore) {
+      runStore.appendEvent({
+        type: 'run_dry_stop',
+        source: 'cli',
+        payload: { reason: 'dry_run' }
+      });
+      runStore.writeSummary('# Summary\n\nRun initialized in dry-run mode.');
+    }
+    console.log(summaryLine);
     return;
   }
 
-  runStore.writeSummary('# Summary\n\nRun initialized. Supervisor loop not yet executed.');
+  if (runStore) {
+    runStore.writeSummary('# Summary\n\nRun initialized. Supervisor loop not yet executed.');
+  }
+
+  console.log(summaryLine);
 }

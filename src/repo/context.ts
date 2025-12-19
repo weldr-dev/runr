@@ -25,6 +25,11 @@ export async function getDefaultBranch(
   return fallback;
 }
 
+export async function getCurrentBranch(repoPath: string): Promise<string> {
+  const result = await git(['rev-parse', '--abbrev-ref', 'HEAD'], repoPath);
+  return result.stdout.trim();
+}
+
 export async function listChangedFiles(gitRoot: string): Promise<string[]> {
   const result = await git(['status', '--porcelain'], gitRoot);
   if (!result.stdout.trim()) {
@@ -77,6 +82,7 @@ export async function buildRepoContext(
 ): Promise<RepoContext> {
   const gitRoot = await getGitRoot(repoPath);
   const defaultBranch = await getDefaultBranch(gitRoot, defaultBranchFallback);
+  const currentBranch = await getCurrentBranch(gitRoot);
   const runBranch = toRunBranch(runId, slug);
   const changedFiles = await listChangedFiles(gitRoot);
   const touchedPackages = getTouchedPackages(changedFiles);
@@ -85,6 +91,7 @@ export async function buildRepoContext(
     git_root: gitRoot,
     default_branch: defaultBranch,
     run_branch: runBranch,
+    current_branch: currentBranch,
     changed_files: changedFiles,
     touched_packages: touchedPackages
   };
