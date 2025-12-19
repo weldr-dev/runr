@@ -36,8 +36,8 @@ export async function listChangedFiles(gitRoot: string): Promise<string[]> {
     return [];
   }
   return result.stdout
-    .trim()
     .split('\n')
+    .filter((line) => line.length > 0)
     .map((line) => line.slice(3))
     .map((entry) => {
       const arrow = entry.indexOf('->');
