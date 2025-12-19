@@ -1,0 +1,474 @@
+## Project brief: Dual-LLM Coding Orchestrator (Codex CLI + Claude Code)
+
+### One-liner
+
+Build a separate “agent runner” project that can **plan, execute, self-heal, and report** on long-ish coding tasks in an existing repo by coordinating **Codex CLI** and **Claude Code** as workers under a **supervisor loop**, with **fast, risk-based verification** and strong observability.
+
+---
+
+## Goals
+
+1. **Run while you’re away (1–3 hours)** and make real progress on a large task.
+2. **Stay on-task** via milestone planning + scope locks.
+3. **Self-heal 95% of blocks** using a structured unblock protocol + second-opinion model.
+4. **Be observable and auditable**: you can see exactly what happened, replay, and resume.
+5. **Be repo-agnostic**: point it at any target repo with minimal config.
+
+## Non-goals (for v1)
+
+* Full production “autonomous PR factory”
+* Perfect correctness guarantees
+* Running the entire CI suite on every loop
+
+---
+
+## High-level architecture
+
+### Components
+
+1. **Supervisor (the boss)**
+
+   * Owns the task plan, milestones, state machine, risk scoring, and escalation rules.
+   * Decides which worker to call next and what verification tier to run.
+   * Produces the final report.
+
+2. **Workers (the doers)**
+
+   * **Codex worker**: fast implementation and debugging in the repo.
+   * **Claude worker**: planner/reviewer/risk analyst/second opinion.
+
+3. **Tool adapters**
+
+   * A thin wrapper that can invoke Codex CLI and Claude Code (or Claude Agent SDK).
+   * Normalizes outputs into events (tool calls, diffs, logs, errors).
+
+4. **Verification engine (risk-based)**
+
+   * Tier 0: cheap guards (lint/typecheck/format/build subset)
+   * Tier 1: targeted tests
+   * Tier 2: full suite / CI (end-of-milestone or end-of-run)
+
+5. **Observability & Run Store**
+
+   * JSONL event log, stdout/stderr capture, diffs, checkpoint commits, handoff memos.
+   * Optional tiny UI to watch the timeline.
+
+---
+
+## Execution model (core loop)
+
+### Run lifecycle
+
+**Inputs:** target repo path, task brief, constraints, time budget, verification policy.
+
+**Phases:**
+
+1. **Plan phase (Claude leads)**
+
+   * Produce milestones (3–7), acceptance criteria, risk map, “do not touch” boundaries.
+2. **Execute phase (Codex leads per milestone)**
+
+   * Implement smallest chunk → Tier 0 checks → commit checkpoint.
+3. **Review phase (Claude audits)**
+
+   * Review diff + logs, request minimal corrections, adjust plan if needed (within scope).
+4. **Self-heal phase (when blocked)**
+
+   * Trigger unblock protocol, run experiments, possibly ask second-opinion model.
+5. **Finalize phase**
+
+   * Run Tier 2 checks (optional), generate a crisp report, leave repo in clean state.
+
+### State machine (suggested)
+
+* `INIT → PLAN → MILESTONE_START → IMPLEMENT → VERIFY → REVIEW → (NEXT_MILESTONE | FINALIZE) → DONE`
+* With `BLOCKED` as an interrupt state that must resolve back to `IMPLEMENT` or end with `ESCALATED`.
+
+---
+
+## “Self-heal” design
+
+### Block protocol (mandatory template)
+
+When blocked, a worker must output:
+
+* **What broke** (1 sentence)
+* **Hypothesis A / B** (two plausible causes)
+* **Experiment** (single command or tiny code probe)
+* **Decision** (which hypothesis won)
+* **Next action**
+
+### Escalation rules (prevents spirals)
+
+* Same error twice → must switch strategy (different experiment)
+* Same error 3 times → stop and produce “Escalation memo” (short, actionable)
+
+### Second opinion usage
+
+* Not “debate”; **one model proposes**, the other **critiques**.
+* Default: Codex proposes patch, Claude reviews risk/edge cases and says approve/reject with specific fixes.
+
+---
+
+## Repo interaction strategy
+
+### Workspace approach
+
+* Orchestrator clones or uses local repo path.
+* Creates a **run branch**: `agent/<run_id>/<slug>`.
+* Commits per milestone.
+* Never pushes unless configured.
+
+### Safety constraints
+
+* “Scope lock” file: list of allowed directories + forbidden directories.
+* “No dependency changes” option.
+* “No migrations” option.
+* “Read-only planning mode” option (plan without edits).
+
+---
+
+## Observability & monitoring
+
+### Run directory layout (inside orchestrator project)
+
+```
+runs/<run_id>/
+  config.snapshot.json
+  plan.md
+  state.json
+  timeline.jsonl
+  handoffs/
+    milestone_01.md
+    milestone_02.md
+  artifacts/
+    diff_m1.patch
+    tests_m1.log
+    stdout.log
+    stderr.log
+  summary.md
+```
+
+### What you can monitor live
+
+* Current milestone + step
+* Last command executed + exit code
+* Last diff size
+* Verification tier used
+* Current block status and retries
+* Time spent per step
+
+### Optional UI (v2)
+
+* Local web dashboard that tails `timeline.jsonl`
+* Buttons: pause/resume, rerun verification, revert to checkpoint
+
+---
+
+## Tech stack recommendation (simple, strong)
+
+Pick one; both work.
+
+### Option A: Node/TypeScript (fits your JS instincts)
+
+* CLI: `commander` or `yargs`
+* Process control: `execa`
+* Logging: `pino`
+* Storage: filesystem JSONL + markdown
+* Optional UI: Next.js local dashboard reading run files
+
+### Option B: Python (fast to prototype agent tooling)
+
+* CLI: `typer`
+* Process: `subprocess` + rich output
+* Logging: `structlog`
+* Storage: filesystem JSONL + markdown
+* Easy to integrate smolagents if you go that direction later
+
+My vote: **Node/TS** for you, unless you’re leaning into Python for agents anyway.
+
+---
+
+## Interfaces (clean boundaries)
+
+### Worker interface
+
+* `run(task_context, instructions) -> WorkerResult`
+  Where `WorkerResult` includes:
+* `patch` (optional)
+* `commands_run[]`
+* `observations`
+* `status: ok | blocked | failed`
+* `handoff_memo`
+
+### Tool adapters
+
+* `CodexAdapter.run(prompt, repo_path, constraints)`
+* `ClaudeAdapter.run(prompt, repo_path, artifacts)`
+
+### Verification engine
+
+* `verify(tier, touched_paths, risk_score) -> VerifyResult`
+
+---
+
+## Configuration (per target repo)
+
+`agent.config.json` example concepts:
+
+* test commands:
+
+  * tier0: `pnpm lint`, `pnpm typecheck`
+  * tier1 mapping: `packages/api/** → pnpm test api`
+  * tier2: `pnpm test`
+* path allow/deny lists
+* max files touched per milestone
+* risk triggers (dependency file touched, core modules, auth, payments, etc.)
+
+---
+
+## Milestones and delivery plan
+
+### v0 (1–2 days)
+
+* CLI skeleton
+* Run directory + JSONL timeline
+* Branch creation + commit checkpoints
+* Manual “call Codex / call Claude” scripts
+
+### v1 (3–7 days)
+
+* Full supervisor state machine
+* Planning phase (Claude) → execution (Codex) → review (Claude)
+* Block protocol + retry/escalation
+* Tier 0 verification
+* Final summary report
+
+### v1.5
+
+* Tier 1 targeted tests with simple path mapping
+* “Scope lock” enforcement
+* Pause/resume from state.json
+
+### v2
+
+* Local dashboard
+* Parallelization for safe tasks (docs vs code, independent packages)
+* Better heuristics for risk scoring
+
+---
+
+## Open questions you should decide (but you can start without)
+
+1. **Invocation method**
+
+   * Will you run Codex/Claude as installed CLIs and shell out to them?
+   * Or use SDKs (OpenAI Agents SDK / Claude Agent SDK)?
+2. **What’s the unit of progress?**
+
+   * Milestone size: 30–90 minutes each?
+   * Max files changed per milestone?
+3. **Verification appetite**
+
+   * Default tiers per milestone vs only at end?
+   * Do you ever want “verify nothing” mode for pure refactors?
+4. **How strict is scope lock?**
+
+   * Hard deny edits outside allowlist?
+   * Or warn + require supervisor approval?
+5. **What does “95% unblock” mean in practice?**
+
+   * Are package installs allowed?
+   * Can it search docs/web? (You might want offline-only by default.)
+6. **Human interruption**
+
+   * Do you want a “ping me if stuck > 10 min” mechanism?
+   * Or always run until it either finishes or escalates?
+7. **Secrets / environment**
+
+   * How will it handle env vars, tokens, DB access for tests?
+   * Will you support a “safe sandbox” mode?
+
+---
+
+## Definition of Done (v1)
+
+* You can run: `agent-run --repo ../target --task tasks/foo.md --time 120m`
+* It produces:
+
+  * a branch with checkpoint commits
+  * a run folder with timeline + plan + handoffs + logs
+  * a final summary that tells you exactly what changed and what remains
+* If it gets blocked, it **doesn’t spin**; it escalates with a crisp memo.
+
+---
+
+If you tell me whether you want **Node/TS or Python**, and whether you’ll **shell out to the CLIs** (simplest) or use SDKs, I’ll give you a concrete repo skeleton (folders + key files + minimal state schema + event types) so you can start building immediately.
+
+
+------ More context ----- : 
+
+Yep, it makes sense. You’re optimizing for **throughput + autonomy**, not “every commit is shippable.” Full CI gating can slow the loop to a crawl and wastes cycles on tests that don’t add signal for the current change.
+
+What you want is an **adaptive verification loop**: fast checks most of the time, heavier checks only when risk spikes.
+
+## Key insight: replace “CI gating” with “risk-based checkpoints”
+
+Instead of “run CI every loop,” do this:
+
+### Tier 0: Always-on cheap guards (seconds)
+
+Run every iteration:
+
+* typecheck or lint on touched files (or incremental)
+* formatting
+* build of the specific package/module impacted (if monorepo)
+* “smoke” command: start compile / minimal bundler check
+
+Goal: catch obvious breakage fast.
+
+### Tier 1: Targeted tests (1–5 minutes)
+
+Run when:
+
+* you touched core logic, routing, auth, data models, or anything high blast-radius
+* you changed behavior (not just refactor)
+* you edited more than N files (say 8–15)
+
+Only run tests relevant to the affected area (by folder mapping or test tags).
+
+### Tier 2: Full CI / full suite (rare)
+
+Run only at:
+
+* end of milestone
+* end of run (before you come back)
+* or after “risk triggers” (big refactor, dependency bumps, flaky area)
+
+This gets you speed *and* safety.
+
+## The “self-heal” behavior you want is real — but it needs structure
+
+Agents don’t self-heal by willpower; they self-heal when you give them:
+
+* a **decision protocol**
+* a **fallback ladder**
+* a **clear stopping rule** (so they don’t spiral)
+
+### The protocol (simple and brutal)
+
+When blocked, the worker must produce:
+
+1. **What broke** (1 sentence)
+2. **Hypothesis A / B** (two plausible causes)
+3. **Fast experiment** (one command or one small code probe)
+4. **Next action**
+
+If it can’t do (3), it escalates to supervisor.
+
+## Use two LLMs as “opinions,” not as co-coders
+
+Your idea—ask two models for opinions—is good *if* you constrain it.
+
+Bad: “Claude and Codex debate in chat.”
+Good: “Codex proposes fix → Claude reviews risks/edge cases → supervisor chooses.”
+
+**Pattern that works:**
+
+* **Primary** (usually Codex) makes a concrete patch.
+* **Secondary** (Claude) reviews patch + tests + logs and returns:
+
+  * “approve” OR “reject with specific changes”
+* Supervisor applies the minimal delta.
+
+This prevents endless loops.
+
+## What “on task while I’m away” really requires
+
+You need **state + resumability**, not nonstop testing.
+
+### 1) Milestones with acceptance checks
+
+Have the plan broken into 3–7 milestones, each with:
+
+* definition of done (observable)
+* verification step (tiered like above)
+* rollback point (commit)
+
+### 2) A task ledger (so it doesn’t wander)
+
+Keep a small `state.json` / `state.md`:
+
+* current milestone
+* next 3 tasks
+* “don’t do” list
+* assumptions made
+
+Every loop updates this. If the agent drifts, you’ll see it.
+
+### 3) A “stuck” circuit breaker
+
+If it hits the same error twice:
+
+* it must try a different strategy (search codebase, run different command, simplify approach)
+  If it hits it 3 times:
+* it must stop and leave you a crisp memo:
+
+  * error
+  * what it tried
+  * best next step
+
+That alone eliminates 80% of wasted agent time.
+
+## Concrete recommendations for your Codex + Claude setup
+
+### Default roles
+
+* **Claude = Planner / Reviewer / Risk analyst**
+* **Codex = Implementer / Fast iterating debugger**
+
+### Runtime flow (what it does while you’re away)
+
+1. Claude writes plan + milestones + risk map
+2. Codex executes Milestone 1 with Tier 0 guards each step
+3. If blocked:
+
+   * Codex runs the block protocol
+   * Claude gives “second opinion” (narrowly: pick between A/B, suggest experiment)
+4. At milestone end:
+
+   * run Tier 1 targeted tests
+   * commit
+5. At end of entire task:
+
+   * run Tier 2 (full suite) only once
+
+## Monitoring without CI gating
+
+You still want observability, just not heavy CI.
+
+Minimum monitoring artifacts per milestone:
+
+* diff/patch
+* commands run + outputs
+* test results (tier used)
+* “handoff memo” (done/broken/next)
+* current plan + progress
+
+When you return after 2 hours, you can answer in 2 minutes:
+
+* what changed
+* is it likely correct
+* what’s left
+* what’s risky
+
+## One opinionated rule that matters a lot
+
+**Don’t let the worker change scope.**
+If it discovers something “bigger,” it must write a note and continue with the original scope unless the supervisor explicitly upgrades scope.
+
+That’s how you get real completion while you’re away.
+
+---
+
+If you want, I’ll give you a ready-to-use “Supervisor spec” (a short prompt + a state schema) that forces exactly this behavior: plan-first, adaptive verification, self-heal protocol, escalation rules, and clean handoffs.

@@ -1,0 +1,41 @@
+{
+  "agent": {
+    "name": "dual-llm-orchestrator",
+    "version": "1"
+  },
+  "repo": {
+    "default_branch": "main"
+  },
+  "scope": {
+    "allowlist": ["src/**", "tests/**", "docs/**"],
+    "denylist": ["infra/**", "migrations/**"],
+    "lockfiles": ["package-lock.json", "pnpm-lock.yaml", "yarn.lock"]
+  },
+  "verification": {
+    "tier0": ["pnpm lint", "pnpm typecheck"],
+    "tier1": ["pnpm test"],
+    "tier2": ["pnpm test"],
+    "risk_triggers": [
+      {
+        "name": "deps",
+        "patterns": ["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"],
+        "tier": "tier2"
+      },
+      {
+        "name": "auth",
+        "patterns": ["src/auth/**"],
+        "tier": "tier1"
+      },
+      {
+        "name": "docs-only",
+        "patterns": ["docs/**"],
+        "tier": "tier0"
+      }
+    ],
+    "max_verify_time_per_milestone": 600
+  },
+  "commands": {
+    "codex": "codex",
+    "claude": "claude"
+  }
+}
