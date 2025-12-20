@@ -137,10 +137,17 @@ async function handlePlan(state: RunState, options: SupervisorOptions): Promise<
   // Sanity check: all files_expected must be within allowlist
   const scopeViolations = validateFilesExpected(plan.milestones, state.scope_lock.allowlist);
   if (scopeViolations.length > 0) {
+    // Infer expected root prefix from first allowlist pattern for debugging
+    const expectedPrefix = state.scope_lock.allowlist[0]?.replace(/\*.*$/, '') || '';
     options.runStore.appendEvent({
       type: 'plan_scope_violation',
       source: 'supervisor',
-      payload: { violations: scopeViolations }
+      payload: {
+        violations: scopeViolations,
+        allowlist: state.scope_lock.allowlist,
+        expected_prefix: expectedPrefix,
+        hint: `All files_expected must start with a path matching allowlist patterns`
+      }
     });
     return stopWithError(
       state,

@@ -13,9 +13,27 @@ interface CodexEvent {
   item?: {
     type: string;
     text?: string;
+    content?: string;
+    aggregated_output?: string;
   };
+  message?: {
+    content?: string;
+    text?: string;
+  };
+  content?: string;
+  text?: string;
 }
 
+/**
+ * Extract assistant text from Codex JSONL output.
+ *
+ * Codex emits various event types. We look for text in priority order:
+ * 1. agent_message / message items (the canonical final response)
+ * 2. Any item.completed with text content
+ * 3. turn.completed or response events with content
+ *
+ * Returns concatenated text from all matching events.
+ */
 function extractTextFromCodexJsonl(output: string): string {
   const lines = output.trim().split('\n').filter(Boolean);
   const texts: string[] = [];
@@ -23,9 +41,33 @@ function extractTextFromCodexJsonl(output: string): string {
   for (const line of lines) {
     try {
       const event = JSON.parse(line) as CodexEvent;
-      // Extract text from agent_message items (the actual assistant responses)
-      if (event.type === 'item.completed' && event.item?.type === 'agent_message' && event.item.text) {
+
+      // Priority 1: agent_message or message items
+      if (event.type === 'item.completed' && event.item) {
+        const itemType = event.item.type;
+        if (itemType === 'agent_message' || itemType === 'message') {
+          const text = event.item.text || event.item.content;
+          if (text) texts.push(text);
+          continue;
+        }
+      }
+
+      // Priority 2: Any item.completed with text (reasoning, etc.)
+      if (event.type === 'item.completed' && event.item?.text) {
         texts.push(event.item.text);
+        continue;
+      }
+
+      // Priority 3: Top-level message/response events
+      if ((event.type === 'response' || event.type === 'turn.completed') && event.message) {
+        const text = event.message.content || event.message.text;
+        if (text) texts.push(text);
+        continue;
+      }
+
+      // Priority 4: Direct content on event
+      if (event.type === 'response' && (event.content || event.text)) {
+        texts.push(event.content || event.text || '');
       }
     } catch {
       // Skip malformed lines
