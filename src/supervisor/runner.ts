@@ -115,6 +115,15 @@ async function handlePlan(state: RunState, options: SupervisorOptions): Promise<
     schema: planOutputSchema
   });
   if (!parsed.data) {
+    options.runStore.appendEvent({
+      type: 'parse_failed',
+      source: 'claude',
+      payload: {
+        stage: 'plan',
+        error: parsed.error,
+        output_snippet: snippet(parsed.output)
+      }
+    });
     return stopWithError(state, options, 'plan_parse_failed', parsed.error ?? 'Unknown error');
   }
 
@@ -160,6 +169,15 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
     schema: implementerOutputSchema
   });
   if (!parsed.data) {
+    options.runStore.appendEvent({
+      type: 'parse_failed',
+      source: 'codex',
+      payload: {
+        stage: 'implement',
+        error: parsed.error,
+        output_snippet: snippet(parsed.output)
+      }
+    });
     return stopWithError(state, options, 'implement_parse_failed', parsed.error ?? 'Unknown error');
   }
 
@@ -308,6 +326,15 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
     schema: reviewOutputSchema
   });
   if (!parsed.data) {
+    options.runStore.appendEvent({
+      type: 'parse_failed',
+      source: 'claude',
+      payload: {
+        stage: 'review',
+        error: parsed.error,
+        output_snippet: snippet(parsed.output)
+      }
+    });
     return stopWithError(state, options, 'review_parse_failed', parsed.error ?? 'Unknown error');
   }
 
@@ -409,7 +436,7 @@ async function callClaudeJson<T>(input: {
   repoPath: string;
   command: string;
   schema: z.ZodSchema<T>;
-}): Promise<{ data?: T; error?: string }> {
+}): Promise<{ data?: T; error?: string; output?: string }> {
   const first = await runClaude({
     prompt: input.prompt,
     repo_path: input.repoPath,
@@ -418,10 +445,10 @@ async function callClaudeJson<T>(input: {
   const firstOutput = first.observations.join('\n');
   const firstParsed = parseJsonWithSchema(firstOutput, input.schema);
   if (firstParsed.data) {
-    return { data: firstParsed.data };
+    return { data: firstParsed.data, output: firstOutput };
   }
 
-  const retryPrompt = `${input.prompt}\n\nOutput JSON only between BEGIN_JSON and END_JSON.`;
+  const retryPrompt = `${input.prompt}\n\nOutput JSON only between BEGIN_JSON and END_JSON. No other text.`;
   const retry = await runClaude({
     prompt: retryPrompt,
     repo_path: input.repoPath,
@@ -430,9 +457,12 @@ async function callClaudeJson<T>(input: {
   const retryOutput = retry.observations.join('\n');
   const retryParsed = parseJsonWithSchema(retryOutput, input.schema);
   if (retryParsed.data) {
-    return { data: retryParsed.data };
+    return { data: retryParsed.data, output: retryOutput };
   }
-  return { error: retryParsed.error ?? firstParsed.error ?? 'JSON parse failed' };
+  return {
+    error: retryParsed.error ?? firstParsed.error ?? 'JSON parse failed',
+    output: retryOutput || firstOutput
+  };
 }
 
 async function callCodexJson<T>(input: {
@@ -440,7 +470,7 @@ async function callCodexJson<T>(input: {
   repoPath: string;
   command: string;
   schema: z.ZodSchema<T>;
-}): Promise<{ data?: T; error?: string }> {
+}): Promise<{ data?: T; error?: string; output?: string }> {
   const first = await runCodex({
     prompt: input.prompt,
     repo_path: input.repoPath,
@@ -449,10 +479,10 @@ async function callCodexJson<T>(input: {
   const firstOutput = first.observations.join('\n');
   const firstParsed = parseJsonWithSchema(firstOutput, input.schema);
   if (firstParsed.data) {
-    return { data: firstParsed.data };
+    return { data: firstParsed.data, output: firstOutput };
   }
 
-  const retryPrompt = `${input.prompt}\n\nOutput JSON only between BEGIN_JSON and END_JSON.`;
+  const retryPrompt = `${input.prompt}\n\nOutput JSON only between BEGIN_JSON and END_JSON. No other text.`;
   const retry = await runCodex({
     prompt: retryPrompt,
     repo_path: input.repoPath,
@@ -461,7 +491,21 @@ async function callCodexJson<T>(input: {
   const retryOutput = retry.observations.join('\n');
   const retryParsed = parseJsonWithSchema(retryOutput, input.schema);
   if (retryParsed.data) {
-    return { data: retryParsed.data };
+    return { data: retryParsed.data, output: retryOutput };
   }
-  return { error: retryParsed.error ?? firstParsed.error ?? 'JSON parse failed' };
+  return {
+    error: retryParsed.error ?? firstParsed.error ?? 'JSON parse failed',
+    output: retryOutput || firstOutput
+  };
+}
+
+function snippet(output?: string): string {
+  if (!output) {
+    return '';
+  }
+  const trimmed = output.trim();
+  if (trimmed.length <= 800) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, 800)}...`;
 }

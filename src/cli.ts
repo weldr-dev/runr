@@ -65,8 +65,18 @@ program
 program
   .command('resume')
   .argument('<runId>', 'Run ID')
-  .action(async (runId: string) => {
-    await resumeCommand({ runId });
+  .option('--time <minutes>', 'Time budget in minutes', '120')
+  .option('--max-ticks <count>', 'Max supervisor ticks', '10')
+  .option('--allow-deps', 'Allow lockfile changes', false)
+  .option('--config <path>', 'Path to agent.config.json')
+  .action(async (runId: string, options) => {
+    await resumeCommand({
+      runId,
+      time: Number.parseInt(options.time, 10),
+      maxTicks: Number.parseInt(options.maxTicks, 10),
+      allowDeps: options.allowDeps,
+      config: options.config
+    });
   });
 
 program
