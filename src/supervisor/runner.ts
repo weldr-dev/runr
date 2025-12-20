@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
+import picomatch from 'picomatch';
 import { AgentConfig, WorkerConfig } from '../config/schema.js';
 import { git } from '../repo/git.js';
 import { listChangedFiles } from '../repo/context.js';
 import { RunStore } from '../store/run-store.js';
-import { RunState } from '../types/schemas.js';
+import { Milestone, RunState } from '../types/schemas.js';
 import { buildImplementPrompt, buildPlanPrompt, buildReviewPrompt } from '../workers/prompts.js';
 import { runClaude } from '../workers/claude.js';
 import { runCodex } from '../workers/codex.js';
@@ -129,6 +130,23 @@ async function handlePlan(state: RunState, options: SupervisorOptions): Promise<
   }
 
   const plan = parsed.data;
+
+  // Sanity check: all files_expected must be within allowlist
+  const scopeViolations = validateFilesExpected(plan.milestones, state.scope_lock.allowlist);
+  if (scopeViolations.length > 0) {
+    options.runStore.appendEvent({
+      type: 'plan_scope_violation',
+      source: 'supervisor',
+      payload: { violations: scopeViolations }
+    });
+    return stopWithError(
+      state,
+      options,
+      'plan_scope_violation',
+      `Planner produced files_expected outside allowlist: ${scopeViolations.join(', ')}`
+    );
+  }
+
   const updated: RunState = {
     ...state,
     milestones: plan.milestones
@@ -364,23 +382,24 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
   if (!milestone) {
     return stopWithError(state, options, 'milestone_missing', 'No milestone found.');
   }
+
+  // Intent-to-add untracked files so git diff shows their content
+  // This makes review see actual file contents, not just "untracked: foo.ts"
+  await git(['add', '-N', '.'], options.repoPath);
+
   const diffSummary = await git(['diff', '--stat'], options.repoPath);
-  // Also get untracked files for greenfield scenarios
-  const statusResult = await git(['status', '--porcelain'], options.repoPath);
-  const untrackedFiles = statusResult.stdout
-    .split('\n')
-    .filter((line) => line.startsWith('??'))
-    .map((line) => line.slice(3).trim())
-    .filter((f) => f.length > 0);
-  const untrackedInfo =
-    untrackedFiles.length > 0 ? `Untracked new files: ${untrackedFiles.join(', ')}` : '';
+  const diffContent = await git(['diff'], options.repoPath);
+  // Truncate diff content to avoid overwhelming the reviewer
+  const truncatedDiff = diffContent.stdout.length > 8000
+    ? diffContent.stdout.slice(0, 8000) + '\n... (truncated)'
+    : diffContent.stdout;
 
   const verifyLogPath = path.join(options.runStore.path, 'artifacts', 'tests_tier0.log');
   const verificationOutput = fs.existsSync(verifyLogPath)
     ? fs.readFileSync(verifyLogPath, 'utf-8')
     : '';
 
-  const combinedDiff = [diffSummary.stdout.trim(), untrackedInfo].filter(Boolean).join('\n');
+  const combinedDiff = [diffSummary.stdout.trim(), '', truncatedDiff].filter(Boolean).join('\n');
   const prompt = buildReviewPrompt({
     milestone,
     diffSummary: combinedDiff,
@@ -582,4 +601,23 @@ function snippet(output?: string): string {
     return trimmed;
   }
   return `${trimmed.slice(0, 800)}...`;
+}
+
+/**
+ * Validate that all files_expected in milestones are within the allowlist.
+ * Returns array of violating file paths.
+ */
+function validateFilesExpected(milestones: Milestone[], allowlist: string[]): string[] {
+  const matchers = allowlist.map((pattern) => picomatch(pattern));
+  const violations: string[] = [];
+  for (const milestone of milestones) {
+    const files = milestone.files_expected ?? [];
+    for (const file of files) {
+      const inScope = matchers.some((match) => match(file));
+      if (!inScope) {
+        violations.push(file);
+      }
+    }
+  }
+  return violations;
 }
