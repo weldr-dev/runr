@@ -35,10 +35,12 @@ export function buildImplementPrompt(input: {
   };
 }): string {
   const template = loadTemplate('implementer.md');
+  const filesExpected = input.milestone.files_expected ?? [];
   const lines = [
     template,
     '',
     `Milestone goal: ${input.milestone.goal}`,
+    `Files to create/modify: ${filesExpected.length > 0 ? filesExpected.join(', ') : '(infer from goal)'}`,
     `Done checks: ${input.milestone.done_checks.join('; ')}`,
     `Scope allowlist: ${input.scopeAllowlist.join(', ') || 'none'}`,
     `Scope denylist: ${input.scopeDenylist.join(', ') || 'none'}`,
@@ -82,13 +84,15 @@ export function buildReviewPrompt(input: {
   verificationOutput: string;
 }): string {
   const template = loadTemplate('reviewer.md');
+  const filesExpected = input.milestone.files_expected ?? [];
   return [
     template,
     '',
     `Milestone goal: ${input.milestone.goal}`,
+    `Files expected: ${filesExpected.length > 0 ? filesExpected.join(', ') : '(infer from goal)'}`,
     `Done checks: ${input.milestone.done_checks.join('; ')}`,
     '',
-    'Diff summary:',
+    'Diff summary (includes untracked new files):',
     input.diffSummary || '(no diff)',
     '',
     'Verification output:',

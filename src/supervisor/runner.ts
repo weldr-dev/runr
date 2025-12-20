@@ -365,14 +365,25 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
     return stopWithError(state, options, 'milestone_missing', 'No milestone found.');
   }
   const diffSummary = await git(['diff', '--stat'], options.repoPath);
+  // Also get untracked files for greenfield scenarios
+  const statusResult = await git(['status', '--porcelain'], options.repoPath);
+  const untrackedFiles = statusResult.stdout
+    .split('\n')
+    .filter((line) => line.startsWith('??'))
+    .map((line) => line.slice(3).trim())
+    .filter((f) => f.length > 0);
+  const untrackedInfo =
+    untrackedFiles.length > 0 ? `Untracked new files: ${untrackedFiles.join(', ')}` : '';
+
   const verifyLogPath = path.join(options.runStore.path, 'artifacts', 'tests_tier0.log');
   const verificationOutput = fs.existsSync(verifyLogPath)
     ? fs.readFileSync(verifyLogPath, 'utf-8')
     : '';
 
+  const combinedDiff = [diffSummary.stdout.trim(), untrackedInfo].filter(Boolean).join('\n');
   const prompt = buildReviewPrompt({
     milestone,
-    diffSummary: diffSummary.stdout.trim(),
+    diffSummary: combinedDiff,
     verificationOutput
   });
 
