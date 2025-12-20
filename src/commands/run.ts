@@ -88,7 +88,9 @@ export async function runCommand(options: RunOptions): Promise<void> {
   const taskText = fs.readFileSync(taskPath, 'utf-8');
 
   // Run doctor checks unless skipped
-  if (!options.skipDoctor) {
+  if (options.skipDoctor) {
+    console.warn('WARNING: Skipping worker health checks (--skip-doctor)');
+  } else {
     const doctorChecks = await runDoctorChecks(config, repoPath);
     const failedChecks = doctorChecks.filter((c) => c.error);
     if (failedChecks.length > 0) {

@@ -33,11 +33,14 @@ Key options:
 - `--no-write`: skip run artifacts and skip supervisor loop.
 - `--dry-run`: write run artifacts but do not execute supervisor.
 - `--max-ticks <count>`: supervisor phase ticks to run (default: 10).
+- `--skip-doctor`: skip worker health checks (useful for CI or custom setups).
 - `--web`: recorded in run metadata; not used by the current loop.
 
 Notes:
+- Worker health checks (doctor) run by default before the supervisor loop starts.
 - Guard violations stop the run before branch checkout.
 - The summary line includes `run_id=...` and `run_dir=...` for follow-up commands.
+- An environment fingerprint is saved to `runs/<id>/env.fingerprint.json` capturing node version, lockfile hash, and worker versions.
 
 ## agent-run guards-only
 Runs preflight guard checks without executing the supervisor loop.
@@ -78,9 +81,12 @@ Options:
 - `--max-ticks <count>`
 - `--allow-deps`
 - `--config <path>`
+- `--force`: resume despite environment fingerprint mismatch.
 
 Notes:
 - Prefers `config.snapshot.json` from the run store when present.
+- Compares the current environment against the saved fingerprint (`env.fingerprint.json`).
+- If the fingerprint differs (node version, lockfile hash, worker versions), resume is blocked unless `--force` is used.
 
 ## agent-run status
 Prints the current run state as JSON.

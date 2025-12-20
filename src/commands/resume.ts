@@ -64,7 +64,7 @@ export async function resumeCommand(options: ResumeOptions): Promise<void> {
         process.exitCode = 1;
         return;
       }
-      console.warn('\nContinuing with --force flag...\n');
+      console.warn('\nWARNING: Forcing resume despite environment mismatch (--force)\n');
     }
   }
 

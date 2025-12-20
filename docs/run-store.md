@@ -16,6 +16,7 @@ runs/<run_id>/
     milestone_01_review.md
     stop.md
   config.snapshot.json
+  env.fingerprint.json
   plan.md
   seq.txt
   state.json
@@ -26,6 +27,7 @@ runs/<run_id>/
 ## Key files
 - `state.json`: current phase, milestone index, timestamps, and stop reason.
 - `timeline.jsonl`: append-only event log with `seq` and `timestamp`.
+- `env.fingerprint.json`: environment snapshot (node version, lockfile hash, worker versions) for resume safety.
 - `plan.md`: JSON-serialized plan output.
 - `summary.md`: final summary or guard-violation summary.
 - `handoffs/*.md`: implementer and reviewer memos, plus `stop.md`.
