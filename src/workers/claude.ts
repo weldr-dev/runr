@@ -34,7 +34,7 @@ export async function runClaude(input: WorkerRunInput): Promise<WorkerResult> {
     return {
       status: 'failed',
       commands_run: [input.command],
-      observations: [output]
+      observations: [output ?? 'Claude command failed']
     };
   }
 }

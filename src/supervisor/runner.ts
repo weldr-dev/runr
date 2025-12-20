@@ -10,9 +10,6 @@ import { buildImplementPrompt, buildPlanPrompt, buildReviewPrompt } from '../wor
 import { runClaude } from '../workers/claude.js';
 import { runCodex } from '../workers/codex.js';
 import {
-  ImplementerOutput,
-  PlanOutput,
-  ReviewOutput,
   implementerOutputSchema,
   planOutputSchema,
   reviewOutputSchema
@@ -108,7 +105,7 @@ async function handlePlan(state: RunState, options: SupervisorOptions): Promise<
   });
 
   const prompt = buildPlanPrompt(options.taskText);
-  const parsed = await callClaudeJson<PlanOutput>({
+  const parsed = await callClaudeJson({
     prompt,
     repoPath: options.repoPath,
     command: options.config.commands.claude,
@@ -164,7 +161,7 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
     allowDeps: options.allowDeps
   });
 
-  const parsed = await callCodexJson<ImplementerOutput>({
+  const parsed = await callCodexJson({
     prompt,
     repoPath: options.repoPath,
     command: options.config.commands.codex,
@@ -323,7 +320,7 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
     verificationOutput
   });
 
-  const parsed = await callClaudeJson<ReviewOutput>({
+  const parsed = await callClaudeJson({
     prompt,
     repoPath: options.repoPath,
     command: options.config.commands.claude,
@@ -437,12 +434,12 @@ function writeStopMemo(runStore: RunStore, content: string): void {
   runStore.writeMemo('stop.md', content);
 }
 
-async function callClaudeJson<T>(input: {
+async function callClaudeJson<S extends z.ZodTypeAny>(input: {
   prompt: string;
   repoPath: string;
   command: string;
-  schema: z.ZodSchema<T>;
-}): Promise<{ data?: T; error?: string; output?: string; retry_count?: number }> {
+  schema: S;
+}): Promise<{ data?: z.infer<S>; error?: string; output?: string; retry_count?: number }> {
   const first = await runClaude({
     prompt: input.prompt,
     repo_path: input.repoPath,
@@ -472,12 +469,12 @@ async function callClaudeJson<T>(input: {
   };
 }
 
-async function callCodexJson<T>(input: {
+async function callCodexJson<S extends z.ZodTypeAny>(input: {
   prompt: string;
   repoPath: string;
   command: string;
-  schema: z.ZodSchema<T>;
-}): Promise<{ data?: T; error?: string; output?: string; retry_count?: number }> {
+  schema: S;
+}): Promise<{ data?: z.infer<S>; error?: string; output?: string; retry_count?: number }> {
   const first = await runCodex({
     prompt: input.prompt,
     repo_path: input.repoPath,

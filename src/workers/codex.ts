@@ -39,7 +39,7 @@ export async function runCodex(input: WorkerRunInput): Promise<WorkerResult> {
     return {
       status: 'failed',
       commands_run: [input.command],
-      observations: [output]
+      observations: [output ?? 'Codex command failed']
     };
   }
 }
