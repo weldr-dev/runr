@@ -22,6 +22,13 @@ export interface Milestone {
   risk_level: RiskLevel;
 }
 
+export interface VerifyFailure {
+  failedCommand: string;
+  errorOutput: string;
+  changedFiles: string[];
+  tier: VerificationTier;
+}
+
 export interface RunState {
   run_id: string;
   repo_path: string;
@@ -37,6 +44,8 @@ export interface RunState {
   risk_score: number;
   last_error?: string;
   retries: number;
+  milestone_retries: number;
+  last_verify_failure?: VerifyFailure;
   checkpoint_commit_sha?: string;
   last_successful_phase?: Phase;
   resume_token?: string;

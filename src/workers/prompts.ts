@@ -27,22 +27,53 @@ export function buildImplementPrompt(input: {
   scopeAllowlist: string[];
   scopeDenylist: string[];
   allowDeps: boolean;
+  fixInstructions?: {
+    failedCommand: string;
+    errorOutput: string;
+    changedFiles: string[];
+    attemptNumber: number;
+  };
 }): string {
   const template = loadTemplate('implementer.md');
-  return [
+  const lines = [
     template,
     '',
     `Milestone goal: ${input.milestone.goal}`,
     `Done checks: ${input.milestone.done_checks.join('; ')}`,
     `Scope allowlist: ${input.scopeAllowlist.join(', ') || 'none'}`,
     `Scope denylist: ${input.scopeDenylist.join(', ') || 'none'}`,
-    `Allow deps: ${input.allowDeps ? 'yes' : 'no'}`,
+    `Allow deps: ${input.allowDeps ? 'yes' : 'no'}`
+  ];
+
+  if (input.fixInstructions) {
+    lines.push(
+      '',
+      '## FIX REQUIRED (Attempt ' + input.fixInstructions.attemptNumber + ')',
+      '',
+      'The previous implementation failed verification. Fix the error below.',
+      '',
+      `Failed command: ${input.fixInstructions.failedCommand}`,
+      '',
+      'Error output:',
+      '```',
+      input.fixInstructions.errorOutput.slice(0, 2000),
+      '```',
+      '',
+      `Changed files: ${input.fixInstructions.changedFiles.join(', ') || 'none'}`,
+      '',
+      'Fix the error and ensure all done_checks pass.'
+    );
+  }
+
+  lines.push(
     '',
     'Output JSON between markers:',
     'BEGIN_JSON',
     '{"status": "ok", "handoff_memo": "...", "commands_run": [], "observations": []}',
     'END_JSON'
-  ].join('\n');
+  );
+
+  return lines.join('\n');
 }
 
 export function buildReviewPrompt(input: {

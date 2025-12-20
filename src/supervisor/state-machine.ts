@@ -24,6 +24,7 @@ export function createInitialState(input: InitStateInput): RunState {
     },
     risk_score: 0,
     retries: 0,
+    milestone_retries: 0,
     resume_token: input.run_id,
     phase_started_at: now,
     phase_attempt: 0,

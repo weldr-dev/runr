@@ -20,6 +20,8 @@ import { commandsForTier, selectTiersWithReasons } from './verification-policy.j
 import { runVerification } from '../verification/engine.js';
 import { stopRun, updatePhase } from './state-machine.js';
 
+const MAX_MILESTONE_RETRIES = 3;
+
 export interface SupervisorOptions {
   runStore: RunStore;
   repoPath: string;
@@ -158,7 +160,15 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
     milestone,
     scopeAllowlist: state.scope_lock.allowlist,
     scopeDenylist: state.scope_lock.denylist,
-    allowDeps: options.allowDeps
+    allowDeps: options.allowDeps,
+    fixInstructions: state.last_verify_failure
+      ? {
+          failedCommand: state.last_verify_failure.failedCommand,
+          errorOutput: state.last_verify_failure.errorOutput,
+          changedFiles: state.last_verify_failure.changedFiles,
+          attemptNumber: state.milestone_retries + 1
+        }
+      : undefined
   });
 
   const parsed = await callCodexJson({
@@ -281,7 +291,47 @@ async function handleVerify(state: RunState, options: SupervisorOptions): Promis
     });
 
     if (!verifyResult.ok) {
-      return stopWithError(state, options, 'verification_failed', verifyResult.output);
+      // Check if we've exceeded retry limit
+      if (state.milestone_retries >= MAX_MILESTONE_RETRIES) {
+        options.runStore.appendEvent({
+          type: 'verify_failed_max_retries',
+          source: 'verifier',
+          payload: {
+            tier,
+            retries: state.milestone_retries,
+            max_retries: MAX_MILESTONE_RETRIES
+          }
+        });
+        return stopWithError(state, options, 'verification_failed_max_retries', verifyResult.output);
+      }
+
+      // Record failure and retry
+      const changedFiles = await listChangedFiles(options.repoPath);
+      const failedCommand = commands.join(' && ');
+
+      options.runStore.appendEvent({
+        type: 'verify_failed_retry',
+        source: 'verifier',
+        payload: {
+          tier,
+          failed_command: failedCommand,
+          retry_count: state.milestone_retries + 1,
+          max_retries: MAX_MILESTONE_RETRIES
+        }
+      });
+
+      const updated: RunState = {
+        ...state,
+        milestone_retries: state.milestone_retries + 1,
+        last_verify_failure: {
+          failedCommand,
+          errorOutput: verifyResult.output,
+          changedFiles,
+          tier
+        }
+      };
+
+      return updatePhase(updated, 'IMPLEMENT');
     }
   }
 
@@ -294,7 +344,13 @@ async function handleVerify(state: RunState, options: SupervisorOptions): Promis
     }
   });
 
-  return updatePhase(state, 'REVIEW');
+  // Clear verify failure on success
+  const cleared: RunState = {
+    ...state,
+    last_verify_failure: undefined
+  };
+
+  return updatePhase(cleared, 'REVIEW');
 }
 
 async function handleReview(state: RunState, options: SupervisorOptions): Promise<RunState> {
@@ -378,7 +434,9 @@ async function handleCheckpoint(state: RunState, options: SupervisorOptions): Pr
   const updated: RunState = {
     ...state,
     checkpoint_commit_sha: shaResult.stdout.trim(),
-    milestone_index: nextIndex
+    milestone_index: nextIndex,
+    milestone_retries: 0,
+    last_verify_failure: undefined
   };
 
   options.runStore.appendEvent({
