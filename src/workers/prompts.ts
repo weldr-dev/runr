@@ -7,17 +7,23 @@ function loadTemplate(name: string): string {
   return fs.readFileSync(target, 'utf-8');
 }
 
-export function buildPlanPrompt(taskText: string): string {
+export function buildPlanPrompt(input: {
+  taskText: string;
+  scopeAllowlist: string[];
+}): string {
   const template = loadTemplate('planner.md');
   return [
     template,
     '',
+    `Scope allowlist: ${input.scopeAllowlist.join(', ')}`,
+    '(All files_expected paths must match one of these patterns)',
+    '',
     'Task:',
-    taskText,
+    input.taskText,
     '',
     'Output JSON between markers:',
     'BEGIN_JSON',
-    '{"milestones": [{"goal": "...", "done_checks": ["..."], "risk_level": "medium"}], "risk_map": ["..."], "do_not_touch": ["..."]}',
+    '{"milestones": [{"goal": "...", "files_expected": ["..."], "done_checks": ["..."], "risk_level": "medium"}], "risk_map": ["..."], "do_not_touch": ["..."]}',
     'END_JSON'
   ].join('\n');
 }

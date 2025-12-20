@@ -107,7 +107,10 @@ async function handlePlan(state: RunState, options: SupervisorOptions): Promise<
     payload: { phase: 'PLAN' }
   });
 
-  const prompt = buildPlanPrompt(options.taskText);
+  const prompt = buildPlanPrompt({
+    taskText: options.taskText,
+    scopeAllowlist: state.scope_lock.allowlist
+  });
   const parsed = await callClaudeJson({
     prompt,
     repoPath: options.repoPath,
