@@ -21,7 +21,7 @@ Align the roadmap around a “compiler + runtime” mindset: prioritize determin
 - Parse failure rate per 100 worker calls.
 - Retry rate (verification + parse + review rejection loops).
 - Human intervention rate (manual edits or manual re-runs).
-- Determinism check: identical seed + task yields identical test outcomes and same planned file paths.
+- Determinism check: identical seed + task yields identical test outcomes and identical planned file paths (exact code diffs may vary, but must satisfy the same tests and structure).
 - Governance violations per run (target: 0).
 
 ## KPI guardrail
@@ -48,6 +48,16 @@ Align the roadmap around a “compiler + runtime” mindset: prioritize determin
 ## Scope
 - In: supervisor loop, verification policy, report summaries, worker adapters/parsers, prompts/schemas, run-store artifacts, docs, fixture tasks.
 - Out: parallel execution, web UI, multi-agent orchestration.
+
+## Governance boundaries
+### Framework edit definition
+A framework edit is any modification to:
+- src/** (excluding tasks, templates, and docs)
+- templates/**
+- docs/**
+- package.json or lockfiles in the runner repo
+
+Any run that requires a framework edit must stop with `framework_fix_needed`.
 
 ## Files and entry points
 - `src/supervisor/runner.ts`
@@ -108,6 +118,11 @@ Align the roadmap around a “compiler + runtime” mindset: prioritize determin
 - Review skip always logs `review_skipped_reason` in the timeline.
 - Explore phase enforces no writes (temp worktree or write sandbox) and blocks git mutations.
 
+### Initial thresholds (provisional defaults)
+- Small diff: <= 5 files AND <= 300 LOC (added + removed).
+- tier0_fast eligibility requires the last 3 runs green on the same repo.
+- Thresholds are configuration defaults and may be overridden per repo.
+
 ## Throughput strategy
 - Known dominant cost centers: LLM latency (planner + implementer), verification runtime, review loop retries.
 - Throughput gains must reduce round-trips, not just milliseconds.
@@ -150,3 +165,6 @@ Align the roadmap around a “compiler + runtime” mindset: prioritize determin
 - What size/LOC thresholds define “small diff” for auto-approve and tier0_fast gating?
 - Which tier0_fast commands are viable across typical target repos?
 - What baseline KPI targets should be set after initial data collection?
+
+## Roadmap exit criteria
+When P1 is complete and KPIs are stable for golden paths, further work should be driven by product needs rather than framework completeness.
