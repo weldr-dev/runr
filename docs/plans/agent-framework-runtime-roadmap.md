@@ -156,54 +156,30 @@ Any run that requires a framework edit must stop with `framework_fix_needed`.
 ## Decisions
 - Explore default: ON for greenfield tasks, OFF for incremental changes.
 
-## 7-day execution plan
-### Day 1 - Worker contract hardening
-- Make Codex JSONL parsing fully event-type tolerant.
-- Persist canonical transcripts for every worker call.
-- Size-cap raw output artifacts.
-- Upgrade doctor to validate output format, marker presence, and contract version.
-- Exit: no parse failures on fixture runs.
+## 4-day execution plan
+### Day 1 - Protocol + governance (P0)
+- Worker contract hardening: event-type tolerant JSONL parsing, canonical transcript, raw output size cap.
+- Doctor upgrades: output format checks, marker checks, contract version capture.
+- Governance enforcement: block runner repo edits; enforce allowed roots when shared; implement `framework_fix_needed` stop reason + memo.
+- Exit: fixture runs show no parse failures and any framework edit attempt stops cleanly.
 
-### Day 2 - Governance enforcement
-- Hard-block runner repo edits.
-- Enforce allowed roots when repo is shared.
-- Implement `framework_fix_needed` stop reason + memo.
-- Add tests for governance violations.
-- Exit: any framework-touching task stops cleanly.
+### Day 2 - KPI instrumentation + report
+- Add timing + counts to `state.json` and summary.
+- Surface KPIs in `report` (worker time, verify time by tier, retries, diff size, review skip reasons).
+- Baseline run on a golden task to validate metrics wiring.
+- Exit: KPIs visible per run without manual aggregation.
 
-### Day 3 - KPI instrumentation
-- Add timing + counts to `state.json`.
-- Surface KPIs in `report`.
-- Capture worker time, verification time, retries, diff size, review skip reasons.
-- Exit: KPIs visible per run with no manual aggregation.
-
-### Day 4 - Ambiguous bootstrap validation
+### Day 3 - Proof run + targets
 - Run ambiguous bootstrap 3x on main.
 - No framework edits.
-- Record baseline metrics and confirm KPI targets.
-- Exit: repeatable success with locked targets.
+- Capture and lock KPI baselines (confirm targets in plan).
+- Exit: repeatable success with validated targets.
 
-### Day 5 - Throughput wins (safe)
-- Implement `tier0_fast`.
-- Prompt trimming (goal + files_expected only).
-- Reduce review payload size.
-- Add reviewer auto-approve (strict guardrails).
-- Exit: measurable speedup with no reliability loss.
-
-### Day 6 - Explore phase
-- Implement read-only Explore.
-- Enforce no writes (sandbox or temp worktree).
-- Surface assumptions + inferred structure.
-- Default ON for greenfield tasks.
-- Exit: cleaner plans and fewer retries.
-
-### Day 7 - Regression + polish
-- Formal golden/hostile suite.
-- Regression rubric enforcement.
-- Docs alignment.
-- Branch cleanup.
-- Cut a runtime v0.1 tag.
-- Exit: stable, explainable, shippable system.
+### Day 4 - Safe throughput wins
+- Implement `tier0_fast` gating (per-repo defaults + thresholds).
+- Prompt trimming (goal + files_expected + minimal diff) and reduce review payload size.
+- Reviewer auto-approve with strict guardrails + `review_skipped_reason`.
+- Exit: measurable speedup without higher retry or parse failure rates.
 
 ## Action items
 [ ] Harden worker protocol: event-type tolerant JSONL parsing, canonical transcript, raw output capture, and doctor contract checks with actionable errors.
