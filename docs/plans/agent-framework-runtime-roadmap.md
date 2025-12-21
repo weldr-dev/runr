@@ -156,30 +156,47 @@ Any run that requires a framework edit must stop with `framework_fix_needed`.
 ## Decisions
 - Explore default: ON for greenfield tasks, OFF for incremental changes.
 
-## 4-day execution plan
-### Day 1 - Protocol + governance (P0)
-- Worker contract hardening: event-type tolerant JSONL parsing, canonical transcript, raw output size cap.
-- Doctor upgrades: output format checks, marker checks, contract version capture.
-- Governance enforcement: block runner repo edits; enforce allowed roots when shared; implement `framework_fix_needed` stop reason + memo.
-- Exit: fixture runs show no parse failures and any framework edit attempt stops cleanly.
+## 3-day execution plan
+### Day 1 - Protocol + governance foundation (P0)
+- Worker contract hardening:
+  - Normalize transcripts (raw lines, parsed events, extracted text, markers JSON).
+  - Make Codex JSONL parsing event-type tolerant and keep canonical output for every call.
+  - Size-cap raw output artifacts and record the cap in metadata.
+- Doctor upgrades:
+  - Validate output format and marker-only compliance.
+  - Record worker contract version and CLI versions in env fingerprint.
+- Governance enforcement:
+  - Block runner repo edits.
+  - Enforce allowed roots when repo is shared.
+  - Implement `framework_fix_needed` stop reason + memo with explicit triggers.
+  - Add tests for governance violations.
+- KPI instrumentation (foundation only):
+  - Capture phase timings, worker call counts, parse failures, retry counts, and diff size in `state.json`.
+- Exit: fixture runs show no parse failures, governance violations stop cleanly, and baseline KPI fields are recorded.
 
-### Day 2 - KPI instrumentation + report
-- Add timing + counts to `state.json` and summary.
-- Surface KPIs in `report` (worker time, verify time by tier, retries, diff size, review skip reasons).
-- Baseline run on a golden task to validate metrics wiring.
-- Exit: KPIs visible per run without manual aggregation.
+### Day 2 - KPI reporting + proof runs
+- KPI reporting:
+  - Surface KPIs in `report` (worker time, verify time by tier, retries, diff size, review skip reasons).
+  - Add a short summary section to `summary.md`.
+- Baseline golden run:
+  - Run a golden task and confirm KPI fields are populated.
+  - Adjust KPI targets only if baseline data is materially off.
+- Ambiguous bootstrap validation:
+  - Run ambiguous bootstrap 3x on main.
+  - Confirm zero framework edits and no manual intervention.
+- Exit: KPIs visible per run without manual aggregation and ambiguous bootstrap succeeds 3x with clean artifacts.
 
-### Day 3 - Proof run + targets
-- Run ambiguous bootstrap 3x on main.
-- No framework edits.
-- Capture and lock KPI baselines (confirm targets in plan).
-- Exit: repeatable success with validated targets.
-
-### Day 4 - Safe throughput wins
-- Implement `tier0_fast` gating (per-repo defaults + thresholds).
-- Prompt trimming (goal + files_expected + minimal diff) and reduce review payload size.
-- Reviewer auto-approve with strict guardrails + `review_skipped_reason`.
-- Exit: measurable speedup without higher retry or parse failure rates.
+### Day 3 - Safe throughput wins + validation
+- Throughput optimizations:
+  - Implement `tier0_fast` gating (per-repo defaults + thresholds + last N green runs).
+  - Prompt trimming (goal + files_expected + minimal diff) and reduce review payload size.
+  - Reviewer auto-approve with strict guardrails + `review_skipped_reason`.
+- Validation pass:
+  - Re-run a golden task and one ambiguous run to verify KPIs improve or hold steady.
+  - Confirm parse failure and retry rates do not regress.
+- Docs alignment:
+  - Align worker execution mode documentation with actual behavior (shell vs direct invocation).
+- Exit: measurable speedup with no regression in reliability KPIs.
 
 ## Action items
 [ ] Harden worker protocol: event-type tolerant JSONL parsing, canonical transcript, raw output capture, and doctor contract checks with actionable errors.
