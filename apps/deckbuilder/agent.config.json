@@ -19,7 +19,7 @@
     "lockfiles": ["package-lock.json", "pnpm-lock.yaml", "yarn.lock"]
   },
   "verification": {
-    "tier0": ["npm run lint", "npm run typecheck", "npm run test"],
+    "tier0": ["cd apps/deckbuilder && npm run lint && npm run typecheck && npm test"],
     "tier1": [],
     "tier2": [],
     "risk_triggers": [
