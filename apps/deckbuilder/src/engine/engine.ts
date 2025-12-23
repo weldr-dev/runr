@@ -18,7 +18,8 @@ export function createInitialState(seed: number): GameState {
       hp: 30,
       intent: 'attack',
       damage: 6
-    }
+    },
+    actionLog: []
   };
 }
 
@@ -85,19 +86,22 @@ function enemyTurn(state: GameState): GameState {
 }
 
 export function step(state: GameState, action: Action): GameState {
+  let nextState = state;
   switch (action.type) {
     case 'draw':
-      return drawCard(state);
+      nextState = drawCard(state);
+      break;
     case 'play_card': {
       const card = state.player.hand.find((handCard) => handCard.id === action.cardId);
       if (!card) {
-        return state;
+        break;
       }
-      return playCard(state, card);
+      nextState = playCard(state, card);
+      break;
     }
     case 'end_turn': {
       const afterEnemy = enemyTurn(state);
-      return {
+      nextState = {
         ...afterEnemy,
         turn: afterEnemy.turn + 1,
         player: {
@@ -106,10 +110,15 @@ export function step(state: GameState, action: Action): GameState {
           hand: []
         }
       };
+      break;
     }
     default:
-      return state;
+      break;
   }
+  return {
+    ...nextState,
+    actionLog: [...state.actionLog, action]
+  };
 }
 
 export type { Action } from './types';

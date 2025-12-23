@@ -29,6 +29,7 @@ export interface GameState {
   rng: RNGState;
   player: Player;
   enemy: Enemy;
+  actionLog: Action[];
 }
 
 export type Action =
