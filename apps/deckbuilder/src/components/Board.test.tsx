@@ -211,5 +211,164 @@ describe('Board', () => {
       const html = renderToString(<Card card={card} playerEnergy={3} disabled={true} />);
       expect(html).toContain('Actions locked');
     });
+
+    it('renders as button when onPlay is provided for playable card', () => {
+      const card = createTestCard({ cost: 1 });
+      const mockOnPlay = () => {};
+      const html = renderToString(<Card card={card} playerEnergy={3} onPlay={mockOnPlay} />);
+      expect(html).toContain('role="button"');
+      expect(html).toContain('aria-disabled="false"');
+    });
+
+    it('renders as disabled button when card is not playable', () => {
+      const card = createTestCard({ cost: 5 });
+      const mockOnPlay = () => {};
+      const html = renderToString(<Card card={card} playerEnergy={2} onPlay={mockOnPlay} />);
+      expect(html).toContain('role="button"');
+      expect(html).toContain('aria-disabled="true"');
+    });
+
+    it('renders as disabled button when actions are locked', () => {
+      const card = createTestCard({ cost: 1 });
+      const mockOnPlay = () => {};
+      const html = renderToString(<Card card={card} playerEnergy={3} onPlay={mockOnPlay} disabled={true} />);
+      expect(html).toContain('role="button"');
+      expect(html).toContain('aria-disabled="true"');
+    });
+
+    it('does not render role=button when onPlay is not provided', () => {
+      const card = createTestCard({ cost: 1 });
+      const html = renderToString(<Card card={card} playerEnergy={3} />);
+      expect(html).not.toContain('role="button"');
+    });
+  });
+
+  describe('Card Play Interaction', () => {
+    function createTestCard(overrides: Partial<CardData> = {}): CardData {
+      return {
+        id: 'test-card-1',
+        name: 'Test Strike',
+        cost: 2,
+        damage: 8,
+        ...overrides,
+      };
+    }
+
+    it('playable card renders with interactive attributes for click handling', () => {
+      const card = createTestCard({ id: 'card-abc', cost: 1 });
+      const mockOnPlay = () => {};
+      const html = renderToString(<Card card={card} playerEnergy={3} onPlay={mockOnPlay} />);
+      // Verify card is marked as interactive (button role, not disabled)
+      expect(html).toContain('role="button"');
+      expect(html).toContain('aria-disabled="false"');
+      expect(html).toContain('tabindex="0"');
+    });
+
+    it('unplayable card renders without interactive attributes', () => {
+      const card = createTestCard({ id: 'card-xyz', cost: 5 });
+      const mockOnPlay = () => {};
+      const html = renderToString(<Card card={card} playerEnergy={2} onPlay={mockOnPlay} />);
+      // Card should be marked as disabled (not interactive)
+      expect(html).toContain('aria-disabled="true"');
+      // Should not have tabindex for keyboard focus since it's not interactive
+      expect(html).not.toContain('tabindex="0"');
+    });
+  });
+
+  describe('State Updates', () => {
+    it('reflects updated player HP after damage', () => {
+      const enemy = createTestEnemy();
+
+      // Initial state
+      const playerBefore = createTestPlayer({ hp: 50 });
+      const htmlBefore = renderToString(<Board player={playerBefore} enemy={enemy} />);
+      expect(htmlBefore).toContain('>50<');
+
+      // After taking damage
+      const playerAfter = createTestPlayer({ hp: 38 });
+      const htmlAfter = renderToString(<Board player={playerAfter} enemy={enemy} />);
+      expect(htmlAfter).toContain('>38<');
+      expect(htmlAfter).not.toContain('>50<');
+    });
+
+    it('reflects updated enemy HP after attack', () => {
+      const player = createTestPlayer();
+
+      // Initial state
+      const enemyBefore = createTestEnemy({ hp: 40 });
+      const htmlBefore = renderToString(<Board player={player} enemy={enemyBefore} />);
+      expect(htmlBefore).toContain('HP:');
+      expect(htmlBefore).toContain('40');
+
+      // After dealing damage
+      const enemyAfter = createTestEnemy({ hp: 34 });
+      const htmlAfter = renderToString(<Board player={player} enemy={enemyAfter} />);
+      expect(htmlAfter).toContain('34');
+    });
+
+    it('reflects card moving from hand to discard after play', () => {
+      const enemy = createTestEnemy();
+
+      // Before playing card - 2 cards in hand, 1 in discard
+      const playerBefore = createTestPlayer({
+        hand: [
+          { id: 'h1', name: 'Strike', cost: 1, damage: 6 },
+          { id: 'h2', name: 'Defend', cost: 1, damage: 0 },
+        ],
+        discard: [
+          { id: 'd1', name: 'Bash', cost: 2, damage: 8 },
+        ],
+        energy: 3,
+      });
+      const htmlBefore = renderToString(<Board player={playerBefore} enemy={enemy} />);
+      expect(htmlBefore).toContain('Strike');
+      expect(htmlBefore).toContain('Defend');
+      expect(htmlBefore).toContain('>1<'); // discard count
+
+      // After playing Strike - 1 card in hand, 2 in discard
+      const playerAfter = createTestPlayer({
+        hand: [
+          { id: 'h2', name: 'Defend', cost: 1, damage: 0 },
+        ],
+        discard: [
+          { id: 'd1', name: 'Bash', cost: 2, damage: 8 },
+          { id: 'h1', name: 'Strike', cost: 1, damage: 6 },
+        ],
+        energy: 2,
+      });
+      const htmlAfter = renderToString(<Board player={playerAfter} enemy={enemy} />);
+      expect(htmlAfter).toContain('Defend');
+      expect(htmlAfter).toContain('>2<'); // updated discard count
+    });
+
+    it('reflects energy decrease after playing a card', () => {
+      const enemy = createTestEnemy();
+
+      // Before: 3 energy
+      const playerBefore = createTestPlayer({ energy: 3 });
+      const htmlBefore = renderToString(<Board player={playerBefore} enemy={enemy} />);
+      expect(htmlBefore).toContain('Energy');
+      expect(htmlBefore).toContain('>3<');
+
+      // After playing 1-cost card: 2 energy
+      const playerAfter = createTestPlayer({ energy: 2 });
+      const htmlAfter = renderToString(<Board player={playerAfter} enemy={enemy} />);
+      expect(htmlAfter).toContain('>2<');
+    });
+
+    it('reflects block gained after playing defend', () => {
+      const enemy = createTestEnemy();
+
+      // Before: 0 block
+      const playerBefore = createTestPlayer({ block: 0 });
+      const htmlBefore = renderToString(<Board player={playerBefore} enemy={enemy} />);
+      expect(htmlBefore).toContain('Block');
+      expect(htmlBefore).toContain('>0<');
+
+      // After playing Defend: 5 block
+      const playerAfter = createTestPlayer({ block: 5 });
+      const htmlAfter = renderToString(<Board player={playerAfter} enemy={enemy} />);
+      expect(htmlAfter).toContain('>5<');
+    });
   });
 });
