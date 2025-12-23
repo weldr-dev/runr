@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { Board } from './Board';
-import type { Player, Enemy } from '../engine/types';
+import { Card } from './Card';
+import type { Player, Enemy, Card as CardData } from '../engine/types';
 
 function createTestPlayer(overrides: Partial<Player> = {}): Player {
   return {
@@ -169,6 +170,46 @@ describe('Board', () => {
       const html = renderToString(<Board player={player} enemy={enemy} />);
       expect(html).toContain('Strike');
       expect(html).toContain('Defend');
+    });
+  });
+
+  describe('Card Component', () => {
+    function createTestCard(overrides: Partial<CardData> = {}): CardData {
+      return {
+        id: 'test-card-1',
+        name: 'Test Strike',
+        cost: 2,
+        damage: 8,
+        ...overrides,
+      };
+    }
+
+    it('displays card name, cost, and damage values', () => {
+      const card = createTestCard({ name: 'Fireball', cost: 3, damage: 12 });
+      const html = renderToString(<Card card={card} playerEnergy={5} />);
+      expect(html).toContain('Fireball');
+      expect(html).toContain('Cost');
+      expect(html).toContain('>3<');
+      expect(html).toContain('Damage');
+      expect(html).toContain('>12<');
+    });
+
+    it('shows Playable status when player energy >= card cost', () => {
+      const card = createTestCard({ cost: 2 });
+      const html = renderToString(<Card card={card} playerEnergy={3} />);
+      expect(html).toContain('Playable');
+    });
+
+    it('shows Not enough energy status when player energy < card cost', () => {
+      const card = createTestCard({ cost: 3 });
+      const html = renderToString(<Card card={card} playerEnergy={2} />);
+      expect(html).toContain('Not enough energy');
+    });
+
+    it('shows Actions locked status when card is disabled', () => {
+      const card = createTestCard({ cost: 1 });
+      const html = renderToString(<Card card={card} playerEnergy={3} disabled={true} />);
+      expect(html).toContain('Actions locked');
     });
   });
 });
