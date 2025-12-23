@@ -1,16 +1,47 @@
-import { useState } from 'react';
 import { createInitialState, step, Action } from './engine/engine';
+import { usePersistence } from './hooks/usePersistence';
 
 export default function App() {
-  const [state, setState] = useState(() => createInitialState(1));
+  const {
+    state,
+    setState,
+    autoSaveEnabled,
+    setAutoSaveEnabled,
+    clearSavedState
+  } = usePersistence(() => createInitialState(1));
 
   const dispatch = (action: Action) => {
     setState((current) => step(current, action));
   };
 
+  const startNewGame = () => {
+    clearSavedState();
+    setState(() => createInitialState(1));
+  };
+
   return (
     <main style={{ fontFamily: 'sans-serif', padding: 24 }}>
       <h1>Deckbuilder Prototype</h1>
+      <section
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          marginBottom: 16
+        }}
+      >
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={autoSaveEnabled}
+            onChange={(event) => setAutoSaveEnabled(event.target.checked)}
+          />
+          Auto-save
+        </label>
+        <button type="button" onClick={startNewGame}>
+          New Game
+        </button>
+      </section>
       <section style={{ marginBottom: 16 }}>
         <h2>Player</h2>
         <p>HP: {state.player.hp}</p>
