@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import picomatch from 'picomatch';
-import { AgentConfig, WorkerConfig } from '../config/schema.js';
+import { AgentConfig, PhasesConfig, WorkerConfig } from '../config/schema.js';
 import { git } from '../repo/git.js';
 import { listChangedFiles } from '../repo/context.js';
 import { RunStore } from '../store/run-store.js';
@@ -111,16 +111,18 @@ async function handlePlan(state: RunState, options: SupervisorOptions): Promise<
     taskText: options.taskText,
     scopeAllowlist: state.scope_lock.allowlist
   });
-  const parsed = await callClaudeJson({
+  const planWorker = options.config.phases.plan;
+  const parsed = await callWorkerJson({
     prompt,
     repoPath: options.repoPath,
-    worker: options.config.workers.claude,
+    workerType: planWorker,
+    workers: options.config.workers,
     schema: planOutputSchema
   });
   if (!parsed.data) {
     options.runStore.appendEvent({
       type: 'parse_failed',
-      source: 'claude',
+      source: planWorker,
       payload: {
         stage: 'plan',
         parser_context: 'plan',
@@ -165,7 +167,7 @@ async function handlePlan(state: RunState, options: SupervisorOptions): Promise<
   options.runStore.writePlan(JSON.stringify(plan, null, 2));
   options.runStore.appendEvent({
     type: 'plan_generated',
-    source: 'claude',
+    source: planWorker,
     payload: plan
   });
 
@@ -199,16 +201,18 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
       : undefined
   });
 
-  const parsed = await callCodexJson({
+  const implementWorker = options.config.phases.implement;
+  const parsed = await callWorkerJson({
     prompt,
     repoPath: options.repoPath,
-    worker: options.config.workers.codex,
+    workerType: implementWorker,
+    workers: options.config.workers,
     schema: implementerOutputSchema
   });
   if (!parsed.data) {
     options.runStore.appendEvent({
       type: 'parse_failed',
-      source: 'codex',
+      source: implementWorker,
       payload: {
         stage: 'implement',
         parser_context: 'implement',
@@ -256,7 +260,7 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
 
   options.runStore.appendEvent({
     type: 'implement_complete',
-    source: 'codex',
+    source: implementWorker,
     payload: {
       changed_files: changedFiles,
       handoff_memo: implementer.handoff_memo
@@ -416,16 +420,18 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
     verificationOutput
   });
 
-  const parsed = await callClaudeJson({
+  const reviewWorker = options.config.phases.review;
+  const parsed = await callWorkerJson({
     prompt,
     repoPath: options.repoPath,
-    worker: options.config.workers.claude,
+    workerType: reviewWorker,
+    workers: options.config.workers,
     schema: reviewOutputSchema
   });
   if (!parsed.data) {
     options.runStore.appendEvent({
       type: 'parse_failed',
-      source: 'claude',
+      source: reviewWorker,
       payload: {
         stage: 'review',
         parser_context: 'review',
@@ -440,7 +446,7 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
   const review = parsed.data;
   options.runStore.appendEvent({
     type: 'review_complete',
-    source: 'claude',
+    source: reviewWorker,
     payload: review
   });
 
@@ -599,6 +605,50 @@ async function callCodexJson<S extends z.ZodTypeAny>(input: {
     error: retryParsed.error ?? firstParsed.error ?? 'JSON parse failed',
     output: retryOutput || firstOutput,
     retry_count: 1
+  };
+}
+
+/**
+ * Unified worker call that dispatches to the appropriate worker based on config.
+ * This allows phases to be configured to use either Claude or Codex.
+ */
+async function callWorkerJson<S extends z.ZodTypeAny>(input: {
+  prompt: string;
+  repoPath: string;
+  workerType: 'claude' | 'codex';
+  workers: AgentConfig['workers'];
+  schema: S;
+}): Promise<{ data?: z.infer<S>; error?: string; output?: string; retry_count?: number; worker: string }> {
+  const worker = input.workers[input.workerType];
+  const runWorker = input.workerType === 'claude' ? runClaude : runCodex;
+
+  const first = await runWorker({
+    prompt: input.prompt,
+    repo_path: input.repoPath,
+    worker
+  });
+  const firstOutput = first.observations.join('\n');
+  const firstParsed = parseJsonWithSchema(firstOutput, input.schema);
+  if (firstParsed.data) {
+    return { data: firstParsed.data, output: firstOutput, retry_count: 0, worker: input.workerType };
+  }
+
+  const retryPrompt = `${input.prompt}\n\nOutput JSON only between BEGIN_JSON and END_JSON. No other text.`;
+  const retry = await runWorker({
+    prompt: retryPrompt,
+    repo_path: input.repoPath,
+    worker
+  });
+  const retryOutput = retry.observations.join('\n');
+  const retryParsed = parseJsonWithSchema(retryOutput, input.schema);
+  if (retryParsed.data) {
+    return { data: retryParsed.data, output: retryOutput, retry_count: 1, worker: input.workerType };
+  }
+  return {
+    error: retryParsed.error ?? firstParsed.error ?? 'JSON parse failed',
+    output: retryOutput || firstOutput,
+    retry_count: 1,
+    worker: input.workerType
   };
 }
 

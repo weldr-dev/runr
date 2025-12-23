@@ -50,13 +50,23 @@ const workersSchema = z.object({
   })
 });
 
+// Phase-to-worker mapping - allows configuring which worker handles each phase
+const phasesSchema = z.object({
+  plan: z.enum(['claude', 'codex']).default('claude'),
+  implement: z.enum(['claude', 'codex']).default('codex'),
+  review: z.enum(['claude', 'codex']).default('claude')
+});
+
 export const agentConfigSchema = z.object({
   agent: agentSchema,
   repo: repoSchema.default({}),
   scope: scopeSchema,
   verification: verificationSchema,
-  workers: workersSchema.default({})
+  workers: workersSchema.default({}),
+  phases: phasesSchema.default({})
 });
+
+export type PhasesConfig = z.infer<typeof phasesSchema>;
 
 export type WorkerConfig = z.infer<typeof workerConfigSchema>;
 

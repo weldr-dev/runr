@@ -135,9 +135,24 @@ export async function doctorCommand(options: DoctorOptions): Promise<void> {
     console.log('');
   }
 
+  // Show phase configuration
+  console.log('Phases\n------');
+  console.log(`  plan: ${config.phases.plan}`);
+  console.log(`  implement: ${config.phases.implement}`);
+  console.log(`  review: ${config.phases.review}`);
+  console.log('');
+
+  // Check that configured phase workers are available
+  const phaseWorkers = new Set([config.phases.plan, config.phases.implement, config.phases.review]);
+  const failedWorkers = checks.filter((c) => c.error).map((c) => c.name);
+  const usedButFailed = [...phaseWorkers].filter((w) => failedWorkers.includes(w));
+
   const failed = checks.filter((c) => c.error);
   if (failed.length > 0) {
     console.log(`\nResult: ${failed.length} worker(s) failed`);
+    if (usedButFailed.length > 0) {
+      console.log(`Warning: Phase(s) configured to use failed worker(s): ${usedButFailed.join(', ')}`);
+    }
     process.exitCode = 1;
   } else {
     console.log('\nResult: All workers OK');
