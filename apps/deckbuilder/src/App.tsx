@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { createInitialState, step, Action } from './engine/engine';
+import { ReplayControls } from './components/ReplayControls';
 import { usePersistence } from './hooks/usePersistence';
 import { deserializeExport, serializeExport } from './utils/serialization';
 
@@ -13,14 +14,41 @@ export default function App() {
     clearSavedState
   } = usePersistence(() => createInitialState(1));
   const [importError, setImportError] = useState<string | null>(null);
+  const [replaySeed, setReplaySeed] = useState<number | null>(null);
+  const [replayActions, setReplayActions] = useState<Action[]>([]);
+  const [replayIndex, setReplayIndex] = useState(0);
+  const [isReplaying, setIsReplaying] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const replayTimerRef = useRef<number | null>(null);
 
   const dispatch = (action: Action) => {
     setState((current) => step(current, action));
   };
 
+  const stopReplay = () => {
+    setIsReplaying(false);
+    if (replayTimerRef.current !== null) {
+      window.clearTimeout(replayTimerRef.current);
+      replayTimerRef.current = null;
+    }
+  };
+
+  const startReplay = () => {
+    if (replaySeed === null || replayActions.length === 0) {
+      return;
+    }
+    stopReplay();
+    setReplayIndex(0);
+    setState(() => createInitialState(replaySeed));
+    setIsReplaying(true);
+  };
+
   const startNewGame = () => {
     setImportError(null);
+    stopReplay();
+    setReplaySeed(null);
+    setReplayActions([]);
+    setReplayIndex(0);
     clearSavedState();
     setState(() => createInitialState(1));
   };
@@ -57,6 +85,10 @@ export default function App() {
         return;
       }
       setImportError(null);
+      stopReplay();
+      setReplaySeed(nextState.rng.seed);
+      setReplayActions(nextState.actionLog);
+      setReplayIndex(0);
       setState(nextState);
     } catch {
       setImportError('Unable to read the selected file.');
@@ -64,6 +96,33 @@ export default function App() {
       event.target.value = '';
     }
   };
+
+  useEffect(() => {
+    if (!isReplaying) {
+      if (replayTimerRef.current !== null) {
+        window.clearTimeout(replayTimerRef.current);
+        replayTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (replayIndex >= replayActions.length) {
+      setIsReplaying(false);
+      return;
+    }
+
+    replayTimerRef.current = window.setTimeout(() => {
+      setState((current) => step(current, replayActions[replayIndex]));
+      setReplayIndex((index) => index + 1);
+    }, 500);
+
+    return () => {
+      if (replayTimerRef.current !== null) {
+        window.clearTimeout(replayTimerRef.current);
+        replayTimerRef.current = null;
+      }
+    };
+  }, [isReplaying, replayActions, replayIndex, setState]);
 
   return (
     <main style={{ fontFamily: 'sans-serif', padding: 24 }}>
@@ -107,6 +166,14 @@ export default function App() {
           {importError}
         </p>
       ) : null}
+      <ReplayControls
+        totalActions={replayActions.length}
+        currentIndex={replayIndex}
+        isReplaying={isReplaying}
+        canReplay={replaySeed !== null && replayActions.length > 0}
+        onReplay={startReplay}
+        onStop={stopReplay}
+      />
       <section style={{ marginBottom: 16 }}>
         <h2>Player</h2>
         <p>HP: {state.player.hp}</p>
