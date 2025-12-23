@@ -41,7 +41,7 @@ describe('Board', () => {
       const player = createTestPlayer();
       const enemy = createTestEnemy({ hp: 45 });
       const html = renderToString(<Board player={player} enemy={enemy} />);
-      expect(html).toContain('HP:');
+      expect(html).toContain('>HP<');
       expect(html).toContain('45');
     });
 
@@ -57,7 +57,7 @@ describe('Board', () => {
       const player = createTestPlayer();
       const enemy = createTestEnemy({ damage: 15 });
       const html = renderToString(<Board player={player} enemy={enemy} />);
-      expect(html).toContain('Damage:');
+      expect(html).toContain('DMG');
       expect(html).toContain('15');
     });
 
@@ -82,7 +82,7 @@ describe('Board', () => {
       });
       const enemy = createTestEnemy();
       const html = renderToString(<Board player={player} enemy={enemy} />);
-      expect(html).toContain('Deck Pile');
+      expect(html).toContain('Deck');
       expect(html).toContain('>5<');
     });
 
@@ -90,7 +90,7 @@ describe('Board', () => {
       const player = createTestPlayer({ deck: [] });
       const enemy = createTestEnemy();
       const html = renderToString(<Board player={player} enemy={enemy} />);
-      expect(html).toContain('Deck Pile');
+      expect(html).toContain('Deck');
       expect(html).toContain('>0<');
     });
   });
@@ -106,7 +106,7 @@ describe('Board', () => {
       });
       const enemy = createTestEnemy();
       const html = renderToString(<Board player={player} enemy={enemy} />);
-      expect(html).toContain('Discard Pile');
+      expect(html).toContain('Discard');
       expect(html).toContain('>3<');
     });
 
@@ -114,7 +114,7 @@ describe('Board', () => {
       const player = createTestPlayer({ discard: [] });
       const enemy = createTestEnemy();
       const html = renderToString(<Board player={player} enemy={enemy} />);
-      expect(html).toContain('Discard Pile');
+      expect(html).toContain('Discard');
       expect(html).toContain('>0<');
     });
   });
@@ -150,7 +150,7 @@ describe('Board', () => {
       const player = createTestPlayer();
       const enemy = createTestEnemy();
       const html = renderToString(<Board player={player} enemy={enemy} />);
-      expect(html).toContain('Hand Zone');
+      expect(html).toContain('Your Hand');
     });
 
     it('shows empty message when hand is empty', () => {
@@ -298,7 +298,7 @@ describe('Board', () => {
       // Initial state
       const enemyBefore = createTestEnemy({ hp: 40 });
       const htmlBefore = renderToString(<Board player={player} enemy={enemyBefore} />);
-      expect(htmlBefore).toContain('HP:');
+      expect(htmlBefore).toContain('>HP<');
       expect(htmlBefore).toContain('40');
 
       // After dealing damage

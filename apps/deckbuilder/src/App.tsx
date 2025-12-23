@@ -201,8 +201,16 @@ export default function App() {
   }, [isReplaying, replayActions, replayIndex, setState]);
 
   return (
-    <main style={{ fontFamily: 'sans-serif', padding: 24 }}>
-      <h1>Deckbuilder Prototype</h1>
+    <main
+      style={{
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        padding: 24,
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0c0a1d 0%, #1a1333 50%, #0f0d1a 100%)',
+        color: '#e2e8f0'
+      }}
+    >
+      <h1 style={{ color: '#f1f5f9', textAlign: 'center', marginBottom: 24 }}>Deckbuilder</h1>
       <section
         style={{
           display: 'flex',
@@ -238,7 +246,7 @@ export default function App() {
         />
       </section>
       {importError ? (
-        <p style={{ color: '#b91c1c', marginBottom: 16 }} role="alert">
+        <p style={{ color: '#fca5a5', marginBottom: 16 }} role="alert">
           {importError}
         </p>
       ) : null}
@@ -284,13 +292,21 @@ export default function App() {
           onSpeedChange={setAutoPlaySpeed}
         />
       </section>
-      <section style={{ marginTop: 16 }}>
-        <h2>Action Log</h2>
-        <p>Total actions: {state.actionLog.length}</p>
+      <section
+        style={{
+          marginTop: 16,
+          padding: 16,
+          background: 'rgba(30, 27, 75, 0.5)',
+          borderRadius: 12,
+          border: '1px solid #334155'
+        }}
+      >
+        <h2 style={{ color: '#cbd5e1', fontSize: 16, marginTop: 0 }}>Action Log</h2>
+        <p style={{ color: '#94a3b8' }}>Total actions: {state.actionLog.length}</p>
         {state.actionLog.length === 0 ? (
-          <p>(no actions yet)</p>
+          <p style={{ color: '#64748b' }}>(no actions yet)</p>
         ) : (
-          <ol>
+          <ol style={{ color: '#94a3b8', paddingLeft: 20 }}>
             {state.actionLog.map((action, index) => (
               <li key={`${action.type}-${index}`}>
                 {action.type === 'play_card'
