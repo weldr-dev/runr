@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { Enemy, Player } from '../engine/types';
 import { Card } from './Card';
+import { EnemyIntent } from './EnemyIntent';
 import { HealthBar } from './HealthBar';
 import { PlayerStats } from './PlayerStats';
 
@@ -170,24 +171,7 @@ export function Board({
           >
             <HealthBar current={enemy.hp} max={maxEnemyHp} size="medium" />
           </div>
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              padding: '8px 16px',
-              background: 'rgba(245, 158, 11, 0.2)',
-              borderRadius: 12,
-              border: '1px solid rgba(245, 158, 11, 0.5)'
-            }}
-          >
-            <span style={{ fontSize: 11, color: '#fcd34d', textTransform: 'uppercase' }}>
-              Intent: {enemy.intent}
-            </span>
-            <span style={{ fontSize: 20, fontWeight: 700, color: '#fef3c7' }}>
-              {enemy.damage} DMG
-            </span>
-          </div>
+          <EnemyIntent intent={enemy.intent} damage={enemy.damage} />
         </div>
       </div>
 

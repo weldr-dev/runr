@@ -45,27 +45,28 @@ describe('Board', () => {
       expect(html).toContain('45');
     });
 
-    it('renders enemy intent', () => {
+    it('renders attack intent with sword icon', () => {
       const player = createTestPlayer();
       const enemy = createTestEnemy({ intent: 'attack' });
       const html = renderToString(<Board player={player} enemy={enemy} />);
-      expect(html).toContain('Intent:');
-      expect(html).toContain('attack');
+      expect(html).toContain('⚔️');
+      expect(html).toContain('Attack');
     });
 
-    it('renders enemy damage', () => {
+    it('renders enemy damage number alongside attack icon', () => {
       const player = createTestPlayer();
       const enemy = createTestEnemy({ damage: 15 });
       const html = renderToString(<Board player={player} enemy={enemy} />);
-      expect(html).toContain('DMG');
-      expect(html).toContain('15');
+      expect(html).toContain('⚔️');
+      expect(html).toContain('>15<');
     });
 
-    it('renders rest intent when enemy is resting', () => {
+    it('renders defend intent with shield icon when enemy is resting', () => {
       const player = createTestPlayer();
       const enemy = createTestEnemy({ intent: 'rest' });
       const html = renderToString(<Board player={player} enemy={enemy} />);
-      expect(html).toContain('rest');
+      expect(html).toContain('🛡️');
+      expect(html).toContain('Defend');
     });
   });
 
