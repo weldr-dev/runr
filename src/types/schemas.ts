@@ -29,6 +29,16 @@ export interface VerifyFailure {
   tier: VerificationTier;
 }
 
+export interface WorkerStats {
+  claude: number;
+  codex: number;
+  by_phase: {
+    plan: { claude: number; codex: number };
+    implement: { claude: number; codex: number };
+    review: { claude: number; codex: number };
+  };
+}
+
 export interface RunState {
   run_id: string;
   repo_path: string;
@@ -55,6 +65,7 @@ export interface RunState {
   started_at: string;
   updated_at: string;
   stop_reason?: string;
+  worker_stats: WorkerStats;
 }
 
 export type WorkerStatus = 'ok' | 'blocked' | 'failed';

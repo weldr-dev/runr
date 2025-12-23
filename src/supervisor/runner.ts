@@ -2,11 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import picomatch from 'picomatch';
-import { AgentConfig, PhasesConfig, WorkerConfig } from '../config/schema.js';
+import { AgentConfig } from '../config/schema.js';
 import { git } from '../repo/git.js';
 import { listChangedFiles } from '../repo/context.js';
 import { RunStore } from '../store/run-store.js';
-import { Milestone, RunState } from '../types/schemas.js';
+import { Milestone, RunState, WorkerStats } from '../types/schemas.js';
 import { buildImplementPrompt, buildPlanPrompt, buildReviewPrompt } from '../workers/prompts.js';
 import { runClaude } from '../workers/claude.js';
 import { runCodex } from '../workers/codex.js';
@@ -161,7 +161,8 @@ async function handlePlan(state: RunState, options: SupervisorOptions): Promise<
 
   const updated: RunState = {
     ...state,
-    milestones: plan.milestones
+    milestones: plan.milestones,
+    worker_stats: incrementWorkerStats(state.worker_stats, planWorker, 'plan')
   };
 
   options.runStore.writePlan(JSON.stringify(plan, null, 2));
@@ -267,7 +268,12 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
     }
   });
 
-  return updatePhase(state, 'VERIFY');
+  const updatedWithStats: RunState = {
+    ...state,
+    worker_stats: incrementWorkerStats(state.worker_stats, implementWorker, 'implement')
+  };
+
+  return updatePhase(updatedWithStats, 'VERIFY');
 }
 
 async function handleVerify(state: RunState, options: SupervisorOptions): Promise<RunState> {
@@ -450,15 +456,20 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
     payload: review
   });
 
+  const updatedWithStats: RunState = {
+    ...state,
+    worker_stats: incrementWorkerStats(state.worker_stats, reviewWorker, 'review')
+  };
+
   if (review.status === 'request_changes' || review.status === 'reject') {
     options.runStore.writeMemo(
       `milestone_${String(state.milestone_index + 1).padStart(2, '0')}_review.md`,
       review.changes.join('\n')
     );
-    return updatePhase(state, 'IMPLEMENT');
+    return updatePhase(updatedWithStats, 'IMPLEMENT');
   }
 
-  return updatePhase(state, 'CHECKPOINT');
+  return updatePhase(updatedWithStats, 'CHECKPOINT');
 }
 
 async function handleCheckpoint(state: RunState, options: SupervisorOptions): Promise<RunState> {
@@ -508,8 +519,28 @@ async function handleFinalize(state: RunState, options: SupervisorOptions): Prom
     payload: { phase: 'FINALIZE' }
   });
 
-  const summary = ['# Summary', '', 'Run completed.'].join('\n');
+  const stats = state.worker_stats;
+  const summary = [
+    '# Summary',
+    '',
+    'Run completed.',
+    '',
+    '## Worker Stats',
+    '',
+    `| Worker | Total | Plan | Implement | Review |`,
+    `|--------|-------|------|-----------|--------|`,
+    `| Claude | ${stats.claude} | ${stats.by_phase.plan.claude} | ${stats.by_phase.implement.claude} | ${stats.by_phase.review.claude} |`,
+    `| Codex  | ${stats.codex} | ${stats.by_phase.plan.codex} | ${stats.by_phase.implement.codex} | ${stats.by_phase.review.codex} |`
+  ].join('\n');
   options.runStore.writeSummary(summary);
+
+  // Emit worker stats event for easy querying
+  options.runStore.appendEvent({
+    type: 'worker_stats',
+    source: 'supervisor',
+    payload: stats
+  });
+
   writeStopMemo(options.runStore, DEFAULT_STOP_MEMO);
 
   return stopRun(state, 'complete');
@@ -536,76 +567,6 @@ function stopWithError(
 
 function writeStopMemo(runStore: RunStore, content: string): void {
   runStore.writeMemo('stop.md', content);
-}
-
-async function callClaudeJson<S extends z.ZodTypeAny>(input: {
-  prompt: string;
-  repoPath: string;
-  worker: WorkerConfig;
-  schema: S;
-}): Promise<{ data?: z.infer<S>; error?: string; output?: string; retry_count?: number }> {
-  const first = await runClaude({
-    prompt: input.prompt,
-    repo_path: input.repoPath,
-    worker: input.worker
-  });
-  const firstOutput = first.observations.join('\n');
-  const firstParsed = parseJsonWithSchema(firstOutput, input.schema);
-  if (firstParsed.data) {
-    return { data: firstParsed.data, output: firstOutput, retry_count: 0 };
-  }
-
-  const retryPrompt = `${input.prompt}\n\nOutput JSON only between BEGIN_JSON and END_JSON. No other text.`;
-  const retry = await runClaude({
-    prompt: retryPrompt,
-    repo_path: input.repoPath,
-    worker: input.worker
-  });
-  const retryOutput = retry.observations.join('\n');
-  const retryParsed = parseJsonWithSchema(retryOutput, input.schema);
-  if (retryParsed.data) {
-    return { data: retryParsed.data, output: retryOutput, retry_count: 1 };
-  }
-  return {
-    error: retryParsed.error ?? firstParsed.error ?? 'JSON parse failed',
-    output: retryOutput || firstOutput,
-    retry_count: 1
-  };
-}
-
-async function callCodexJson<S extends z.ZodTypeAny>(input: {
-  prompt: string;
-  repoPath: string;
-  worker: WorkerConfig;
-  schema: S;
-}): Promise<{ data?: z.infer<S>; error?: string; output?: string; retry_count?: number }> {
-  const first = await runCodex({
-    prompt: input.prompt,
-    repo_path: input.repoPath,
-    worker: input.worker
-  });
-  const firstOutput = first.observations.join('\n');
-  const firstParsed = parseJsonWithSchema(firstOutput, input.schema);
-  if (firstParsed.data) {
-    return { data: firstParsed.data, output: firstOutput, retry_count: 0 };
-  }
-
-  const retryPrompt = `${input.prompt}\n\nOutput JSON only between BEGIN_JSON and END_JSON. No other text.`;
-  const retry = await runCodex({
-    prompt: retryPrompt,
-    repo_path: input.repoPath,
-    worker: input.worker
-  });
-  const retryOutput = retry.observations.join('\n');
-  const retryParsed = parseJsonWithSchema(retryOutput, input.schema);
-  if (retryParsed.data) {
-    return { data: retryParsed.data, output: retryOutput, retry_count: 1 };
-  }
-  return {
-    error: retryParsed.error ?? firstParsed.error ?? 'JSON parse failed',
-    output: retryOutput || firstOutput,
-    retry_count: 1
-  };
 }
 
 /**
@@ -661,6 +622,27 @@ function snippet(output?: string): string {
     return trimmed;
   }
   return `${trimmed.slice(0, 800)}...`;
+}
+
+/**
+ * Increment worker stats for a given worker and phase.
+ */
+function incrementWorkerStats(
+  stats: WorkerStats,
+  worker: 'claude' | 'codex',
+  phase: 'plan' | 'implement' | 'review'
+): WorkerStats {
+  return {
+    ...stats,
+    [worker]: stats[worker] + 1,
+    by_phase: {
+      ...stats.by_phase,
+      [phase]: {
+        ...stats.by_phase[phase],
+        [worker]: stats.by_phase[phase][worker] + 1
+      }
+    }
+  };
 }
 
 /**

@@ -29,7 +29,16 @@ export function createInitialState(input: InitStateInput): RunState {
     phase_started_at: now,
     phase_attempt: 0,
     started_at: now,
-    updated_at: now
+    updated_at: now,
+    worker_stats: {
+      claude: 0,
+      codex: 0,
+      by_phase: {
+        plan: { claude: 0, codex: 0 },
+        implement: { claude: 0, codex: 0 },
+        review: { claude: 0, codex: 0 }
+      }
+    }
   };
 }
 
