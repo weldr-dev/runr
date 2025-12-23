@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Enemy, Player } from '../engine/types';
 import { Card } from './Card';
@@ -12,6 +13,46 @@ interface BoardProps {
   maxEnemyHp?: number;
   onPlayCard?: (cardId: string) => void;
   disableActions?: boolean;
+  isEnemyTurn?: boolean;
+}
+
+interface DamagePopup {
+  id: number;
+  damage: number;
+  x: number;
+  y: number;
+}
+
+function DamageNumber({ damage, onComplete }: { damage: number; onComplete: () => void }) {
+  const [phase, setPhase] = useState<'enter' | 'exit'>('enter');
+
+  useEffect(() => {
+    const enterTimer = setTimeout(() => setPhase('exit'), 400);
+    const exitTimer = setTimeout(onComplete, 800);
+    return () => {
+      clearTimeout(enterTimer);
+      clearTimeout(exitTimer);
+    };
+  }, [onComplete]);
+
+  const style: CSSProperties = {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: phase === 'enter'
+      ? 'translate(-50%, -50%) scale(1.2)'
+      : 'translate(-50%, -100%) scale(0.8)',
+    fontSize: 32,
+    fontWeight: 900,
+    color: '#ef4444',
+    textShadow: '0 2px 8px rgba(0,0,0,0.8), 0 0 20px rgba(239, 68, 68, 0.8)',
+    opacity: phase === 'enter' ? 1 : 0,
+    transition: 'all 400ms ease-out',
+    pointerEvents: 'none',
+    zIndex: 100
+  };
+
+  return <div style={style}>-{damage}</div>;
 }
 
 function CardStack({
@@ -91,9 +132,49 @@ export function Board({
   maxPlayerHp = 40,
   maxEnemyHp = 30,
   onPlayCard,
-  disableActions = false
+  disableActions = false,
+  isEnemyTurn = false
 }: BoardProps) {
   const handCount = player.hand.length;
+  const [playingCardId, setPlayingCardId] = useState<string | null>(null);
+  const [damagePopups, setDamagePopups] = useState<DamagePopup[]>([]);
+  const [playerShake, setPlayerShake] = useState(false);
+  const prevEnemyHp = useRef(enemy.hp);
+  const prevPlayerHp = useRef(player.hp);
+  const popupIdRef = useRef(0);
+
+  // Track enemy HP changes for damage popup
+  useEffect(() => {
+    if (prevEnemyHp.current > enemy.hp) {
+      const damage = prevEnemyHp.current - enemy.hp;
+      const id = popupIdRef.current++;
+      setDamagePopups((prev) => [...prev, { id, damage, x: 0, y: 0 }]);
+    }
+    prevEnemyHp.current = enemy.hp;
+  }, [enemy.hp]);
+
+  // Track player HP changes for shake effect
+  useEffect(() => {
+    if (prevPlayerHp.current > player.hp) {
+      setPlayerShake(true);
+      const timer = setTimeout(() => setPlayerShake(false), 400);
+      return () => clearTimeout(timer);
+    }
+    prevPlayerHp.current = player.hp;
+  }, [player.hp]);
+
+  const removeDamagePopup = (id: number) => {
+    setDamagePopups((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const handlePlayCard = (cardId: string) => {
+    if (!onPlayCard) return;
+    setPlayingCardId(cardId);
+    setTimeout(() => {
+      setPlayingCardId(null);
+      onPlayCard(cardId);
+    }, 300);
+  };
 
   const getCardTransform = (index: number, total: number): CSSProperties => {
     if (total <= 1) {
@@ -132,26 +213,40 @@ export function Board({
       {/* Enemy Zone - Top */}
       <div
         style={{
+          position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           gap: 12,
           padding: 20,
-          background: 'linear-gradient(180deg, rgba(239, 68, 68, 0.15), rgba(153, 27, 27, 0.1))',
+          background: isEnemyTurn
+            ? 'linear-gradient(180deg, rgba(239, 68, 68, 0.35), rgba(153, 27, 27, 0.25))'
+            : 'linear-gradient(180deg, rgba(239, 68, 68, 0.15), rgba(153, 27, 27, 0.1))',
           borderRadius: 16,
-          border: '1px solid rgba(239, 68, 68, 0.3)'
+          border: isEnemyTurn ? '2px solid #ef4444' : '1px solid rgba(239, 68, 68, 0.3)',
+          boxShadow: isEnemyTurn ? '0 0 20px rgba(239, 68, 68, 0.4)' : 'none',
+          transition: 'all 300ms ease'
         }}
       >
+        {/* Damage popups */}
+        {damagePopups.map((popup) => (
+          <DamageNumber
+            key={popup.id}
+            damage={popup.damage}
+            onComplete={() => removeDamagePopup(popup.id)}
+          />
+        ))}
         <div
           style={{
             fontSize: 13,
             fontWeight: 700,
             textTransform: 'uppercase',
             letterSpacing: 2,
-            color: '#fca5a5'
+            color: isEnemyTurn ? '#fef2f2' : '#fca5a5',
+            transition: 'color 300ms ease'
           }}
         >
-          Enemy
+          {isEnemyTurn ? 'Enemy Acting...' : 'Enemy'}
         </div>
         <div
           style={{
@@ -215,8 +310,9 @@ export function Board({
                 <Card
                   card={card}
                   playerEnergy={player.energy}
-                  onPlay={onPlayCard}
-                  disabled={disableActions}
+                  onPlay={handlePlayCard}
+                  disabled={disableActions || playingCardId !== null}
+                  isPlaying={playingCardId === card.id}
                 />
               </div>
             ))}
@@ -232,9 +328,14 @@ export function Board({
           alignItems: 'flex-end',
           gap: 24,
           padding: '16px 20px',
-          background: 'linear-gradient(0deg, rgba(34, 197, 94, 0.1), transparent)',
+          background: playerShake
+            ? 'linear-gradient(0deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.1))'
+            : 'linear-gradient(0deg, rgba(34, 197, 94, 0.1), transparent)',
           borderRadius: 16,
-          border: '1px solid rgba(34, 197, 94, 0.2)'
+          border: playerShake ? '2px solid #ef4444' : '1px solid rgba(34, 197, 94, 0.2)',
+          boxShadow: playerShake ? '0 0 30px rgba(239, 68, 68, 0.5)' : 'none',
+          animation: playerShake ? 'shake 0.4s ease-in-out' : 'none',
+          transition: 'background 200ms ease, border 200ms ease, box-shadow 200ms ease'
         }}
       >
         {/* Deck Pile */}

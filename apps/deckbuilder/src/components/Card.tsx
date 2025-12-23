@@ -7,13 +7,14 @@ interface CardProps {
   playerEnergy: number;
   onPlay?: (cardId: string) => void;
   disabled?: boolean;
+  isPlaying?: boolean;
 }
 
 // Poker card proportions: ~2.5:3.5 ratio (width:height)
 const CARD_WIDTH = 140;
 const CARD_HEIGHT = 196;
 
-export function Card({ card, playerEnergy, onPlay, disabled = false }: CardProps) {
+export function Card({ card, playerEnergy, onPlay, disabled = false, isPlaying = false }: CardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const isPlayable = card.cost <= playerEnergy;
   const canActivate = isPlayable && !disabled && Boolean(onPlay);
@@ -27,6 +28,9 @@ export function Card({ card, playerEnergy, onPlay, disabled = false }: CardProps
 
   // Compute dynamic styles
   const getTransform = () => {
+    if (isPlaying) {
+      return 'translateY(-200px) scale(0.8) rotate(10deg)';
+    }
     if (canActivate && isHovered) {
       return 'translateY(-8px) scale(1.05)';
     }
@@ -51,12 +55,14 @@ export function Card({ card, playerEnergy, onPlay, disabled = false }: CardProps
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    transition: 'transform 200ms ease, box-shadow 200ms ease, filter 200ms ease',
+    transition: isPlaying
+      ? 'transform 300ms ease-out, opacity 300ms ease-out, box-shadow 200ms ease, filter 200ms ease'
+      : 'transform 200ms ease, box-shadow 200ms ease, filter 200ms ease',
     cursor: canActivate ? 'pointer' : 'not-allowed',
     transform: getTransform(),
-    boxShadow: getBoxShadow(),
+    boxShadow: isPlaying ? '0 20px 40px rgba(239, 68, 68, 0.5)' : getBoxShadow(),
     filter: canActivate ? 'none' : 'grayscale(0.6) brightness(0.9)',
-    opacity: canActivate ? 1 : 0.7,
+    opacity: isPlaying ? 0 : canActivate ? 1 : 0.7,
     background: canActivate
       ? 'linear-gradient(145deg, #fefefe 0%, #f8fafc 100%)'
       : 'linear-gradient(145deg, #e2e8f0 0%, #cbd5e1 100%)',

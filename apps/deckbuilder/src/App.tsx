@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { getNextAction } from './ai/ai';
 import { AutoPlayControls } from './components/AutoPlayControls';
@@ -28,10 +28,19 @@ export default function App() {
   const [actionLog, setActionLog] = useState<string[]>([]);
   const [autoPlaySpeed, setAutoPlaySpeed] = useState(300);
   const autoPlayStopRef = useRef(false);
+  const [isEnemyTurn, setIsEnemyTurn] = useState(false);
 
-  const dispatch = (action: Action) => {
-    setState((current) => step(current, action));
-  };
+  const dispatch = useCallback((action: Action) => {
+    if (action.type === 'end_turn') {
+      setIsEnemyTurn(true);
+      setTimeout(() => {
+        setState((current) => step(current, action));
+        setIsEnemyTurn(false);
+      }, 600);
+    } else {
+      setState((current) => step(current, action));
+    }
+  }, [setState]);
 
   const describeAction = (action: Action, currentState: GameState) => {
     switch (action.type) {
@@ -262,20 +271,21 @@ export default function App() {
         player={state.player}
         enemy={state.enemy}
         onPlayCard={(cardId) => dispatch({ type: 'play_card', cardId })}
-        disableActions={isAutoPlaying || isReplaying}
+        disableActions={isAutoPlaying || isReplaying || isEnemyTurn}
+        isEnemyTurn={isEnemyTurn}
       />
       <section style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
         <div style={{ display: 'flex', gap: 12 }}>
           <button
             type="button"
-            disabled={isAutoPlaying || isReplaying}
+            disabled={isAutoPlaying || isReplaying || isEnemyTurn}
             onClick={() => dispatch({ type: 'draw' })}
           >
             Draw
           </button>
           <button
             type="button"
-            disabled={isAutoPlaying || isReplaying}
+            disabled={isAutoPlaying || isReplaying || isEnemyTurn}
             onClick={() => dispatch({ type: 'end_turn' })}
           >
             End Turn
