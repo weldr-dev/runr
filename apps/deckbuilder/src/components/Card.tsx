@@ -13,6 +13,7 @@ export function Card({ card, playerEnergy, onPlay, disabled = false }: CardProps
   const [isHovered, setIsHovered] = useState(false);
   const isPlayable = card.cost <= playerEnergy;
   const canActivate = isPlayable && !disabled && Boolean(onPlay);
+  const statusLabel = disabled ? 'Actions locked' : isPlayable ? 'Playable' : 'Not enough energy';
 
   const baseStyle: CSSProperties = {
     borderRadius: 16,
@@ -24,13 +25,13 @@ export function Card({ card, playerEnergy, onPlay, disabled = false }: CardProps
     gap: 12,
     transition: 'transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease',
     boxShadow: '0 6px 16px rgba(15, 23, 42, 0.12)',
-    cursor: isPlayable ? 'pointer' : 'not-allowed',
-    opacity: isPlayable ? 1 : 0.45,
-    filter: isPlayable ? 'none' : 'grayscale(0.6)',
-    transform: isPlayable && isHovered ? 'translateY(-3px)' : 'translateY(0)'
+    cursor: canActivate ? 'pointer' : 'not-allowed',
+    opacity: canActivate ? 1 : 0.55,
+    filter: canActivate ? 'none' : 'grayscale(0.5)',
+    transform: canActivate && isHovered ? 'translateY(-3px)' : 'translateY(0)'
   };
 
-  const activeStyle: CSSProperties = isPlayable
+  const activeStyle: CSSProperties = isPlayable && !disabled
     ? {
         border: '1px solid #22c55e',
         background: 'linear-gradient(140deg, #ecfdf3, #f0fdf4)'
@@ -41,14 +42,12 @@ export function Card({ card, playerEnergy, onPlay, disabled = false }: CardProps
       };
 
   const hoverShadow: CSSProperties =
-    isPlayable && isHovered
-      ? { boxShadow: '0 12px 20px rgba(34, 197, 94, 0.25)' }
-      : {};
+    canActivate && isHovered ? { boxShadow: '0 12px 20px rgba(34, 197, 94, 0.25)' } : {};
 
   return (
     <div
       role={onPlay ? 'button' : undefined}
-      tabIndex={onPlay ? 0 : undefined}
+      tabIndex={canActivate ? 0 : undefined}
       aria-disabled={!canActivate}
       onClick={() => {
         if (canActivate && onPlay) {
@@ -65,7 +64,7 @@ export function Card({ card, playerEnergy, onPlay, disabled = false }: CardProps
         }
       }}
       onMouseEnter={() => {
-        if (isPlayable) {
+        if (canActivate) {
           setIsHovered(true);
         }
       }}
@@ -93,10 +92,10 @@ export function Card({ card, playerEnergy, onPlay, disabled = false }: CardProps
             fontWeight: 700,
             textTransform: 'uppercase',
             letterSpacing: 1,
-            color: isPlayable ? '#16a34a' : '#64748b'
+            color: isPlayable && !disabled ? '#16a34a' : '#64748b'
           }}
         >
-          {isPlayable ? 'Playable' : 'Not enough energy'}
+          {statusLabel}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 10 }}>

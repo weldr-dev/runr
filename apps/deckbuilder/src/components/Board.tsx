@@ -1,4 +1,5 @@
 import type { Enemy, Player } from '../engine/types';
+import { Card } from './Card';
 import { PlayerStats } from './PlayerStats';
 
 interface BoardProps {
@@ -149,40 +150,13 @@ export function Board({ player, enemy, onPlayCard, disableActions = false }: Boa
             }}
           >
             {player.hand.map((card) => (
-              <div
+              <Card
                 key={card.id}
-                style={{
-                  borderRadius: 12,
-                  padding: 12,
-                  border: '1px solid #38bdf8',
-                  background: '#f8fafc',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8
-                }}
-              >
-                <div style={{ fontWeight: 700, color: '#0f172a' }}>{card.name}</div>
-                <div style={{ fontSize: 12, color: '#334155' }}>
-                  Cost {card.cost} | Damage {card.damage}
-                </div>
-                {onPlayCard ? (
-                  <button
-                    type="button"
-                    disabled={disableActions}
-                    onClick={() => onPlayCard(card.id)}
-                    style={{
-                      borderRadius: 8,
-                      border: '1px solid #0284c7',
-                      background: disableActions ? '#e2e8f0' : '#0ea5e9',
-                      color: disableActions ? '#64748b' : '#f8fafc',
-                      padding: '6px 8px',
-                      cursor: disableActions ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    Play
-                  </button>
-                ) : null}
-              </div>
+                card={card}
+                playerEnergy={player.energy}
+                onPlay={onPlayCard}
+                disabled={disableActions}
+              />
             ))}
           </div>
         )}
