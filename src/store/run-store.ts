@@ -3,10 +3,19 @@ import path from 'node:path';
 import { Event, RunState } from '../types/schemas.js';
 import { EnvFingerprint } from '../env/fingerprint.js';
 
+export interface WorkerCallInfo {
+  worker: 'claude' | 'codex';
+  stage: string;
+  attempt: number;
+  at: string;
+}
+
 export class RunStore {
   private runDir: string;
   private timelinePath: string;
   private seqPath: string;
+  private lastEvent: Event | null = null;
+  private lastWorkerCall: WorkerCallInfo | null = null;
 
   private constructor(runDir: string) {
     this.runDir = runDir;
@@ -87,7 +96,20 @@ export class RunStore {
       timestamp: new Date().toISOString()
     };
     fs.appendFileSync(this.timelinePath, `${JSON.stringify(full)}\n`);
+    this.lastEvent = full;
     return full;
+  }
+
+  getLastEvent(): Event | null {
+    return this.lastEvent;
+  }
+
+  recordWorkerCall(info: WorkerCallInfo): void {
+    this.lastWorkerCall = info;
+  }
+
+  getLastWorkerCall(): WorkerCallInfo | null {
+    return this.lastWorkerCall;
   }
 
   private nextSeq(): number {

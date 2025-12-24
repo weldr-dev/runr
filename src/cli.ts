@@ -27,6 +27,7 @@ program
   .option('--dry-run', 'Initialize run without executing', false)
   .option('--max-ticks <count>', 'Max supervisor ticks', '10')
   .option('--skip-doctor', 'Skip worker health checks', false)
+  .option('--fresh-target', 'Wipe target root before starting', false)
   .action(async (options) => {
     const noBranch = options.branch === false;
     const noWrite = options.write === false;
@@ -42,7 +43,8 @@ program
       noBranch,
       noWrite,
       maxTicks: Number.parseInt(options.maxTicks, 10),
-      skipDoctor: options.skipDoctor
+      skipDoctor: options.skipDoctor,
+      freshTarget: options.freshTarget
     });
   });
 

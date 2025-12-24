@@ -30,6 +30,7 @@ export function createInitialState(input: InitStateInput): RunState {
     phase_attempt: 0,
     started_at: now,
     updated_at: now,
+    last_progress_at: now,
     worker_stats: {
       claude: 0,
       codex: 0,
@@ -51,7 +52,8 @@ export function updatePhase(state: RunState, phase: RunState['phase']): RunState
     last_successful_phase: state.phase,
     phase_started_at: now,
     phase_attempt: phaseAttempt,
-    updated_at: now
+    updated_at: now,
+    last_progress_at: now
   };
 }
 
@@ -62,6 +64,7 @@ export function stopRun(state: RunState, reason: string): RunState {
     phase: 'STOPPED',
     stop_reason: reason,
     updated_at: now,
-    phase_started_at: now
+    phase_started_at: now,
+    last_progress_at: now
   };
 }

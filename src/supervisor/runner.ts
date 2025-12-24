@@ -5,7 +5,7 @@ import picomatch from 'picomatch';
 import { AgentConfig } from '../config/schema.js';
 import { git } from '../repo/git.js';
 import { listChangedFiles } from '../repo/context.js';
-import { RunStore } from '../store/run-store.js';
+import { RunStore, WorkerCallInfo } from '../store/run-store.js';
 import { Milestone, RunState, WorkerStats } from '../types/schemas.js';
 import { buildImplementPrompt, buildPlanPrompt, buildReviewPrompt } from '../workers/prompts.js';
 import {
@@ -32,6 +32,19 @@ import { stopRun, updatePhase } from './state-machine.js';
  * Each retry transitions back to IMPLEMENT with fix instructions.
  */
 const MAX_MILESTONE_RETRIES = 3;
+
+const DEFAULT_STALL_TIMEOUT_MINUTES = 15;
+
+function resolveStallTimeoutMs(config: AgentConfig): number {
+  const envValue = Number.parseInt(process.env.STALL_TIMEOUT_MINUTES ?? '', 10);
+  if (Number.isFinite(envValue) && envValue > 0) {
+    return envValue * 60 * 1000;
+  }
+
+  const verifyMinutes = Math.ceil(config.verification.max_verify_time_per_milestone / 60);
+  const fallbackMinutes = Math.max(DEFAULT_STALL_TIMEOUT_MINUTES, verifyMinutes + 5);
+  return fallbackMinutes * 60 * 1000;
+}
 
 /**
  * Configuration options for the supervisor loop.
@@ -86,28 +99,82 @@ const DEFAULT_STOP_MEMO = [
  */
 export async function runSupervisorLoop(options: SupervisorOptions): Promise<void> {
   const startTime = Date.now();
+  const stallTimeoutMs = resolveStallTimeoutMs(options.config);
+  let lastProgressAt = Date.now();
+  let stalled = false;
 
-  for (let tick = 0; tick < options.maxTicks; tick += 1) {
-    let state = options.runStore.readState();
-    if (state.phase === 'STOPPED') {
-      break;
-    }
+  const recordProgress = (state: RunState): RunState => {
+    const now = new Date().toISOString();
+    lastProgressAt = Date.now();
+    return {
+      ...state,
+      last_progress_at: now,
+      updated_at: now
+    };
+  };
 
-    const elapsedMinutes = (Date.now() - startTime) / 60000;
-    if (elapsedMinutes >= options.timeBudgetMinutes) {
-      state = stopRun(state, 'time_budget_exceeded');
+  const watchdog = setInterval(() => {
+    if (stalled) return;
+    const elapsedMs = Date.now() - lastProgressAt;
+    if (elapsedMs < stallTimeoutMs) return;
+
+    stalled = true;
+    const current = options.runStore.readState();
+    const lastEvent = options.runStore.getLastEvent();
+    const lastWorkerCall = options.runStore.getLastWorkerCall();
+    const stopped = stopRun(current, 'stalled_timeout');
+    options.runStore.writeState(stopped);
+    options.runStore.appendEvent({
+      type: 'stop',
+      source: 'supervisor',
+      payload: {
+        reason: 'stalled_timeout',
+        phase: current.phase,
+        milestone_index: current.milestone_index,
+        last_event_type: lastEvent?.type ?? null,
+        last_worker_call: lastWorkerCall ?? null
+      }
+    });
+    writeStopMemo(options.runStore, DEFAULT_STOP_MEMO);
+  }, 10000);
+
+  try {
+    for (let tick = 0; tick < options.maxTicks; tick += 1) {
+      if (stalled) {
+        break;
+      }
+
+      let state = options.runStore.readState();
+      if (state.phase === 'STOPPED') {
+        break;
+      }
+
+      const elapsedMinutes = (Date.now() - startTime) / 60000;
+      if (elapsedMinutes >= options.timeBudgetMinutes) {
+        state = stopRun(state, 'time_budget_exceeded');
+        options.runStore.writeState(state);
+        options.runStore.appendEvent({
+          type: 'stop',
+          source: 'supervisor',
+          payload: { reason: 'time_budget_exceeded' }
+        });
+        writeStopMemo(options.runStore, DEFAULT_STOP_MEMO);
+        break;
+      }
+
+      state = recordProgress(state);
       options.runStore.writeState(state);
-      options.runStore.appendEvent({
-        type: 'stop',
-        source: 'supervisor',
-        payload: { reason: 'time_budget_exceeded' }
-      });
-      writeStopMemo(options.runStore, DEFAULT_STOP_MEMO);
-      break;
-    }
 
-    state = await runPhase(state, options);
-    options.runStore.writeState(state);
+      state = await runPhase(state, options);
+      if (stalled) {
+        break;
+      }
+
+      state = recordProgress(state);
+      options.runStore.writeState(state);
+    }
+  } finally {
+    clearInterval(watchdog);
   }
 }
 
@@ -158,13 +225,14 @@ async function handlePlan(state: RunState, options: SupervisorOptions): Promise<
     repoPath: options.repoPath,
     workerType: planWorker,
     workers: options.config.workers,
-    schema: planOutputSchema
+    schema: planOutputSchema,
+    runStore: options.runStore,
+    stage: 'plan'
   });
   if (!parsed.data) {
-    logRawOutputsToArtifact(options.runStore, 'plan', parsed.rawOutputs);
     options.runStore.appendEvent({
       type: 'parse_failed',
-      source: planWorker,
+      source: parsed.worker,
       payload: {
         stage: 'plan',
         parser_context: 'plan',
@@ -204,13 +272,13 @@ async function handlePlan(state: RunState, options: SupervisorOptions): Promise<
   const updated: RunState = {
     ...state,
     milestones: plan.milestones,
-    worker_stats: incrementWorkerStats(state.worker_stats, planWorker, 'plan')
+    worker_stats: incrementWorkerStats(state.worker_stats, parsed.worker, 'plan')
   };
 
   options.runStore.writePlan(JSON.stringify(plan, null, 2));
   options.runStore.appendEvent({
     type: 'plan_generated',
-    source: planWorker,
+    source: parsed.worker,
     payload: plan
   });
 
@@ -291,13 +359,14 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
     repoPath: options.repoPath,
     workerType: implementWorker,
     workers: options.config.workers,
-    schema: implementerOutputSchema
+    schema: implementerOutputSchema,
+    runStore: options.runStore,
+    stage: 'implement'
   });
   if (!parsed.data) {
-    logRawOutputsToArtifact(options.runStore, 'implement', parsed.rawOutputs);
     options.runStore.appendEvent({
       type: 'parse_failed',
-      source: implementWorker,
+      source: parsed.worker,
       payload: {
         stage: 'implement',
         parser_context: 'implement',
@@ -345,7 +414,7 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
 
   options.runStore.appendEvent({
     type: 'implement_complete',
-    source: implementWorker,
+    source: parsed.worker,
     payload: {
       changed_files: changedFiles,
       handoff_memo: implementer.handoff_memo
@@ -354,7 +423,7 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
 
   const updatedWithStats: RunState = {
     ...state,
-    worker_stats: incrementWorkerStats(state.worker_stats, implementWorker, 'implement')
+    worker_stats: incrementWorkerStats(state.worker_stats, parsed.worker, 'implement')
   };
 
   return updatePhase(updatedWithStats, 'VERIFY');
@@ -533,13 +602,14 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
     repoPath: options.repoPath,
     workerType: reviewWorker,
     workers: options.config.workers,
-    schema: reviewOutputSchema
+    schema: reviewOutputSchema,
+    runStore: options.runStore,
+    stage: 'review'
   });
   if (!parsed.data) {
-    logRawOutputsToArtifact(options.runStore, 'review', parsed.rawOutputs);
     options.runStore.appendEvent({
       type: 'parse_failed',
-      source: reviewWorker,
+      source: parsed.worker,
       payload: {
         stage: 'review',
         parser_context: 'review',
@@ -554,13 +624,13 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
   const review = parsed.data;
   options.runStore.appendEvent({
     type: 'review_complete',
-    source: reviewWorker,
+    source: parsed.worker,
     payload: review
   });
 
   const updatedWithStats: RunState = {
     ...state,
-    worker_stats: incrementWorkerStats(state.worker_stats, reviewWorker, 'review')
+    worker_stats: incrementWorkerStats(state.worker_stats, parsed.worker, 'review')
   };
 
   if (review.status === 'request_changes' || review.status === 'reject') {
@@ -692,6 +762,105 @@ function jitter(baseMs: number): number {
 // Jitter delays for parse retries: 250ms, 1s
 const RETRY_DELAYS_MS = [250, 1000];
 
+type InfraFailureReason = 'parse' | 'auth' | 'network' | 'rate_limit';
+
+function classifyInfraOutput(output: string): 'auth' | 'network' | 'rate_limit' | 'unknown' {
+  const lower = output.toLowerCase();
+
+  // Auth errors
+  if (lower.includes('oauth') || lower.includes('token expired') ||
+      lower.includes('authentication') || lower.includes('login') ||
+      lower.includes('401') || lower.includes('unauthorized') ||
+      lower.includes('not authenticated') || lower.includes('sign in')) {
+    return 'auth';
+  }
+
+  // Network errors
+  if (lower.includes('enotfound') || lower.includes('econnrefused') ||
+      lower.includes('network') || lower.includes('timeout') ||
+      lower.includes('econnreset') || lower.includes('socket')) {
+    return 'network';
+  }
+
+  // Rate limit errors
+  if (lower.includes('rate limit') || lower.includes('429') ||
+      lower.includes('too many requests') || lower.includes('quota')) {
+    return 'rate_limit';
+  }
+
+  return 'unknown';
+}
+
+function resolveInfraReason(output?: string): InfraFailureReason {
+  if (!output) return 'parse';
+  const category = classifyInfraOutput(output);
+  return category === 'unknown' ? 'parse' : category;
+}
+
+async function runWorkerWithRetries<S extends z.ZodTypeAny>(input: {
+  prompt: string;
+  retryPrompt: string;
+  repoPath: string;
+  workerType: 'claude' | 'codex';
+  workers: AgentConfig['workers'];
+  schema: S;
+  runStore: RunStore;
+  stage: string;
+}): Promise<{
+  data?: z.infer<S>;
+  error?: string;
+  output?: string;
+  rawOutputs?: string[];
+  retry_count?: number;
+  worker: 'claude' | 'codex';
+}> {
+  const worker = input.workers[input.workerType];
+  const runWorker = input.workerType === 'claude' ? runClaude : runCodex;
+  const rawOutputs: string[] = [];
+  let lastError: string | undefined;
+  let lastOutput: string | undefined;
+
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    if (attempt > 0) {
+      const delayMs = jitter(RETRY_DELAYS_MS[attempt - 1]);
+      await sleep(delayMs);
+    }
+
+    const callInfo: WorkerCallInfo = {
+      worker: input.workerType,
+      stage: input.stage,
+      attempt: attempt + 1,
+      at: new Date().toISOString()
+    };
+    input.runStore.recordWorkerCall(callInfo);
+
+    const runResult = await runWorker({
+      prompt: attempt === 0 ? input.prompt : input.retryPrompt,
+      repo_path: input.repoPath,
+      worker
+    });
+    const output = runResult.observations.join('\n');
+    rawOutputs.push(output);
+    lastOutput = output;
+
+    const parsed = parseJsonWithSchema(output, input.schema);
+    if (parsed.data) {
+      return { data: parsed.data, output, retry_count: attempt, rawOutputs, worker: input.workerType };
+    }
+    lastError = parsed.error ?? lastError;
+  }
+
+  logRawOutputsToArtifact(input.runStore, input.stage, input.workerType, rawOutputs);
+
+  return {
+    error: lastError ?? 'JSON parse failed after retries',
+    output: lastOutput ?? rawOutputs[rawOutputs.length - 1],
+    rawOutputs,
+    retry_count: RETRY_DELAYS_MS.length,
+    worker: input.workerType
+  };
+}
+
 /**
  * Unified worker call that dispatches to the appropriate worker based on config.
  * This allows phases to be configured to use either Claude or Codex.
@@ -705,62 +874,59 @@ async function callWorkerJson<S extends z.ZodTypeAny>(input: {
   workerType: 'claude' | 'codex';
   workers: AgentConfig['workers'];
   schema: S;
+  runStore: RunStore;
+  stage: string;
 }): Promise<{
   data?: z.infer<S>;
   error?: string;
   output?: string;
   rawOutputs?: string[];
   retry_count?: number;
-  worker: string;
+  worker: 'claude' | 'codex';
 }> {
-  const worker = input.workers[input.workerType];
-  const runWorker = input.workerType === 'claude' ? runClaude : runCodex;
-  const rawOutputs: string[] = [];
-  let lastError: string | undefined;
-
-  // First attempt
-  const first = await runWorker({
-    prompt: input.prompt,
-    repo_path: input.repoPath,
-    worker
-  });
-  const firstOutput = first.observations.join('\n');
-  rawOutputs.push(firstOutput);
-  const firstParsed = parseJsonWithSchema(firstOutput, input.schema);
-  if (firstParsed.data) {
-    return { data: firstParsed.data, output: firstOutput, retry_count: 0, worker: input.workerType };
-  }
-  lastError = firstParsed.error;
-
-  // Retry with clearer JSON instructions + jitter delays
   const retryPrompt = `${input.prompt}\n\nOutput JSON only between BEGIN_JSON and END_JSON. No other text.`;
+  const primary = await runWorkerWithRetries({
+    prompt: input.prompt,
+    retryPrompt,
+    repoPath: input.repoPath,
+    workerType: input.workerType,
+    workers: input.workers,
+    schema: input.schema,
+    runStore: input.runStore,
+    stage: input.stage
+  });
 
-  for (let i = 0; i < RETRY_DELAYS_MS.length; i++) {
-    const delayMs = jitter(RETRY_DELAYS_MS[i]);
-    await sleep(delayMs);
-
-    const retry = await runWorker({
-      prompt: retryPrompt,
-      repo_path: input.repoPath,
-      worker
-    });
-    const retryOutput = retry.observations.join('\n');
-    rawOutputs.push(retryOutput);
-    const retryParsed = parseJsonWithSchema(retryOutput, input.schema);
-    if (retryParsed.data) {
-      return { data: retryParsed.data, output: retryOutput, retry_count: i + 1, worker: input.workerType };
-    }
-    lastError = retryParsed.error ?? lastError;
+  if (primary.data) {
+    return primary;
   }
 
-  // All retries exhausted
-  return {
-    error: lastError ?? 'JSON parse failed after retries',
-    output: rawOutputs[rawOutputs.length - 1],
-    rawOutputs,
-    retry_count: RETRY_DELAYS_MS.length,
-    worker: input.workerType
-  };
+  const fallbackWorker = input.workerType === 'claude' ? 'codex' : 'claude';
+  if (!input.workers[fallbackWorker]) {
+    return primary;
+  }
+
+  const reason = resolveInfraReason(primary.output);
+  input.runStore.appendEvent({
+    type: 'worker_fallback',
+    source: 'supervisor',
+    payload: {
+      stage: input.stage,
+      from: input.workerType,
+      to: fallbackWorker,
+      reason
+    }
+  });
+
+  return runWorkerWithRetries({
+    prompt: input.prompt,
+    retryPrompt,
+    repoPath: input.repoPath,
+    workerType: fallbackWorker,
+    workers: input.workers,
+    schema: input.schema,
+    runStore: input.runStore,
+    stage: input.stage
+  });
 }
 
 function snippet(output?: string): string {
@@ -781,6 +947,7 @@ function snippet(output?: string): string {
 function logRawOutputsToArtifact(
   runStore: RunStore,
   stage: string,
+  worker: string,
   rawOutputs: string[] | undefined
 ): void {
   if (!rawOutputs || rawOutputs.length === 0) return;
@@ -802,7 +969,7 @@ function logRawOutputsToArtifact(
     lines.push('');
   }
 
-  runStore.writeArtifact(`raw-outputs-${stage}.md`, lines.join('\n'));
+  runStore.writeArtifact(`raw-outputs-${stage}-${worker}.md`, lines.join('\n'));
 }
 
 /**

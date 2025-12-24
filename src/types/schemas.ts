@@ -64,6 +64,7 @@ export interface RunState {
   phase_attempt: number;
   started_at: string;
   updated_at: string;
+  last_progress_at?: string;
   stop_reason?: string;
   worker_stats: WorkerStats;
 }

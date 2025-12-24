@@ -23,6 +23,7 @@ export interface RunOptions {
   noWrite: boolean;
   maxTicks: number;
   skipDoctor: boolean;
+  freshTarget: boolean;
 }
 
 function makeRunId(): string {
@@ -80,6 +81,74 @@ function formatSummaryLine(input: {
   ].join(' ');
 }
 
+function normalizePath(input: string): string {
+  return input.replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
+function basePathFromAllowlist(pattern: string, repoPath: string): string | null {
+  const globIndex = pattern.search(/[*?[\]]/);
+  const withoutGlob = globIndex === -1 ? pattern : pattern.slice(0, globIndex);
+  const trimmed = normalizePath(withoutGlob);
+  if (!trimmed) return null;
+
+  const abs = path.resolve(repoPath, trimmed);
+  if (fs.existsSync(abs) && fs.statSync(abs).isDirectory()) {
+    return trimmed;
+  }
+
+  if (pattern.endsWith('/**') || pattern.endsWith('/*') || pattern.endsWith('/')) {
+    return trimmed;
+  }
+
+  const dir = normalizePath(path.posix.dirname(trimmed));
+  return dir && dir !== '.' ? dir : null;
+}
+
+function commonPathPrefix(paths: string[]): string | null {
+  if (paths.length === 0) return null;
+  const segments = paths.map((p) => normalizePath(p).split('/').filter(Boolean));
+  const max = Math.min(...segments.map((parts) => parts.length));
+  const common: string[] = [];
+
+  for (let i = 0; i < max; i += 1) {
+    const segment = segments[0][i];
+    if (segments.every((parts) => parts[i] === segment)) {
+      common.push(segment);
+    } else {
+      break;
+    }
+  }
+
+  return common.length ? common.join('/') : null;
+}
+
+function resolveTargetRoot(repoPath: string, allowlist: string[]): string | null {
+  const roots = allowlist
+    .map((pattern) => basePathFromAllowlist(pattern, repoPath))
+    .filter((value): value is string => Boolean(value));
+  const root = commonPathPrefix(roots);
+  if (!root) return null;
+
+  const repoAbs = path.resolve(repoPath);
+  const targetAbs = path.resolve(repoPath, root);
+  if (!targetAbs.startsWith(`${repoAbs}${path.sep}`)) return null;
+  if (targetAbs === repoAbs) return null;
+
+  return root;
+}
+
+async function freshenTargetRoot(repoPath: string, allowlist: string[]): Promise<string> {
+  const targetRoot = resolveTargetRoot(repoPath, allowlist);
+  if (!targetRoot) {
+    throw new Error('Unable to resolve safe target root from allowlist.');
+  }
+
+  await gitOptional(['checkout', '--', targetRoot], repoPath);
+  await git(['clean', '-fd', targetRoot], repoPath);
+
+  return targetRoot;
+}
+
 export async function runCommand(options: RunOptions): Promise<void> {
   const repoPath = path.resolve(options.repo);
   const taskPath = path.resolve(options.task);
@@ -99,6 +168,19 @@ export async function runCommand(options: RunOptions): Promise<void> {
         console.error(`  ${check.name}: ${check.error}`);
       }
       console.error('\nRun with --skip-doctor to bypass worker health checks.');
+      process.exitCode = 1;
+      return;
+    }
+  }
+
+  let freshTargetRoot: string | null = null;
+  if (options.freshTarget) {
+    try {
+      freshTargetRoot = await freshenTargetRoot(repoPath, config.scope.allowlist);
+      console.log(`Fresh target: cleaned ${freshTargetRoot}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Fresh target failed: ${message}`);
       process.exitCode = 1;
       return;
     }
@@ -130,6 +212,13 @@ export async function runCommand(options: RunOptions): Promise<void> {
     runStore.writeArtifact('task.md', taskText);
     const fingerprint = await captureFingerprint(config, repoPath);
     runStore.writeFingerprint(fingerprint);
+    if (freshTargetRoot) {
+      runStore.appendEvent({
+        type: 'fresh_target',
+        source: 'cli',
+        payload: { target_root: freshTargetRoot }
+      });
+    }
     runStore.appendEvent({
       type: 'run_started',
       source: 'cli',
