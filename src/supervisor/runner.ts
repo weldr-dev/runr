@@ -21,15 +21,29 @@ import { commandsForTier, selectTiersWithReasons } from './verification-policy.j
 import { runVerification } from '../verification/engine.js';
 import { stopRun, updatePhase } from './state-machine.js';
 
+/**
+ * Maximum number of verification retry attempts per milestone before stopping.
+ * Each retry transitions back to IMPLEMENT with fix instructions.
+ */
 const MAX_MILESTONE_RETRIES = 3;
 
+/**
+ * Configuration options for the supervisor loop.
+ */
 export interface SupervisorOptions {
+  /** Run store for persisting state, timeline, and artifacts */
   runStore: RunStore;
+  /** Absolute path to the target repository */
   repoPath: string;
+  /** Raw task text from the task file */
   taskText: string;
+  /** Parsed agent configuration */
   config: AgentConfig;
+  /** Maximum runtime in minutes before stopping */
   timeBudgetMinutes: number;
+  /** Maximum phase transitions before stopping */
   maxTicks: number;
+  /** Whether lockfile changes are permitted */
   allowDeps: boolean;
 }
 
@@ -52,6 +66,18 @@ const DEFAULT_STOP_MEMO = [
   '- '
 ].join('\n');
 
+/**
+ * Main supervisor loop that orchestrates the agent through phases.
+ *
+ * Executes up to `maxTicks` phase transitions, stopping early if:
+ * - Time budget is exceeded
+ * - Run reaches STOPPED phase
+ * - A phase handler stops the run (e.g., guard violation, max retries)
+ *
+ * Phase flow: INIT -> PLAN -> IMPLEMENT -> VERIFY -> REVIEW -> CHECKPOINT -> FINALIZE
+ *
+ * @param options - Supervisor configuration including run store, config, and budgets
+ */
 export async function runSupervisorLoop(options: SupervisorOptions): Promise<void> {
   const startTime = Date.now();
 
@@ -79,6 +105,10 @@ export async function runSupervisorLoop(options: SupervisorOptions): Promise<voi
   }
 }
 
+/**
+ * Dispatches to the appropriate phase handler based on current state.
+ * Returns updated state after phase execution.
+ */
 async function runPhase(state: RunState, options: SupervisorOptions): Promise<RunState> {
   switch (state.phase) {
     case 'PLAN':
@@ -100,6 +130,11 @@ async function runPhase(state: RunState, options: SupervisorOptions): Promise<Ru
   }
 }
 
+/**
+ * PLAN phase: Invokes the planner worker to generate milestones from the task.
+ * Validates that all files_expected are within the scope allowlist.
+ * Writes plan.md artifact and transitions to IMPLEMENT on success.
+ */
 async function handlePlan(state: RunState, options: SupervisorOptions): Promise<RunState> {
   options.runStore.appendEvent({
     type: 'phase_start',
@@ -175,6 +210,12 @@ async function handlePlan(state: RunState, options: SupervisorOptions): Promise<
   return updatePhase(updated, 'IMPLEMENT');
 }
 
+/**
+ * IMPLEMENT phase: Invokes the implementer worker to execute the current milestone.
+ * Includes fix instructions if retrying after verification failure.
+ * Validates scope and lockfile guards after implementation.
+ * Writes handoff memo and transitions to VERIFY on success.
+ */
 async function handleImplement(state: RunState, options: SupervisorOptions): Promise<RunState> {
   options.runStore.appendEvent({
     type: 'phase_start',
@@ -276,6 +317,12 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
   return updatePhase(updatedWithStats, 'VERIFY');
 }
 
+/**
+ * VERIFY phase: Runs verification commands based on tier selection.
+ * Selects tiers based on risk triggers and milestone risk level.
+ * On failure, retries up to MAX_MILESTONE_RETRIES times before stopping.
+ * Writes verification logs and transitions to REVIEW on success.
+ */
 async function handleVerify(state: RunState, options: SupervisorOptions): Promise<RunState> {
   options.runStore.appendEvent({
     type: 'phase_start',
@@ -391,6 +438,11 @@ async function handleVerify(state: RunState, options: SupervisorOptions): Promis
   return updatePhase(cleared, 'REVIEW');
 }
 
+/**
+ * REVIEW phase: Invokes the reviewer worker to evaluate the implementation.
+ * Provides diff summary and verification output for review context.
+ * On approval, transitions to CHECKPOINT; on rejection, returns to IMPLEMENT.
+ */
 async function handleReview(state: RunState, options: SupervisorOptions): Promise<RunState> {
   options.runStore.appendEvent({
     type: 'phase_start',
@@ -472,6 +524,11 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
   return updatePhase(updatedWithStats, 'CHECKPOINT');
 }
 
+/**
+ * CHECKPOINT phase: Commits changes and advances to the next milestone.
+ * Creates a git commit with standardized message format.
+ * If more milestones remain, transitions to IMPLEMENT; otherwise FINALIZE.
+ */
 async function handleCheckpoint(state: RunState, options: SupervisorOptions): Promise<RunState> {
   options.runStore.appendEvent({
     type: 'phase_start',
@@ -512,6 +569,10 @@ async function handleCheckpoint(state: RunState, options: SupervisorOptions): Pr
   return updatePhase(updated, 'IMPLEMENT');
 }
 
+/**
+ * FINALIZE phase: Writes summary, emits worker stats, and stops the run.
+ * Called when all milestones are complete.
+ */
 async function handleFinalize(state: RunState, options: SupervisorOptions): Promise<RunState> {
   options.runStore.appendEvent({
     type: 'phase_start',
