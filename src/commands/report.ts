@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { RunState } from '../types/schemas.js';
+import { readContextPackArtifact, formatContextPackStatus } from '../context/index.js';
 
 export interface ReportOptions {
   runId: string;
@@ -89,6 +90,7 @@ export async function reportCommand(options: ReportOptions): Promise<void> {
     : { tailEvents: [], kpi: defaultKpi };
 
   const flags = readFlags(scan.runStarted);
+  const contextPackArtifact = readContextPackArtifact(runDir);
   const header = [
     'Run',
     `run_id: ${options.runId}`,
@@ -104,7 +106,7 @@ export async function reportCommand(options: ReportOptions): Promise<void> {
     `allow_deps: ${flags.allow_deps ?? 'unknown'}`
   ].join('\n');
 
-  const kpiBlock = formatKpiBlock(scan.kpi);
+  const kpiBlock = formatKpiBlock(scan.kpi, contextPackArtifact);
 
   if (options.kpiOnly) {
     // Compact output: just run_id and KPIs
@@ -177,7 +179,10 @@ function readFlags(runStarted?: Record<string, unknown>): {
   };
 }
 
-function formatKpiBlock(kpi: DerivedKpi): string {
+function formatKpiBlock(
+  kpi: DerivedKpi,
+  contextPackArtifact?: ReturnType<typeof readContextPackArtifact>
+): string {
   const lines: string[] = [];
 
   // Total duration + unattributed
@@ -237,6 +242,9 @@ function formatKpiBlock(kpi: DerivedKpi): string {
   } else {
     lines.push('verify: (no verification data)');
   }
+
+  // Context pack status
+  lines.push(formatContextPackStatus(contextPackArtifact ?? null));
 
   return lines.join('\n');
 }
