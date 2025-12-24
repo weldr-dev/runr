@@ -93,6 +93,7 @@ export async function guardsOnlyCommand(
       payload: {
         repo: preflight.repo_context,
         guard: preflight.guard,
+        binary: preflight.binary,
         ping: preflight.ping,
         tiers: preflight.tiers,
         tier_reasons: preflight.tier_reasons,

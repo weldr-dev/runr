@@ -150,6 +150,7 @@ export async function runCommand(options: RunOptions): Promise<void> {
       source: 'cli',
       payload: {
         guard: preflight.guard,
+        binary: preflight.binary,
         ping: preflight.ping,
         tiers: preflight.tiers,
         tier_reasons: preflight.tier_reasons
@@ -188,9 +189,15 @@ export async function runCommand(options: RunOptions): Promise<void> {
         source: 'cli',
         payload: {
           guard: preflight.guard,
+          binary: preflight.binary,
           ping: preflight.ping
         }
       });
+      const binaryLines = preflight.binary.results.map(r =>
+        r.ok
+          ? `- ${r.worker}: ${r.version}`
+          : `- ${r.worker}: FAIL - ${r.error}`
+      );
       const pingLines = preflight.ping.skipped
         ? ['- Skipped']
         : preflight.ping.results.map(r =>
@@ -217,6 +224,9 @@ export async function runCommand(options: RunOptions): Promise<void> {
         preflight.guard.lockfile_violations.length
           ? `- ${preflight.guard.lockfile_violations.join('\n- ')}`
           : '- None',
+        '',
+        'Binary checks:',
+        binaryLines.length ? binaryLines.join('\n') : '- None',
         '',
         'Ping results:',
         ...pingLines

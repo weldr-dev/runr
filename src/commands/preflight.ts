@@ -1,12 +1,59 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { AgentConfig } from '../config/schema.js';
+import { execa } from 'execa';
+import { AgentConfig, WorkerConfig } from '../config/schema.js';
 import { buildRepoContext } from '../repo/context.js';
 import { checkLockfiles, checkScope } from '../supervisor/scope-guard.js';
 import { selectTiersWithReasons } from '../supervisor/verification-policy.js';
 import { RepoContext, RiskLevel, VerificationTier } from '../types/schemas.js';
 import { pingClaude, PingResult } from '../workers/claude.js';
 import { pingCodex } from '../workers/codex.js';
+
+export interface BinaryCheckResult {
+  worker: string;
+  bin: string;
+  ok: boolean;
+  version?: string;
+  error?: string;
+}
+
+/**
+ * Check worker binary exists and can report version.
+ * This is cheaper than ping (no API call).
+ */
+async function checkWorkerBinary(
+  name: string,
+  worker: WorkerConfig
+): Promise<BinaryCheckResult> {
+  try {
+    const result = await execa(worker.bin, ['--version'], {
+      timeout: 5000,
+      reject: false
+    });
+
+    if (result.exitCode === 0) {
+      const version = result.stdout.trim().split('\n')[0];
+      return { worker: name, bin: worker.bin, ok: true, version };
+    }
+
+    return {
+      worker: name,
+      bin: worker.bin,
+      ok: false,
+      error: result.stderr || 'Version check failed'
+    };
+  } catch (err) {
+    const error = err as Error;
+    return {
+      worker: name,
+      bin: worker.bin,
+      ok: false,
+      error: error.message.includes('ENOENT')
+        ? `Command not found: ${worker.bin}`
+        : error.message
+    };
+  }
+}
 
 export interface PreflightOptions {
   repoPath: string;
@@ -27,6 +74,11 @@ export interface GuardStatus {
   lockfile_violations: string[];
 }
 
+export interface BinaryStatus {
+  ok: boolean;
+  results: BinaryCheckResult[];
+}
+
 export interface PingStatus {
   ok: boolean;
   skipped: boolean;
@@ -36,6 +88,7 @@ export interface PingStatus {
 export interface PreflightResult {
   repo_context: RepoContext;
   guard: GuardStatus;
+  binary: BinaryStatus;
   ping: PingStatus;
   tiers: VerificationTier[];
   tier_reasons: string[];
@@ -82,13 +135,40 @@ export async function runPreflight(
     }
   }
 
-  // Ping workers to verify auth/connectivity (after cheap local guards)
+  // Check worker binaries exist (cheaper than ping, catches "command not found")
+  const workers = options.config.workers;
+  const binaryCheckPromises: Promise<BinaryCheckResult>[] = [];
+  if (workers.claude) {
+    binaryCheckPromises.push(checkWorkerBinary('claude', workers.claude));
+  }
+  if (workers.codex) {
+    binaryCheckPromises.push(checkWorkerBinary('codex', workers.codex));
+  }
+  const binaryResults = await Promise.all(binaryCheckPromises);
+
+  // Add binary failures to reasons
+  for (const result of binaryResults) {
+    if (!result.ok) {
+      reasons.push(`binary_missing:${result.worker}:${result.error}`);
+    }
+  }
+
+  const binaryStatus: BinaryStatus = {
+    ok: binaryResults.every(r => r.ok),
+    results: binaryResults
+  };
+
+  // Ping workers to verify auth/connectivity (after binary checks)
+  // Skip ping if binaries failed (no point pinging missing binaries)
   let pingStatus: PingStatus;
-  if (options.skipPing) {
-    pingStatus = { ok: true, skipped: true, results: [] };
+  if (options.skipPing || !binaryStatus.ok) {
+    pingStatus = {
+      ok: true,
+      skipped: true,
+      results: []
+    };
   } else {
     const pingResults: PingResult[] = [];
-    const workers = options.config.workers;
 
     // Ping all configured workers in parallel
     const pingPromises: Promise<PingResult>[] = [];
@@ -133,6 +213,7 @@ export async function runPreflight(
       scope_violations: scopeCheck.violations,
       lockfile_violations: lockfileCheck.violations
     },
+    binary: binaryStatus,
     ping: pingStatus,
     tiers: selection.tiers,
     tier_reasons: selection.reasons
