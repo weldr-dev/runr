@@ -25,33 +25,40 @@ Secondary: **Human touches** per task (target: ~0 for small/medium tasks)
 
 ### 1. KPI Scoreboard ⭐ [001_kpi_scoreboard.md]
 **Unlock:** Measurement. Can't optimize blind.
+**Self-Host:** ✅ SAFE - purely additive instrumentation
 - Phase timing, worker metrics, token counts
 - `report` shows KPIs, `compare` diffs runs
 - Foundation for all optimization work
 
 ### 2. Context Packer ⭐ [002_context_packer.md]
 **Unlock:** Speed + autonomy via smarter context.
+**Self-Host:** ✅ SAFE - new module behind flag
 - RepoMap indexing (exports, tests, hotspots)
 - Relevant file retrieval (top-K scoring)
 - 40%+ token reduction target
 
 ### 3. Fast Path Mode [003_fast_path.md]
 **Unlock:** Pleasant daily use for small tasks.
+**Self-Host:** ⚠️ CAUTION - config only, manual phase flow changes
 - Skip PLAN→REVIEW ceremony when safe
 - Auto-detect: small diff, within allowlist, tests exist
 - 30-60% time reduction for small tasks
 
 ### 4. Adaptive Autonomy [004_adaptive_autonomy.md]
 **Unlock:** Zero-touch task completion.
+**Self-Host:** ⚠️ CAUTION - config only, manual retry logic
 - Auto-retry verify failures
 - Auto-fix lint/test within scope
 - Clear "I stopped because..." reasons
 
 ### 5. Throughput Optimization [005_throughput.md]
 **Unlock:** Raw speed at scale.
+**Self-Host:** 🚫 DO NOT - changes execution semantics
 - Command batching
 - Parallel verification
 - Model tiering (cheap for plan, strong for review)
+
+> See `docs/self-hosting-safety.md` for detailed allowlists and guardrails.
 
 ## Dependencies
 
