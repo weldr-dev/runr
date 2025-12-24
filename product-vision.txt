@@ -1,0 +1,119 @@
+I dug through the actual repo in context-pack.zip (code + docs + tasks). You’re clean: I don’t see Weldr concepts leaking in (no “ownership,” “clobber,” “fork objects,” etc.), and the architecture is clearly a different product.
+
+What this project actually is (as the code/docs define it)
+
+A supervised, phase-gated agent runtime that turns a task into a reproducible run with:
+
+Supervisor loop: PLAN → IMPLEMENT → VERIFY → REVIEW → CHECKPOINT → FINALIZE (src/supervisor/runner.ts, docs/run-lifecycle.md)
+
+Hard governance:
+
+scope allow/deny (src/supervisor/scope-guard.ts, docs/guards-and-scope.md)
+
+lockfile protection
+
+dirty-worktree gating
+
+plan sanity check: files_expected must match allowlist (stops early if planner goes out of bounds)
+
+Run store + observability:
+
+runs/<id>/state.json, timeline.jsonl, plan.md, config snapshot, memos (src/store/run-store.ts, docs/run-store.md)
+
+Safe resume:
+
+env fingerprint captured and persisted (src/env/fingerprint.ts)
+
+Checkpointing in the target repo:
+
+commits per milestone (handleCheckpoint)
+
+and the important fix is present: run branch is created off current branch, not default branch (ensureRunBranch(..., current_branch) in src/commands/run.ts)
+
+Review sees new files:
+
+you do git add -N . before diff so untracked file contents show up in review (runner.ts)
+
+That’s a “walk-away runtime,” not a spec template pack.
+
+How it’s not Weldr (and how to keep it that way)
+Weldr (adjacent, different product)
+
+Long-horizon software evolution + ownership semantics
+
+Prevent “clobber” across upgrades
+
+Fork lineage, boundaries as ownership
+
+This runtime (what you’re building here)
+
+Short-horizon execution governance + determinism
+
+Boundaries are operational safety rails (allowlist/denylist/lockfiles)
+
+Goal is: unattended progress + receipts + resume
+
+Allowed synergy (keep it explicit)
+
+Shared philosophy: “upgrades/changes are adversarial”
+
+Shared primitives: boundaries, provenance, replayability
+
+But: don’t import ownership semantics or fork lineage theory into this repo—here it’s “run policy,” not “who owns this code.”
+
+If you want to harden the separation, add a blunt section to README.md + docs/mental-model.md:
+
+“This is not Weldr. This project governs execution of changes, not long-term ownership/evolution semantics.”
+
+Vision statement that matches the code you shipped
+
+“A deterministic, governed runtime for unattended coding runs.”
+You hand it a task + policy, walk away, and come back to either:
+
+a checkpointed set of commits with verification evidence, or
+
+a clean stop with a forensic trail explaining why it failed.
+
+That’s the core. Everything else is support structure.
+
+
+====
+
+Here’s the executive summary in plain English.
+
+## Executive summary
+
+* **Your tool** is a **runtime**: it runs agents *unattended* with **phase gates, guardrails, checkpointing, resume, and receipts**. The product is “walk away and come back to a verified outcome or a clean failure story.”
+* **Spec Kit** is a **spec workflow kit**: it helps you write **constitution/spec/plan/tasks** so agents have clearer instructions. It’s mostly templates + commands to improve input quality. ([GitHub][1])
+* **BMAD** is a **process/workflow framework**: it structures AI work like an Agile team with specialized “roles/agents” and repeatable workflows. ([GitHub][2])
+
+## The simple comparison
+
+**What they optimize for**
+
+* **Your tool:** *reliable execution* (determinism, governance, resume, verification loops)
+* **Spec Kit:** *better instructions* (spec discipline before coding) ([GitHub][1])
+* **BMAD:** *repeatable team-like process* (multi-role coordination, structured lifecycle) ([GitHub][2])
+
+**What you get at the end**
+
+* **Your tool:** a **checkpointed result + timeline + artifacts**; minimal babysitting
+* **Spec Kit:** a set of **markdown artifacts** that guide an agent
+* **BMAD:** a **playbook + role prompts/workflows** for running a project
+
+**Where your differentiation is sharp**
+
+* Spec Kit and BMAD mostly live “above” execution: they help humans/agents think and coordinate.
+* You live “below” that: you make the work **actually run safely, fast, and resumably**—even when nobody is watching.
+
+## How to explain your unique position (one sentence)
+
+**“Spec Kit and BMAD help you decide what to do; our runtime makes it happen autonomously, safely, and reproducibly.”**
+
+And if you want the punchier version:
+**Spec Kit = better briefs. BMAD = better process. Yours = reliable autonomy.**
+
+[1]: https://github.com/github/spec-kit?utm_source=chatgpt.com "Toolkit to help you get started with Spec-Driven Development"
+[2]: https://github.com/bmad-code-org/BMAD-METHOD?utm_source=chatgpt.com "bmad-code-org/BMAD-METHOD"
+
+====
