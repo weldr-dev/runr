@@ -5,3 +5,5 @@ runs/
 *.log
 .env
 apps/deckbuilder/package-lock.json
+context-pack.*
+scripts/
