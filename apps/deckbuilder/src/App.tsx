@@ -192,28 +192,66 @@ export default function App() {
     <main
       style={{
         fontFamily: 'system-ui, -apple-system, sans-serif',
-        padding: 24,
         minHeight: '100vh',
         background: 'linear-gradient(135deg, #0c0a1d 0%, #1a1333 50%, #0f0d1a 100%)',
         color: '#e2e8f0'
       }}
     >
-      <h1 style={{ color: '#f1f5f9', textAlign: 'center', marginBottom: 24 }}>Deckbuilder</h1>
-      <section
+      <header
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
-          flexWrap: 'wrap',
-          marginBottom: 16
+          justifyContent: 'space-between',
+          height: 40,
+          maxHeight: 40,
+          padding: '0 16px',
+          background: 'linear-gradient(180deg, #1e293b, #0f172a)',
+          borderBottom: '1px solid #334155'
         }}
       >
-        <button type="button" onClick={startNewGame}>
-          New Game
-        </button>
-        <button type="button" onClick={openMenu}>
-          Menu
-        </button>
+        <h1 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#f1f5f9' }}>Deckbuilder</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            type="button"
+            onClick={startNewGame}
+            style={{
+              padding: '4px 12px',
+              fontSize: 13,
+              fontWeight: 500,
+              background: 'linear-gradient(135deg, #4f46e5, #6366f1)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 4,
+              cursor: 'pointer'
+            }}
+          >
+            New Game
+          </button>
+          <button
+            type="button"
+            onClick={openMenu}
+            aria-label="Open menu"
+            style={{
+              padding: '4px 8px',
+              fontSize: 18,
+              background: 'transparent',
+              color: '#94a3b8',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            ☰
+          </button>
+          <span
+            title={autoSaveEnabled ? 'Auto-save enabled' : 'Auto-save disabled'}
+            style={{
+              fontSize: 10,
+              color: autoSaveEnabled ? '#22c55e' : '#64748b'
+            }}
+          >
+            ●
+          </span>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -221,7 +259,8 @@ export default function App() {
           onChange={handleImportChange}
           style={{ display: 'none' }}
         />
-      </section>
+      </header>
+      <div style={{ padding: 24 }}>
       {importError ? (
         <p style={{ color: '#fca5a5', marginBottom: 16 }} role="alert">
           {importError}
@@ -274,6 +313,7 @@ export default function App() {
           </label>
         </div>
       </Modal>
+      </div>
     </main>
   );
 }
