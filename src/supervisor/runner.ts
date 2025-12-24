@@ -8,6 +8,7 @@ import { listChangedFiles } from '../repo/context.js';
 import { RunStore } from '../store/run-store.js';
 import { Milestone, RunState, WorkerStats } from '../types/schemas.js';
 import { buildImplementPrompt, buildPlanPrompt, buildReviewPrompt } from '../workers/prompts.js';
+import { buildContextPack, formatContextPackForPrompt } from '../context/index.js';
 import { runClaude } from '../workers/claude.js';
 import { runCodex } from '../workers/codex.js';
 import {
@@ -228,11 +229,43 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
     return stopWithError(state, options, 'milestone_missing', 'No milestone found.');
   }
 
+  // Build context pack if enabled via env var (avoids config schema changes)
+  const enableContextPack = process.env.CONTEXT_PACK === '1';
+  let contextPackText: string | undefined;
+
+  if (enableContextPack) {
+    // Extract references from task text (simple pattern matching for v1)
+    const references: Array<{ pattern: string; hint?: string }> = [];
+    const taskLower = options.taskText.toLowerCase();
+    if (taskLower.includes('rng') && taskLower.includes('deckbuilder')) {
+      references.push({ pattern: 'RNG pattern from deckbuilder' });
+    }
+    if (taskLower.includes('rng pattern')) {
+      references.push({ pattern: 'RNG pattern' });
+    }
+
+    const pack = buildContextPack({
+      repoRoot: options.repoPath,
+      targetRoot: state.scope_lock.allowlist[0]?.replace('/**', '') ?? options.repoPath,
+      config: {
+        verification: options.config.verification,
+        scope: {
+          allowlist: state.scope_lock.allowlist,
+          denylist: state.scope_lock.denylist
+        }
+      },
+      references
+    });
+
+    contextPackText = formatContextPackForPrompt(pack);
+  }
+
   const prompt = buildImplementPrompt({
     milestone,
     scopeAllowlist: state.scope_lock.allowlist,
     scopeDenylist: state.scope_lock.denylist,
     allowDeps: options.allowDeps,
+    contextPack: contextPackText,
     fixInstructions: state.last_verify_failure
       ? {
           failedCommand: state.last_verify_failure.failedCommand,

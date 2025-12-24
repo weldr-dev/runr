@@ -33,6 +33,7 @@ export function buildImplementPrompt(input: {
   scopeAllowlist: string[];
   scopeDenylist: string[];
   allowDeps: boolean;
+  contextPack?: string;
   fixInstructions?: {
     failedCommand: string;
     errorOutput: string;
@@ -42,7 +43,21 @@ export function buildImplementPrompt(input: {
 }): string {
   const template = loadTemplate('implementer.md');
   const filesExpected = input.milestone.files_expected ?? [];
-  const lines = [
+  const lines: string[] = [];
+
+  // Context pack goes first so agent sees verification bar + patterns before acting
+  if (input.contextPack) {
+    lines.push(
+      '## CONTEXT PACK (read first)',
+      '',
+      input.contextPack,
+      '',
+      '## END CONTEXT PACK',
+      ''
+    );
+  }
+
+  lines.push(
     template,
     '',
     `Milestone goal: ${input.milestone.goal}`,
@@ -51,7 +66,7 @@ export function buildImplementPrompt(input: {
     `Scope allowlist: ${input.scopeAllowlist.join(', ') || 'none'}`,
     `Scope denylist: ${input.scopeDenylist.join(', ') || 'none'}`,
     `Allow deps: ${input.allowDeps ? 'yes' : 'no'}`
-  ];
+  );
 
   if (input.fixInstructions) {
     lines.push(
