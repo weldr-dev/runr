@@ -70,16 +70,16 @@ function CardStack({
 
   const stackStyle: CSSProperties = {
     position: 'relative',
-    width: 70,
-    height: 95,
+    width: 50,
+    height: 68,
     perspective: '200px'
   };
 
-  const cardLayers = Math.min(count, 5);
+  const cardLayers = Math.min(count, 4);
   const cards = [];
 
   for (let i = 0; i < cardLayers; i++) {
-    const offset = i * 2;
+    const offset = i * 1.5;
     cards.push(
       <div
         key={i}
@@ -87,10 +87,10 @@ function CardStack({
           position: 'absolute',
           width: '100%',
           height: '100%',
-          borderRadius: 8,
+          borderRadius: 6,
           background: `linear-gradient(135deg, ${baseColor}, ${darkColor})`,
           border: `2px solid ${darkColor}`,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
           transform: `translateY(${-offset}px) translateX(${offset * 0.5}px)`,
           zIndex: cardLayers - i
         }}
@@ -99,11 +99,11 @@ function CardStack({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
       <div style={stackStyle}>{cards}</div>
       <div
         style={{
-          fontSize: 22,
+          fontSize: 16,
           fontWeight: 700,
           color: '#f8fafc',
           textShadow: '0 2px 4px rgba(0,0,0,0.5)'
@@ -113,10 +113,10 @@ function CardStack({
       </div>
       <div
         style={{
-          fontSize: 11,
+          fontSize: 9,
           fontWeight: 600,
           textTransform: 'uppercase',
-          letterSpacing: 1,
+          letterSpacing: 0.5,
           color: '#94a3b8'
         }}
       >
@@ -199,13 +199,13 @@ export function Board({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 24,
-        width: 'min(100%, 1100px)',
-        minHeight: 600,
+        gap: 8,
+        width: 'min(100%, 1000px)',
+        maxHeight: 500,
         margin: '0 auto',
-        padding: '24px 20px',
+        padding: '12px 16px',
         background: 'linear-gradient(180deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
-        borderRadius: 20,
+        borderRadius: 12,
         border: '2px solid #334155',
         boxShadow: 'inset 0 0 80px rgba(99, 102, 241, 0.1), 0 8px 32px rgba(0,0,0,0.4)'
       }}
@@ -217,12 +217,12 @@ export function Board({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: 12,
-          padding: 20,
+          gap: 6,
+          padding: '8px 12px',
           background: isEnemyTurn
             ? 'linear-gradient(180deg, rgba(239, 68, 68, 0.35), rgba(153, 27, 27, 0.25))'
             : 'linear-gradient(180deg, rgba(239, 68, 68, 0.15), rgba(153, 27, 27, 0.1))',
-          borderRadius: 16,
+          borderRadius: 10,
           border: isEnemyTurn ? '2px solid #ef4444' : '1px solid rgba(239, 68, 68, 0.3)',
           boxShadow: isEnemyTurn ? '0 0 20px rgba(239, 68, 68, 0.4)' : 'none',
           transition: 'all 300ms ease'
@@ -238,10 +238,10 @@ export function Board({
         ))}
         <div
           style={{
-            fontSize: 13,
+            fontSize: 11,
             fontWeight: 700,
             textTransform: 'uppercase',
-            letterSpacing: 2,
+            letterSpacing: 1.5,
             color: isEnemyTurn ? '#fef2f2' : '#fca5a5',
             transition: 'color 300ms ease'
           }}
@@ -252,16 +252,16 @@ export function Board({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 24
+            gap: 16
           }}
         >
           <div
             style={{
-              padding: '12px 16px',
+              padding: '6px 10px',
               background: 'rgba(127, 29, 29, 0.6)',
-              borderRadius: 12,
+              borderRadius: 8,
               border: '1px solid #dc2626',
-              minWidth: 180
+              minWidth: 140
             }}
           >
             <HealthBar current={enemy.hp} max={maxEnemyHp} size="medium" />
@@ -278,45 +278,48 @@ export function Board({
           flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
-          padding: '16px 0'
+          padding: '4px 0',
+          minHeight: handCount === 0 ? 40 : 180
         }}
       >
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: 2,
-            color: '#64748b',
-            marginBottom: 16
-          }}
-        >
-          Your Hand
-        </div>
         {handCount === 0 ? (
-          <p style={{ margin: 0, color: '#475569', fontStyle: 'italic' }}>(empty)</p>
+          <p style={{ margin: 0, color: '#475569', fontStyle: 'italic', fontSize: 12 }}>(empty)</p>
         ) : (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'flex-end',
-              gap: handCount > 5 ? 8 : 16,
-              paddingBottom: 20
-            }}
-          >
-            {player.hand.map((card, index) => (
-              <div key={card.id} style={{ ...getCardTransform(index, handCount), flexShrink: 0 }}>
-                <Card
-                  card={card}
-                  playerEnergy={player.energy}
-                  onPlay={handlePlayCard}
-                  disabled={disableActions || playingCardId !== null}
-                  isPlaying={playingCardId === card.id}
-                />
-              </div>
-            ))}
-          </div>
+          <>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 1.5,
+                color: '#64748b',
+                marginBottom: 6
+              }}
+            >
+              Your Hand
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'flex-end',
+                gap: handCount > 5 ? 4 : 10,
+                paddingBottom: 8
+              }}
+            >
+              {player.hand.map((card, index) => (
+                <div key={card.id} style={{ ...getCardTransform(index, handCount), flexShrink: 0 }}>
+                  <Card
+                    card={card}
+                    playerEnergy={player.energy}
+                    onPlay={handlePlayCard}
+                    disabled={disableActions || playingCardId !== null}
+                    isPlaying={playingCardId === card.id}
+                  />
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -325,13 +328,13 @@ export function Board({
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'flex-end',
-          gap: 24,
-          padding: '16px 20px',
+          alignItems: 'center',
+          gap: 12,
+          padding: '8px 12px',
           background: playerShake
             ? 'linear-gradient(0deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.1))'
             : 'linear-gradient(0deg, rgba(34, 197, 94, 0.1), transparent)',
-          borderRadius: 16,
+          borderRadius: 10,
           border: playerShake ? '2px solid #ef4444' : '1px solid rgba(34, 197, 94, 0.2)',
           boxShadow: playerShake ? '0 0 30px rgba(239, 68, 68, 0.5)' : 'none',
           animation: playerShake ? 'shake 0.4s ease-in-out' : 'none',

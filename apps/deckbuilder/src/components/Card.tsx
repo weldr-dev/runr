@@ -10,9 +10,9 @@ interface CardProps {
   isPlaying?: boolean;
 }
 
-// Poker card proportions: ~2.5:3.5 ratio (width:height)
-const CARD_WIDTH = 140;
-const CARD_HEIGHT = 196;
+// Poker card proportions: ~2.5:3.5 ratio (width:height) - compact size
+const CARD_WIDTH = 120;
+const CARD_HEIGHT = 168;
 
 export function Card({ card, playerEnergy, onPlay, disabled = false, isPlaying = false }: CardProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -80,8 +80,8 @@ export function Card({ card, playerEnergy, onPlay, disabled = false, isPlaying =
   };
 
   const costOrbStyle: CSSProperties = {
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     borderRadius: '50%',
     background: canActivate
       ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)'
@@ -91,7 +91,7 @@ export function Card({ card, playerEnergy, onPlay, disabled = false, isPlaying =
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 800,
     color: '#fff',
     textShadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
@@ -106,9 +106,9 @@ export function Card({ card, playerEnergy, onPlay, disabled = false, isPlaying =
 
   // Card name area
   const nameStyle: CSSProperties = {
-    marginTop: 38,
-    padding: '0 8px',
-    fontSize: 13,
+    marginTop: 32,
+    padding: '0 6px',
+    fontSize: 11,
     fontWeight: 700,
     color: canActivate ? '#1e293b' : '#64748b',
     textAlign: 'center',
@@ -118,8 +118,8 @@ export function Card({ card, playerEnergy, onPlay, disabled = false, isPlaying =
   // Card art placeholder area
   const artAreaStyle: CSSProperties = {
     flex: 1,
-    margin: '4px 8px',
-    borderRadius: 6,
+    margin: '3px 6px',
+    borderRadius: 5,
     background: canActivate
       ? 'linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%)'
       : 'linear-gradient(180deg, #cbd5e1 0%, #94a3b8 100%)',
@@ -134,7 +134,7 @@ export function Card({ card, playerEnergy, onPlay, disabled = false, isPlaying =
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '4px 8px 6px'
+    padding: '3px 6px 5px'
   };
 
   // Damage badge
@@ -145,9 +145,9 @@ export function Card({ card, playerEnergy, onPlay, disabled = false, isPlaying =
   };
 
   const damageOrbStyle: CSSProperties = {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 5,
     background: canActivate
       ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
       : 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)',
@@ -156,7 +156,7 @@ export function Card({ card, playerEnergy, onPlay, disabled = false, isPlaying =
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 800,
     color: '#fff',
     textShadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
