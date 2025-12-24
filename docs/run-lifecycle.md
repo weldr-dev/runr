@@ -39,8 +39,13 @@ flowchart TD
 - Branch checkout is skipped when `--no-branch`, `--dry-run`, or `--no-write` is set.
 
 ## Stop conditions
-- Guard violations (preflight or post-implement).
-- Verification failure after max retries (3 attempts per milestone).
-- JSON parse failure from workers.
+- Guard violations (preflight or post-implement). See [Guards and Scope](guards-and-scope.md).
+- Verification failure after max retries (3 attempts per milestone). See [Verification](verification.md).
+- JSON parse failure from workers. See [Workers](workers.md).
 - Time budget exceeded.
 - Implementer reports `blocked` or `failed`.
+
+## See Also
+- [Run Store](run-store.md) - Where run artifacts are persisted
+- [Architecture](architecture.md) - Component overview
+- [CLI Reference](cli.md) - Command options for controlling runs

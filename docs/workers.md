@@ -34,3 +34,8 @@ Fields:
 ## Notes
 - Worker CLIs are executed directly (no shell), so PATH and arguments must be correct.
 - Claude examples use `--dangerously-skip-permissions` for headless execution; this bypasses interactive permission prompts and should be used with care.
+
+## See Also
+- [Configuration](configuration.md) - Worker configuration in agent.config.json
+- [Architecture](architecture.md) - How workers fit into the system
+- [Troubleshooting](troubleshooting.md) - Common worker issues

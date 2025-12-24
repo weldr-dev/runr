@@ -19,3 +19,9 @@ Guards are enforced in preflight and after implementation. They prevent unsafe o
 
 ## Guards-only command
 `agent-run guards-only` runs preflight without executing the supervisor loop. It still writes run artifacts unless `--no-write` is set.
+
+## See Also
+- [Verification](verification.md) - Post-implement verification tiers
+- [Configuration](configuration.md) - Setting up allowlist/denylist patterns
+- [CLI Reference](cli.md) - Guard-related command options (`--allow-deps`, `--allow-dirty`)
+- [Self-Hosting Safety](self-hosting-safety.md) - Protected boot chain files

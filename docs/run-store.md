@@ -45,3 +45,8 @@ Each event line is JSON with:
 - The latest run state
 - The tail of recent events
 - Pointers to state, timeline, and last verification log
+
+## See Also
+- [Run Lifecycle](run-lifecycle.md) - How phases generate events
+- [CLI Reference](cli.md) - Report and status commands
+- [Verification](verification.md) - How verification logs are generated

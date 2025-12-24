@@ -55,3 +55,9 @@ Config is loaded from `<repo>/agent.config.json` by default, or a path provided 
 - `verification` tier arrays are shell commands executed in the target repo.
 - `workers.*.args` are used at runtime; `doctor` uses fixed args for headless tests.
 - `phases` maps each phase to a worker (`claude` or `codex`). Defaults: plan=claude, implement=codex, review=claude.
+
+## See Also
+- [Guards and Scope](guards-and-scope.md) - How scope patterns are enforced
+- [Verification](verification.md) - How verification tiers work
+- [Workers](workers.md) - Worker adapter details
+- [CLI Reference](cli.md) - Overriding config with `--config`

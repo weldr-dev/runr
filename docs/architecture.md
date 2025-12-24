@@ -31,3 +31,9 @@ CLI -> Preflight -> RunStore init -> Supervisor loop
 ## Verification and guards
 - Guard checks run before branch checkout and after implementation.
 - Verification commands run sequentially per tier with a per-milestone time budget.
+
+## See Also
+- [Run Lifecycle](run-lifecycle.md) - Detailed phase flow
+- [Workers](workers.md) - Worker adapter implementation
+- [Guards and Scope](guards-and-scope.md) - Scope enforcement details
+- [Verification](verification.md) - Tier selection and execution
