@@ -5,8 +5,12 @@ Source: docs/*.md
 
 A wiki-style entry point to the agent runner documentation. Start here and branch into details as needed.
 
-## Getting Started
+## Vision and Concepts
+- Vision and philosophy: docs/vision.md
 - Mental model: docs/mental-model.md
+- Glossary: docs/glossary.md
+
+## Getting Started
 - CLI reference: docs/cli.md
 - Run lifecycle: docs/run-lifecycle.md
 - Run store: docs/run-store.md
@@ -28,6 +32,7 @@ A wiki-style entry point to the agent runner documentation. Start here and branc
 - Glossary: docs/glossary.md
 
 ## Suggested Reading Paths
-- First run: `docs/mental-model.md` -> `docs/cli.md` -> `docs/run-lifecycle.md` -> `docs/run-store.md`
-- Safety and controls: `docs/guards-and-scope.md` -> `docs/verification.md` -> `docs/configuration.md`
+- New user: `docs/vision.md` -> `docs/mental-model.md` -> `docs/cli.md` -> `docs/run-lifecycle.md`
+- First run: `docs/cli.md` -> `docs/configuration.md` -> `docs/run-store.md`
+- Safety and controls: `docs/guards-and-scope.md` -> `docs/verification.md` -> `docs/self-hosting-safety.md`
 - Extensibility: `docs/workers.md` -> `docs/tasks-and-templates.md` -> `docs/deckbuilder-fixture.md`

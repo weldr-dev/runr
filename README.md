@@ -1,6 +1,23 @@
 # Dual-LLM Agent Runner
 
-A CLI that orchestrates Codex and Claude across plan, implement, verify, review, and checkpoint phases in a target repo, with a run store for auditability.
+**Reliable autonomy for unattended coding runs.**
+
+A CLI that orchestrates Codex and Claude to execute coding tasks while you're away. Hand it a task, walk away, and come back to either checkpointed commits with verification evidence—or a clean stop with a forensic trail explaining what went wrong.
+
+> *"Spec Kit and BMAD help you decide what to do; this runtime makes it happen autonomously, safely, and reproducibly."*
+
+## Why This Exists
+
+Current AI coding tools require constant babysitting or spin endlessly when stuck. This runtime solves that with:
+
+- **Phase gates** that ensure verification before commits
+- **Scope locks** that prevent tasks from expanding
+- **Retry limits** that stop loops before they spiral
+- **Clean stops** with actionable handoff memos
+
+The goal isn't smarter AI—it's AI that's **reliable enough to run unattended**.
+
+See [docs/vision.md](docs/vision.md) for the full philosophy.
 
 ## Key Features
 
@@ -86,6 +103,7 @@ Full documentation is available in the [docs/](docs/) directory. Start with the 
 ### Getting Started
 | Doc | Description |
 |-----|-------------|
+| [Vision](docs/vision.md) | Why this exists and the core philosophy |
 | [Mental Model](docs/mental-model.md) | Core concepts and how the system thinks |
 | [CLI Reference](docs/cli.md) | All commands and options |
 | [Run Lifecycle](docs/run-lifecycle.md) | Phase flow and tick-based execution |
