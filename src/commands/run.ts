@@ -109,6 +109,8 @@ export async function runCommand(options: RunOptions): Promise<void> {
   const milestones = buildMilestonesFromTask(taskText);
   const milestoneRiskLevel = milestones[0]?.risk_level ?? 'medium';
 
+  // Skip ping if doctor ran (it already validates workers)
+  // Run ping if doctor was skipped (provides quick auth check)
   const preflight = await runPreflight({
     repoPath,
     runId,
@@ -116,7 +118,8 @@ export async function runCommand(options: RunOptions): Promise<void> {
     config,
     allowDeps: options.allowDeps,
     allowDirty: options.allowDirty,
-    milestoneRiskLevel
+    milestoneRiskLevel,
+    skipPing: !options.skipDoctor
   });
 
   const runDir = path.resolve('runs', runId);
@@ -147,6 +150,7 @@ export async function runCommand(options: RunOptions): Promise<void> {
       source: 'cli',
       payload: {
         guard: preflight.guard,
+        ping: preflight.ping,
         tiers: preflight.tiers,
         tier_reasons: preflight.tier_reasons
       }
@@ -183,9 +187,17 @@ export async function runCommand(options: RunOptions): Promise<void> {
         type: 'guard_violation',
         source: 'cli',
         payload: {
-          guard: preflight.guard
+          guard: preflight.guard,
+          ping: preflight.ping
         }
       });
+      const pingLines = preflight.ping.skipped
+        ? ['- Skipped']
+        : preflight.ping.results.map(r =>
+            r.ok
+              ? `- ${r.worker}: OK (${r.ms}ms)`
+              : `- ${r.worker}: FAIL - ${r.category} (${r.message})`
+          );
       const summary = [
         '# Summary',
         '',
@@ -204,7 +216,10 @@ export async function runCommand(options: RunOptions): Promise<void> {
         'Lockfile violations:',
         preflight.guard.lockfile_violations.length
           ? `- ${preflight.guard.lockfile_violations.join('\n- ')}`
-          : '- None'
+          : '- None',
+        '',
+        'Ping results:',
+        ...pingLines
       ].join('\n');
       runStore.writeSummary(summary);
     }

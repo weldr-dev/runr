@@ -12,6 +12,7 @@ export interface GuardsOnlyOptions {
   allowDeps: boolean;
   allowDirty: boolean;
   noWrite: boolean;
+  skipPing?: boolean;
 }
 
 function makeRunId(): string {
@@ -78,7 +79,8 @@ export async function guardsOnlyCommand(
     config,
     allowDeps: options.allowDeps,
     allowDirty: options.allowDirty,
-    milestoneRiskLevel
+    milestoneRiskLevel,
+    skipPing: options.skipPing ?? true // Skip ping by default for guards-only
   });
 
   if (!options.noWrite) {
@@ -91,6 +93,7 @@ export async function guardsOnlyCommand(
       payload: {
         repo: preflight.repo_context,
         guard: preflight.guard,
+        ping: preflight.ping,
         tiers: preflight.tiers,
         tier_reasons: preflight.tier_reasons,
         allow_dirty: options.allowDirty,
