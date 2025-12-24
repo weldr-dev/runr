@@ -6,6 +6,8 @@ import { createInitialState, step, Action } from './engine/engine';
 import { ReplayControls } from './components/ReplayControls';
 import { usePersistence } from './hooks/usePersistence';
 import { deserializeExport, serializeExport } from './utils/serialization';
+import { Modal } from './components/Modal';
+import { GameMenu } from './components/GameMenu';
 
 export default function App() {
   const {
@@ -26,6 +28,8 @@ export default function App() {
   const [autoPlaySpeed, setAutoPlaySpeed] = useState(300);
   const autoPlayStopRef = useRef(false);
   const [isEnemyTurn, setIsEnemyTurn] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const dispatch = useCallback((action: Action) => {
     if (action.type === 'end_turn') {
@@ -124,6 +128,13 @@ export default function App() {
     fileInputRef.current?.click();
   };
 
+  const openMenu = () => setIsMenuOpen(true);
+  const closeMenu = () => setIsMenuOpen(false);
+  const openSettings = () => setIsSettingsOpen(true);
+  const closeSettings = () => setIsSettingsOpen(false);
+
+  const canReplay = replaySeed !== null && replayActions.length > 0;
+
   const handleImportChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -197,22 +208,11 @@ export default function App() {
           marginBottom: 16
         }}
       >
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={autoSaveEnabled}
-            onChange={(event) => setAutoSaveEnabled(event.target.checked)}
-          />
-          Auto-save
-        </label>
         <button type="button" onClick={startNewGame}>
           New Game
         </button>
-        <button type="button" onClick={handleExport}>
-          Export
-        </button>
-        <button type="button" onClick={handleImportClick}>
-          Import
+        <button type="button" onClick={openMenu}>
+          Menu
         </button>
         <input
           ref={fileInputRef}
@@ -231,7 +231,7 @@ export default function App() {
         totalActions={replayActions.length}
         currentIndex={replayIndex}
         isReplaying={isReplaying}
-        canReplay={replaySeed !== null && replayActions.length > 0}
+        canReplay={canReplay}
         onReplay={startReplay}
         onStop={stopReplay}
       />
@@ -250,6 +250,30 @@ export default function App() {
         onStopAutoPlay={stopAutoPlay}
         onSpeedChange={setAutoPlaySpeed}
       />
+
+      <Modal isOpen={isMenuOpen} onClose={closeMenu} title="Game Menu">
+        <GameMenu
+          onExport={handleExport}
+          onImport={handleImportClick}
+          onReplay={startReplay}
+          onSettings={openSettings}
+          canReplay={canReplay}
+          onClose={closeMenu}
+        />
+      </Modal>
+
+      <Modal isOpen={isSettingsOpen} onClose={closeSettings} title="Settings">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={autoSaveEnabled}
+              onChange={(event) => setAutoSaveEnabled(event.target.checked)}
+            />
+            Auto-save game progress
+          </label>
+        </div>
+      </Modal>
     </main>
   );
 }
