@@ -1,19 +1,49 @@
-Status: Partial
+Status: Implemented
 Source: src/supervisor/verification-policy.ts, src/supervisor/runner.ts, src/verification/engine.ts
 
 # Verification
 
 Verification runs between IMPLEMENT and REVIEW. Commands are configured per tier in `agent.config.json`.
 
-## Tier selection (current behavior)
+## Tier selection
+
 | Tier | When selected | Commands | Notes |
 | --- | --- | --- | --- |
-| tier0 | always | `verification.tier0` | Required gate for every milestone |
-| tier1 | risk trigger match or high risk | `verification.tier1` | Optional, based on risk signals |
-| tier2 | run end (not currently selected) | `verification.tier2` | Configured but unused in the loop |
+| tier0 | Always | `verification.tier0` | Required gate for every milestone |
+| tier1 | Risk trigger match, high risk level, or milestone end | `verification.tier1` | Triggered by risk signals |
+| tier2 | Run end only | `verification.tier2` | Reserved for final validation |
 
-Risk triggers come from `verification.risk_triggers` and match changed files via glob patterns.
-Risk triggers configured for `tier2` are normalized to `tier1` during selection.
+### Selection logic
+
+```
+tier0: Always selected (baseline gate)
+tier1: Selected if ANY of:
+  - Risk trigger pattern matches changed files
+  - Milestone has risk_level: "high"
+  - is_milestone_end flag is true
+tier2: Selected only if is_run_end flag is true
+```
+
+### Risk triggers
+
+Risk triggers are glob patterns in `verification.risk_triggers` that escalate verification:
+
+```json
+{
+  "risk_triggers": [
+    { "name": "deps", "patterns": ["package.json", "package-lock.json"], "tier": "tier1" },
+    { "name": "auth", "patterns": ["**/auth/**", "**/security/**"], "tier": "tier1" }
+  ]
+}
+```
+
+**Note:** Triggers configured for `tier2` are normalized to `tier1` during selection (tier2 is reserved for run-end only).
+
+### Current limitations
+
+- `is_milestone_end` and `is_run_end` are currently always `false` in the supervisor loop
+- This means tier2 is never selected in practice
+- Future work may enable these flags for more comprehensive end-of-run testing
 
 ## Execution model
 - Commands run sequentially per tier.
@@ -34,3 +64,61 @@ Events on failure:
 - `verify_failed_max_retries` (when limit reached).
 - `stop` with `reason=verification_failed_max_retries`.
 - Stop memo written to `handoffs/stop.md`.
+
+## Time budget
+
+Each milestone has a verification time budget configured via `max_verify_time_per_milestone` (default: 600 seconds).
+
+- Time is tracked across all tiers for a single milestone
+- If time runs out mid-tier, remaining tiers are skipped with a log message
+- The budget resets for each new milestone
+
+```json
+{
+  "verification": {
+    "max_verify_time_per_milestone": 600
+  }
+}
+```
+
+## Debugging verification failures
+
+### 1. Check the verification log
+
+```bash
+cat runs/<run_id>/artifacts/tests_tier0.log
+```
+
+### 2. Review the timeline for context
+
+```bash
+node dist/cli.js report <run_id> --tail 20
+```
+
+Look for events:
+- `verification` - Shows which tier failed and duration
+- `verify_failed_retry` - Shows retry count and failed command
+- `implement_complete` - Shows what files changed before verification
+
+### 3. Reproduce locally
+
+Run the same commands in the target repo:
+```bash
+cd <target-repo>
+pnpm lint    # or whatever tier0 command
+pnpm test    # or whatever tier1 command
+```
+
+### 4. Check fix instructions
+
+On retry, the implementer receives `fixInstructions` with:
+- `failedCommand` - The command that failed
+- `errorOutput` - Captured stderr/stdout
+- `changedFiles` - Files modified in this milestone
+- `attemptNumber` - Current retry count (1-3)
+
+## See Also
+- [Guards and Scope](guards-and-scope.md) - Pre-verification scope checks
+- [Run Store](run-store.md) - Where verification logs are stored
+- [Configuration](configuration.md) - Setting up verification tiers
+- [Run Lifecycle](run-lifecycle.md) - Where VERIFY fits in the phase flow
