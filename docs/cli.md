@@ -8,8 +8,12 @@ Checks worker CLI availability and headless mode.
 
 Usage:
 ```
-node dist/cli.js doctor --repo <path> --config <path>
+node dist/cli.js doctor [--repo <path>] [--config <path>]
 ```
+
+Options:
+- `--repo <path>`: Target repo path (default: `.`).
+- `--config <path>`: Path to agent.config.json.
 
 Behavior:
 - Uses `--version` to verify each worker binary.

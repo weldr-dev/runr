@@ -40,6 +40,11 @@ Config is loaded from `<repo>/agent.config.json` by default, or a path provided 
       "args": ["-p", "--output-format", "json", "--dangerously-skip-permissions"],
       "output": "json"
     }
+  },
+  "phases": {
+    "plan": "claude",
+    "implement": "codex",
+    "review": "claude"
   }
 }
 ```
@@ -49,3 +54,4 @@ Config is loaded from `<repo>/agent.config.json` by default, or a path provided 
 - `scope.denylist` always blocks matching files.
 - `verification` tier arrays are shell commands executed in the target repo.
 - `workers.*.args` are used at runtime; `doctor` uses fixed args for headless tests.
+- `phases` maps each phase to a worker (`claude` or `codex`). Defaults: plan=claude, implement=codex, review=claude.

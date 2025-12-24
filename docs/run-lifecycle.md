@@ -40,7 +40,7 @@ flowchart TD
 
 ## Stop conditions
 - Guard violations (preflight or post-implement).
-- Verification failure.
+- Verification failure after max retries (3 attempts per milestone).
 - JSON parse failure from workers.
 - Time budget exceeded.
 - Implementer reports `blocked` or `failed`.

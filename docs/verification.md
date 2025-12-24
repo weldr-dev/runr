@@ -22,7 +22,15 @@ Risk triggers configured for `tier2` are normalized to `tier1` during selection.
 - A per-milestone time budget (`max_verify_time_per_milestone`, seconds) caps total verification time.
 
 ## Failure behavior
-On failure:
-- Event: `verification` with `ok=false`.
-- Event: `stop` with `reason=verification_failed`.
+On verification failure, the supervisor retries the milestone (up to 3 attempts):
+
+1. **First failure:** Event `verify_failed_retry` logged, transitions back to IMPLEMENT with fix instructions.
+2. **Retry attempts:** Implementer receives `fixInstructions` containing the failed command, error output, and changed files.
+3. **Max retries exceeded:** After 3 failed attempts, run stops with `reason=verification_failed_max_retries`.
+
+Events on failure:
+- `verification` with `ok=false` (each attempt).
+- `verify_failed_retry` (retries 1-3).
+- `verify_failed_max_retries` (when limit reached).
+- `stop` with `reason=verification_failed_max_retries`.
 - Stop memo written to `handoffs/stop.md`.
