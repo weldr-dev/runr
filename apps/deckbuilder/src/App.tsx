@@ -22,6 +22,7 @@ export default function App() {
   const [replayActions, setReplayActions] = useState<Action[]>([]);
   const [replayIndex, setReplayIndex] = useState(0);
   const [isReplaying, setIsReplaying] = useState(false);
+  const [isReplayPaused, setIsReplayPaused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const replayTimerRef = useRef<number | null>(null);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
@@ -83,10 +84,23 @@ export default function App() {
 
   const stopReplay = () => {
     setIsReplaying(false);
+    setIsReplayPaused(false);
     if (replayTimerRef.current !== null) {
       window.clearTimeout(replayTimerRef.current);
       replayTimerRef.current = null;
     }
+  };
+
+  const pauseReplay = () => {
+    setIsReplayPaused(true);
+    if (replayTimerRef.current !== null) {
+      window.clearTimeout(replayTimerRef.current);
+      replayTimerRef.current = null;
+    }
+  };
+
+  const resumeReplay = () => {
+    setIsReplayPaused(false);
   };
 
   const startReplay = () => {
@@ -95,6 +109,7 @@ export default function App() {
     }
     stopReplay();
     setReplayIndex(0);
+    setIsReplayPaused(false);
     setState(() => createInitialState(replaySeed));
     setIsReplaying(true);
   };
@@ -162,7 +177,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!isReplaying) {
+    if (!isReplaying || isReplayPaused) {
       if (replayTimerRef.current !== null) {
         window.clearTimeout(replayTimerRef.current);
         replayTimerRef.current = null;
@@ -172,6 +187,7 @@ export default function App() {
 
     if (replayIndex >= replayActions.length) {
       setIsReplaying(false);
+      setIsReplayPaused(false);
       return;
     }
 
@@ -186,7 +202,7 @@ export default function App() {
         replayTimerRef.current = null;
       }
     };
-  }, [isReplaying, replayActions, replayIndex, setState]);
+  }, [isReplaying, isReplayPaused, replayActions, replayIndex, setState]);
 
   return (
     <main
@@ -260,7 +276,7 @@ export default function App() {
           style={{ display: 'none' }}
         />
       </header>
-      <div style={{ padding: 24 }}>
+      <div style={{ padding: 24, position: 'relative' }}>
       {importError ? (
         <p style={{ color: '#fca5a5', marginBottom: 16 }} role="alert">
           {importError}
@@ -270,8 +286,9 @@ export default function App() {
         totalActions={replayActions.length}
         currentIndex={replayIndex}
         isReplaying={isReplaying}
-        canReplay={canReplay}
-        onReplay={startReplay}
+        isPaused={isReplayPaused}
+        onPause={pauseReplay}
+        onResume={resumeReplay}
         onStop={stopReplay}
       />
       <Board
