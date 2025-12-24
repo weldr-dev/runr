@@ -1,14 +1,22 @@
-Status: Implemented
-Source: src/cli.ts, src/commands/run.ts, src/supervisor/runner.ts, src/store/run-store.ts
-
 # Dual-LLM Agent Runner
 
 A CLI that orchestrates Codex and Claude across plan, implement, verify, review, and checkpoint phases in a target repo, with a run store for auditability.
 
-## When to use
-- You want a long-running agent loop with checkpoints and artifacts.
-- You need a repeatable run record (plan, events, logs, summary).
-- You want basic safety guards (scope, lockfiles, dirty worktree).
+## Key Features
+
+- **Dual-LLM orchestration**: Claude for planning/review, Codex for implementation (configurable)
+- **Phase-based execution**: PLAN → IMPLEMENT → VERIFY → REVIEW → CHECKPOINT → FINALIZE
+- **Safety guards**: Scope allowlist/denylist, lockfile protection, dirty worktree checks
+- **Verification tiers**: Risk-based test selection with automatic retries (up to 3 per milestone)
+- **Full auditability**: Event timeline, state snapshots, artifacts, and handoff memos
+- **Resumable runs**: Environment fingerprinting ensures safe resume across sessions
+
+## When to Use
+
+- You want a long-running agent loop with checkpoints and artifacts
+- You need a repeatable run record (plan, events, logs, summary)
+- You want safety guards (scope, lockfiles, dirty worktree)
+- You're automating multi-step development tasks with verification gates
 
 ## Quickstart
 Prereqs:
@@ -50,35 +58,58 @@ node dist/cli.js resume <run_id> --time 60 --max-ticks 5
 ## Phases (as implemented)
 PLAN -> IMPLEMENT -> VERIFY -> REVIEW -> CHECKPOINT -> FINALIZE
 
-## Run artifacts (example)
+## Run Artifacts
+
+Each run creates a self-contained directory under `runs/<run_id>/`:
+
 ```
 runs/<run_id>/
   artifacts/
-    task.md
-    tests_tier0.log
+    task.md              # Original task file
+    tests_tier0.log      # Verification output
   handoffs/
     milestone_01_handoff.md
-    stop.md
-  config.snapshot.json
-  plan.md
-  seq.txt
-  state.json
-  summary.md
-  timeline.jsonl
+    stop.md              # Stop reason memo
+  config.snapshot.json   # Config used for this run
+  env.fingerprint.json   # Environment snapshot for resume safety
+  plan.md                # Generated milestone plan
+  seq.txt                # Event sequence counter
+  state.json             # Current phase, milestone index, timestamps
+  summary.md             # Final summary
+  timeline.jsonl         # Append-only event log
 ```
 
-## Docs
-- Mental model: docs/mental-model.md
-- Architecture: docs/architecture.md
-- CLI reference: docs/cli.md
-- Run lifecycle: docs/run-lifecycle.md
-- Run store: docs/run-store.md
-- Configuration: docs/configuration.md
-- Verification: docs/verification.md
-- Guards and scope: docs/guards-and-scope.md
-- Workers: docs/workers.md
-- Tasks and templates: docs/tasks-and-templates.md
-- Deckbuilder fixture: docs/deckbuilder-fixture.md
-- Development: docs/development.md
-- Troubleshooting: docs/troubleshooting.md
-- Glossary: docs/glossary.md
+## Documentation
+
+Full documentation is available in the [docs/](docs/) directory. Start with the [index](docs/index.md) for guided reading paths.
+
+### Getting Started
+| Doc | Description |
+|-----|-------------|
+| [Mental Model](docs/mental-model.md) | Core concepts and how the system thinks |
+| [CLI Reference](docs/cli.md) | All commands and options |
+| [Run Lifecycle](docs/run-lifecycle.md) | Phase flow and tick-based execution |
+| [Run Store](docs/run-store.md) | Artifacts, timeline, and state persistence |
+
+### System Design
+| Doc | Description |
+|-----|-------------|
+| [Architecture](docs/architecture.md) | Component overview and data flow |
+| [Workers](docs/workers.md) | Codex and Claude adapters |
+| [Verification](docs/verification.md) | Tiered testing and retry behavior |
+| [Guards and Scope](docs/guards-and-scope.md) | Safety checks and file scope enforcement |
+
+### Configuration
+| Doc | Description |
+|-----|-------------|
+| [Configuration](docs/configuration.md) | agent.config.json schema and options |
+| [Tasks and Templates](docs/tasks-and-templates.md) | Task file format and prompt templates |
+
+### Advanced
+| Doc | Description |
+|-----|-------------|
+| [Self-Hosting Safety](docs/self-hosting-safety.md) | Guidelines for using the agent on itself |
+| [Deckbuilder Fixture](docs/deckbuilder-fixture.md) | Example target app for testing |
+| [Development](docs/development.md) | Contributing and local setup |
+| [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
+| [Glossary](docs/glossary.md) | Term definitions |
