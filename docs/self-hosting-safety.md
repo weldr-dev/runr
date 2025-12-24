@@ -1,3 +1,6 @@
+Status: Implemented
+Source: docs/self-hosting-safety.md
+
 # Self-Hosting Safety Guide
 
 ## Overview
