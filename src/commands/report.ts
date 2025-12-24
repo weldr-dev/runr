@@ -6,17 +6,19 @@ import { RunState } from '../types/schemas.js';
 export interface ReportOptions {
   runId: string;
   tail: number;
+  kpiOnly?: boolean;
 }
 
-// KPI types - local to report.ts (Phase 1: no boot chain touches)
-interface PhaseKpi {
+// KPI types - exported for testing (Phase 1: no boot chain touches)
+export interface PhaseKpi {
   duration_ms: number;
   count: number;
 }
 
-interface DerivedKpi {
+export interface DerivedKpi {
   version: 1;
   total_duration_ms: number | null;
+  unattributed_ms: number | null;
   started_at: string | null;
   ended_at: string | null;
   phases: Record<string, PhaseKpi>;
@@ -58,6 +60,7 @@ export async function reportCommand(options: ReportOptions): Promise<void> {
   const defaultKpi: DerivedKpi = {
     version: 1,
     total_duration_ms: null,
+    unattributed_ms: null,
     started_at: null,
     ended_at: null,
     phases: {},
@@ -88,6 +91,13 @@ export async function reportCommand(options: ReportOptions): Promise<void> {
   ].join('\n');
 
   const kpiBlock = formatKpiBlock(scan.kpi);
+
+  if (options.kpiOnly) {
+    // Compact output: just run_id and KPIs
+    console.log(`${options.runId}: ${scan.kpi.outcome} ${formatDuration(scan.kpi.total_duration_ms)} milestones=${scan.kpi.milestones.completed}`);
+    return;
+  }
+
   const events = formatEvents(scan.tailEvents);
   const pointers = formatPointers({
     statePath,
@@ -97,6 +107,26 @@ export async function reportCommand(options: ReportOptions): Promise<void> {
   });
 
   console.log([header, '', 'KPIs', kpiBlock, '', 'Last events', events, '', 'Pointers', pointers].join('\n'));
+}
+
+function formatDuration(ms: number | null): string {
+  if (ms === null) return 'unknown';
+  if (ms < 0) return `-${formatPositiveDuration(Math.abs(ms))}`;
+  return formatPositiveDuration(ms);
+}
+
+function formatPositiveDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes < 60) {
+    return remainingSeconds > 0 ? `${minutes}m${remainingSeconds}s` : `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes > 0 ? `${hours}h${remainingMinutes}m` : `${hours}h`;
 }
 
 function missingRunMessage(runDir: string): string {
@@ -136,10 +166,19 @@ function readFlags(runStarted?: Record<string, unknown>): {
 function formatKpiBlock(kpi: DerivedKpi): string {
   const lines: string[] = [];
 
-  // Total duration
+  // Total duration + unattributed
   const durationStr =
     kpi.total_duration_ms !== null ? formatDuration(kpi.total_duration_ms) : 'unknown';
-  lines.push(`total_duration: ${durationStr}`);
+  let unattributedStr: string;
+  if (kpi.unattributed_ms === null) {
+    unattributedStr = 'unknown';
+  } else if (kpi.unattributed_ms < 0) {
+    // Negative = phases exceed tracked time (e.g., resumed runs with gaps)
+    unattributedStr = `-${formatDuration(Math.abs(kpi.unattributed_ms))}`;
+  } else {
+    unattributedStr = formatDuration(kpi.unattributed_ms);
+  }
+  lines.push(`total_duration: ${durationStr} (unattributed: ${unattributedStr})`);
 
   // Outcome
   const outcomeStr = kpi.stop_reason
@@ -188,32 +227,8 @@ function formatKpiBlock(kpi: DerivedKpi): string {
   return lines.join('\n');
 }
 
-function formatDuration(ms: number): string {
-  if (ms < 1000) {
-    return `${ms}ms`;
-  }
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  if (minutes < 60) {
-    return remainingSeconds > 0 ? `${minutes}m${remainingSeconds}s` : `${minutes}m`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes > 0 ? `${hours}h${remainingMinutes}m` : `${hours}h`;
-}
-
-async function scanTimeline(
-  timelinePath: string,
-  tailCount: number
-): Promise<TimelineScanResult> {
-  const tailEvents: Array<Record<string, unknown>> = [];
-  let runStarted: Record<string, unknown> | undefined;
-
-  // KPI accumulators
+// Exported for testing - computes KPIs from an array of timeline events
+export function computeKpiFromEvents(events: Array<Record<string, unknown>>): DerivedKpi {
   let startedAt: string | null = null;
   let endedAt: string | null = null;
   const phases: Record<string, PhaseKpi> = {};
@@ -228,116 +243,98 @@ async function scanTimeline(
   let outcome: DerivedKpi['outcome'] = 'unknown';
   let stopReason: string | null = null;
 
-  const stream = fs.createReadStream(timelinePath, { encoding: 'utf-8' });
-  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  for (const event of events) {
+    const eventType = event.type as string | undefined;
+    const timestamp = event.timestamp as string | undefined;
+    const payload =
+      event.payload && typeof event.payload === 'object'
+        ? (event.payload as Record<string, unknown>)
+        : {};
 
-  for await (const line of rl) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
+    // Track run_started
+    if (eventType === 'run_started' && startedAt === null) {
+      startedAt = timestamp ?? null;
+      outcome = 'running';
     }
-    try {
-      const event = JSON.parse(trimmed) as Record<string, unknown>;
-      const eventType = event.type as string | undefined;
-      const timestamp = event.timestamp as string | undefined;
-      const payload =
-        event.payload && typeof event.payload === 'object'
-          ? (event.payload as Record<string, unknown>)
-          : {};
 
-      // Track run_started
-      if (!runStarted && eventType === 'run_started') {
-        runStarted = event;
-        startedAt = timestamp ?? null;
-        outcome = 'running';
-      }
-
-      // Track phase_start events for phase durations
-      if (eventType === 'phase_start' && payload.phase) {
-        // Close previous phase if any
-        if (currentPhase && currentPhaseStart !== null && timestamp) {
-          const phaseEnd = new Date(timestamp).getTime();
-          const phaseDuration = phaseEnd - currentPhaseStart;
-          if (!phases[currentPhase]) {
-            phases[currentPhase] = { duration_ms: 0, count: 0 };
-          }
-          phases[currentPhase].duration_ms += phaseDuration;
-        }
-        // Start new phase
-        currentPhase = payload.phase as string;
-        currentPhaseStart = timestamp ? new Date(timestamp).getTime() : null;
+    // Track phase_start events for phase durations
+    if (eventType === 'phase_start' && payload.phase) {
+      // Close previous phase if any
+      if (currentPhase && currentPhaseStart !== null && timestamp) {
+        const phaseEnd = new Date(timestamp).getTime();
+        const phaseDuration = phaseEnd - currentPhaseStart;
         if (!phases[currentPhase]) {
           phases[currentPhase] = { duration_ms: 0, count: 0 };
         }
-        phases[currentPhase].count += 1;
+        phases[currentPhase].duration_ms += phaseDuration;
       }
+      // Start new phase
+      currentPhase = payload.phase as string;
+      currentPhaseStart = timestamp ? new Date(timestamp).getTime() : null;
+      if (!phases[currentPhase]) {
+        phases[currentPhase] = { duration_ms: 0, count: 0 };
+      }
+      phases[currentPhase].count += 1;
+    }
 
-      // Track worker_stats event (emitted at finalize)
-      if (eventType === 'worker_stats' && payload.stats) {
-        const stats = payload.stats as Record<string, unknown>;
-        if (typeof stats.claude === 'number') {
-          workersClaude = stats.claude;
+    // Track worker_stats event (emitted at finalize)
+    if (eventType === 'worker_stats' && payload.stats) {
+      const stats = payload.stats as Record<string, unknown>;
+      if (typeof stats.claude === 'number') {
+        workersClaude = stats.claude;
+      }
+      if (typeof stats.codex === 'number') {
+        workersCodex = stats.codex;
+      }
+    }
+
+    // Track verification events
+    if (eventType === 'verification') {
+      verifyAttempts += 1;
+      if (payload.duration_ms && typeof payload.duration_ms === 'number') {
+        verifyDurationMs += payload.duration_ms;
+      }
+    }
+
+    // Track verify retries (retry_count in verification payload)
+    if (eventType === 'verification' && typeof payload.retry === 'number') {
+      verifyRetries += payload.retry;
+    }
+
+    // Track milestone completion
+    if (eventType === 'milestone_complete') {
+      milestonesCompleted += 1;
+    }
+
+    // Track stop event
+    if (eventType === 'stop') {
+      endedAt = timestamp ?? null;
+      outcome = 'stopped';
+      stopReason = (payload.reason as string) ?? null;
+      // Close current phase
+      if (currentPhase && currentPhaseStart !== null && timestamp) {
+        const phaseEnd = new Date(timestamp).getTime();
+        const phaseDuration = phaseEnd - currentPhaseStart;
+        if (!phases[currentPhase]) {
+          phases[currentPhase] = { duration_ms: 0, count: 0 };
         }
-        if (typeof stats.codex === 'number') {
-          workersCodex = stats.codex;
+        phases[currentPhase].duration_ms += phaseDuration;
+      }
+    }
+
+    // Track run_complete event
+    if (eventType === 'run_complete') {
+      endedAt = timestamp ?? null;
+      outcome = 'complete';
+      // Close current phase
+      if (currentPhase && currentPhaseStart !== null && timestamp) {
+        const phaseEnd = new Date(timestamp).getTime();
+        const phaseDuration = phaseEnd - currentPhaseStart;
+        if (!phases[currentPhase]) {
+          phases[currentPhase] = { duration_ms: 0, count: 0 };
         }
+        phases[currentPhase].duration_ms += phaseDuration;
       }
-
-      // Track verification events
-      if (eventType === 'verification') {
-        verifyAttempts += 1;
-        if (payload.duration_ms && typeof payload.duration_ms === 'number') {
-          verifyDurationMs += payload.duration_ms;
-        }
-      }
-
-      // Track verify retries (retry_count in verification payload)
-      if (eventType === 'verification' && typeof payload.retry === 'number') {
-        verifyRetries += payload.retry;
-      }
-
-      // Track milestone completion
-      if (eventType === 'milestone_complete') {
-        milestonesCompleted += 1;
-      }
-
-      // Track stop event
-      if (eventType === 'stop') {
-        endedAt = timestamp ?? null;
-        outcome = 'stopped';
-        stopReason = (payload.reason as string) ?? null;
-        // Close current phase
-        if (currentPhase && currentPhaseStart !== null && timestamp) {
-          const phaseEnd = new Date(timestamp).getTime();
-          const phaseDuration = phaseEnd - currentPhaseStart;
-          if (!phases[currentPhase]) {
-            phases[currentPhase] = { duration_ms: 0, count: 0 };
-          }
-          phases[currentPhase].duration_ms += phaseDuration;
-        }
-      }
-
-      // Track run_complete event
-      if (eventType === 'run_complete') {
-        endedAt = timestamp ?? null;
-        outcome = 'complete';
-        // Close current phase
-        if (currentPhase && currentPhaseStart !== null && timestamp) {
-          const phaseEnd = new Date(timestamp).getTime();
-          const phaseDuration = phaseEnd - currentPhaseStart;
-          if (!phases[currentPhase]) {
-            phases[currentPhase] = { duration_ms: 0, count: 0 };
-          }
-          phases[currentPhase].duration_ms += phaseDuration;
-        }
-      }
-
-      tailEvents.push(event);
-      if (tailEvents.length > tailCount) {
-        tailEvents.shift();
-      }
-    } catch {
-      continue;
     }
   }
 
@@ -347,9 +344,17 @@ async function scanTimeline(
     totalDurationMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
   }
 
-  const kpi: DerivedKpi = {
+  // Compute unattributed time (total - sum of phase durations)
+  let unattributedMs: number | null = null;
+  if (totalDurationMs !== null) {
+    const attributedMs = Object.values(phases).reduce((sum, p) => sum + p.duration_ms, 0);
+    unattributedMs = totalDurationMs - attributedMs;
+  }
+
+  return {
     version: 1,
     total_duration_ms: totalDurationMs,
+    unattributed_ms: unattributedMs,
     started_at: startedAt,
     ended_at: endedAt,
     phases,
@@ -368,7 +373,42 @@ async function scanTimeline(
     outcome,
     stop_reason: stopReason
   };
+}
 
+async function scanTimeline(
+  timelinePath: string,
+  tailCount: number
+): Promise<TimelineScanResult> {
+  const allEvents: Array<Record<string, unknown>> = [];
+  const tailEvents: Array<Record<string, unknown>> = [];
+  let runStarted: Record<string, unknown> | undefined;
+
+  const stream = fs.createReadStream(timelinePath, { encoding: 'utf-8' });
+  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+  for await (const line of rl) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+    try {
+      const event = JSON.parse(trimmed) as Record<string, unknown>;
+      allEvents.push(event);
+
+      if (!runStarted && event.type === 'run_started') {
+        runStarted = event;
+      }
+
+      tailEvents.push(event);
+      if (tailEvents.length > tailCount) {
+        tailEvents.shift();
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  const kpi = computeKpiFromEvents(allEvents);
   return { runStarted, tailEvents, kpi };
 }
 
