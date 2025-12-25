@@ -3,25 +3,15 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { RunState } from '../types/schemas.js';
 import { readContextPackArtifact, formatContextPackStatus } from '../context/index.js';
+import { findLatestRunId } from '../store/run-utils.js';
+
+// Re-export for backward compatibility with cli.ts
+export { findLatestRunId };
 
 export interface ReportOptions {
   runId: string;
   tail: number;
   kpiOnly?: boolean;
-}
-
-export function findLatestRunId(): string | null {
-  const runsDir = path.resolve('runs');
-  if (!fs.existsSync(runsDir)) {
-    return null;
-  }
-  const entries = fs
-    .readdirSync(runsDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && /^\d{14}$/.test(e.name))
-    .map((e) => e.name)
-    .sort()
-    .reverse();
-  return entries[0] ?? null;
 }
 
 // KPI types - exported for testing (Phase 1: no boot chain touches)

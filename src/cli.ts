@@ -3,6 +3,7 @@ import { runCommand } from './commands/run.js';
 import { resumeCommand } from './commands/resume.js';
 import { statusCommand } from './commands/status.js';
 import { reportCommand, findLatestRunId } from './commands/report.js';
+import { summarizeCommand } from './commands/summarize.js';
 import { compareCommand } from './commands/compare.js';
 import { guardsOnlyCommand } from './commands/guards-only.js';
 import { doctorCommand } from './commands/doctor.js';
@@ -117,6 +118,23 @@ program
       tail: Number.parseInt(options.tail, 10),
       kpiOnly: options.kpiOnly
     });
+  });
+
+program
+  .command('summarize')
+  .description('Generate summary.json from run KPIs')
+  .argument('<runId>', 'Run ID (or "latest")')
+  .action(async (runId: string) => {
+    let resolvedRunId = runId;
+    if (runId === 'latest') {
+      const latest = findLatestRunId();
+      if (!latest) {
+        console.error('No runs found');
+        process.exit(1);
+      }
+      resolvedRunId = latest;
+    }
+    await summarizeCommand({ runId: resolvedRunId });
   });
 
 program

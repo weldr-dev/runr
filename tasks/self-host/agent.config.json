@@ -7,16 +7,16 @@
     "default_branch": "main"
   },
   "scope": {
-    "allowlist": ["docs/**"],
-    "denylist": ["src/**", "dist/**", "node_modules/**"],
+    "allowlist": ["src/commands/**", "src/store/**", "src/context/**", "docs/**", "tests/**"],
+    "denylist": ["src/supervisor/**", "src/workers/**", "src/config/**", "src/repo/**", "src/cli.ts"],
     "lockfiles": []
   },
   "verification": {
-    "tier0": ["echo 'Docs task - no build verification'"],
-    "tier1": [],
+    "tier0": ["pnpm build"],
+    "tier1": ["pnpm test"],
     "tier2": [],
     "risk_triggers": [],
-    "max_verify_time_per_milestone": 60
+    "max_verify_time_per_milestone": 120
   },
   "workers": {
     "codex": {
