@@ -1,0 +1,38 @@
+{
+  "agent": {
+    "name": "self-host",
+    "version": "1"
+  },
+  "repo": {
+    "default_branch": "main"
+  },
+  "scope": {
+    "allowlist": ["docs/**"],
+    "denylist": ["src/**", "dist/**", "node_modules/**"],
+    "lockfiles": []
+  },
+  "verification": {
+    "tier0": ["echo 'Docs task - no build verification'"],
+    "tier1": [],
+    "tier2": [],
+    "risk_triggers": [],
+    "max_verify_time_per_milestone": 60
+  },
+  "workers": {
+    "codex": {
+      "bin": "codex",
+      "args": ["exec", "--full-auto", "--json"],
+      "output": "jsonl"
+    },
+    "claude": {
+      "bin": "claude",
+      "args": ["-p", "--output-format", "json", "--dangerously-skip-permissions"],
+      "output": "json"
+    }
+  },
+  "phases": {
+    "plan": "claude",
+    "implement": "claude",
+    "review": "claude"
+  }
+}
