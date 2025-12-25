@@ -127,22 +127,74 @@ export async function removeWorktree(
   }
 }
 
+export interface WorktreeRecreateResult {
+  info: WorktreeInfo;
+  recreated: boolean;
+  branchMismatch: boolean;
+  nodeModulesSymlinked: boolean;
+}
+
 /**
  * Recreate a worktree from saved info (for resume).
+ * Validates branch matches if worktree exists but has wrong branch.
  *
  * @param info - Saved worktree info from config snapshot
- * @returns Updated WorktreeInfo, or throws if recreation fails
+ * @param force - Allow recreation despite branch mismatch
+ * @returns Result with updated info and flags, or throws if recreation fails
  */
-export async function recreateWorktree(info: WorktreeInfo): Promise<WorktreeInfo> {
+export async function recreateWorktree(
+  info: WorktreeInfo,
+  force = false
+): Promise<WorktreeRecreateResult> {
   // Check if worktree already exists and is valid
   if (await validateWorktree(info.effective_repo_path)) {
-    return info;
+    // Verify branch matches if one was specified
+    if (info.run_branch) {
+      const currentBranchResult = await gitOptional(
+        ['rev-parse', '--abbrev-ref', 'HEAD'],
+        info.effective_repo_path
+      );
+      const currentBranch = currentBranchResult?.stdout?.trim();
+
+      if (currentBranch && currentBranch !== info.run_branch) {
+        if (!force) {
+          throw new Error(
+            `Branch mismatch: worktree is on '${currentBranch}' but run was on '${info.run_branch}'. ` +
+            `Use --force to override.`
+          );
+        }
+        console.warn(
+          `WARNING: Branch mismatch (expected '${info.run_branch}', found '${currentBranch}'). Continuing due to --force.`
+        );
+        return {
+          info,
+          recreated: false,
+          branchMismatch: true,
+          nodeModulesSymlinked: fs.existsSync(path.join(info.effective_repo_path, 'node_modules'))
+        };
+      }
+    }
+
+    return {
+      info,
+      recreated: false,
+      branchMismatch: false,
+      nodeModulesSymlinked: fs.existsSync(path.join(info.effective_repo_path, 'node_modules'))
+    };
   }
 
   // Recreate from original repo
-  return createWorktree(
+  const recreatedInfo = await createWorktree(
     info.original_repo_path,
     info.effective_repo_path,
     info.run_branch
   );
+
+  const nodeModulesPath = path.join(info.effective_repo_path, 'node_modules');
+  return {
+    info: recreatedInfo,
+    recreated: true,
+    branchMismatch: false,
+    nodeModulesSymlinked: fs.existsSync(nodeModulesPath)
+  };
 }

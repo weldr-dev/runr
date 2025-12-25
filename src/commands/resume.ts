@@ -6,7 +6,7 @@ import { AgentConfig, agentConfigSchema } from '../config/schema.js';
 import { loadConfig, resolveConfigPath } from '../config/load.js';
 import { runSupervisorLoop } from '../supervisor/runner.js';
 import { captureFingerprint, compareFingerprints, FingerprintDiff } from '../env/fingerprint.js';
-import { WorktreeInfo, validateWorktree, recreateWorktree } from '../repo/worktree.js';
+import { WorktreeInfo, validateWorktree, recreateWorktree, WorktreeRecreateResult } from '../repo/worktree.js';
 
 export interface ResumeOptions {
   runId: string;
@@ -64,11 +64,11 @@ export async function resumeCommand(options: ResumeOptions): Promise<void> {
   // Handle worktree reattachment if this run used a worktree
   let effectiveRepoPath = state.repo_path;
   if (worktreeInfo?.worktree_enabled) {
-    const worktreeValid = await validateWorktree(worktreeInfo.effective_repo_path);
-    if (!worktreeValid) {
-      console.log(`Worktree missing, recreating: ${worktreeInfo.effective_repo_path}`);
-      try {
-        await recreateWorktree(worktreeInfo);
+    try {
+      const result = await recreateWorktree(worktreeInfo, options.force);
+
+      if (result.recreated) {
+        console.log(`Worktree recreated: ${worktreeInfo.effective_repo_path}`);
         runStore.appendEvent({
           type: 'worktree_recreated',
           source: 'cli',
@@ -77,16 +77,38 @@ export async function resumeCommand(options: ResumeOptions): Promise<void> {
             base_sha: worktreeInfo.base_sha
           }
         });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`Failed to recreate worktree: ${message}`);
-        console.error('Run with a fresh start using: node dist/cli.js run --worktree ...');
-        process.exitCode = 1;
-        return;
       }
+
+      if (result.branchMismatch) {
+        runStore.appendEvent({
+          type: 'worktree_branch_mismatch',
+          source: 'cli',
+          payload: {
+            expected_branch: worktreeInfo.run_branch,
+            force_used: true
+          }
+        });
+      }
+
+      if (result.nodeModulesSymlinked) {
+        runStore.appendEvent({
+          type: 'node_modules_symlinked',
+          source: 'cli',
+          payload: {
+            worktree_path: worktreeInfo.effective_repo_path
+          }
+        });
+      }
+
+      effectiveRepoPath = result.info.effective_repo_path;
+      console.log(`Using worktree: ${effectiveRepoPath}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Failed to recreate worktree: ${message}`);
+      console.error('Run with --force to override, or start fresh with: node dist/cli.js run --worktree ...');
+      process.exitCode = 1;
+      return;
     }
-    effectiveRepoPath = worktreeInfo.effective_repo_path;
-    console.log(`Using worktree: ${effectiveRepoPath}`);
   }
 
   // Check environment fingerprint

@@ -8,6 +8,7 @@ import { compareCommand } from './commands/compare.js';
 import { guardsOnlyCommand } from './commands/guards-only.js';
 import { doctorCommand } from './commands/doctor.js';
 import { followCommand, findBestRunToFollow } from './commands/follow.js';
+import { gcCommand } from './commands/gc.js';
 
 const program = new Command();
 
@@ -180,6 +181,18 @@ program
     }
 
     await followCommand({ runId: resolvedRunId });
+  });
+
+program
+  .command('gc')
+  .description('Clean up old worktree directories to reclaim disk space')
+  .option('--dry-run', 'Preview what would be deleted without actually deleting', false)
+  .option('--older-than <days>', 'Only delete worktrees older than N days', '7')
+  .action(async (options) => {
+    await gcCommand({
+      dryRun: options.dryRun,
+      olderThan: Number.parseInt(options.olderThan, 10)
+    });
   });
 
 program.parseAsync();
