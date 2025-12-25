@@ -6,6 +6,7 @@ import { reportCommand, findLatestRunId } from './commands/report.js';
 import { compareCommand } from './commands/compare.js';
 import { guardsOnlyCommand } from './commands/guards-only.js';
 import { doctorCommand } from './commands/doctor.js';
+import { followCommand } from './commands/follow.js';
 
 const program = new Command();
 
@@ -135,6 +136,23 @@ program
       repo: options.repo,
       config: options.config
     });
+  });
+
+program
+  .command('follow')
+  .description('Tail run timeline and exit on termination')
+  .argument('<runId>', 'Run ID (or "latest")')
+  .action(async (runId: string) => {
+    let resolvedRunId = runId;
+    if (runId === 'latest') {
+      const latest = findLatestRunId();
+      if (!latest) {
+        console.error('No runs found');
+        process.exit(1);
+      }
+      resolvedRunId = latest;
+    }
+    await followCommand({ runId: resolvedRunId });
   });
 
 program.parseAsync();

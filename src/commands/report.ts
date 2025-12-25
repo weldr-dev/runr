@@ -49,6 +49,14 @@ export interface DerivedKpi {
   milestones: {
     completed: number;
   };
+  // Reliability metrics (Sprint 2)
+  reliability: {
+    infra_retries: number;
+    fallback_used: boolean;
+    fallback_count: number;
+    stalls_triggered: number;
+    late_results_ignored: number;
+  };
   outcome: 'complete' | 'stopped' | 'running' | 'unknown';
   stop_reason: string | null;
 }
@@ -82,6 +90,13 @@ export async function reportCommand(options: ReportOptions): Promise<void> {
     workers: { claude: 'unknown', codex: 'unknown' },
     verify: { attempts: 0, retries: 0, total_duration_ms: 0 },
     milestones: { completed: 0 },
+    reliability: {
+      infra_retries: 0,
+      fallback_used: false,
+      fallback_count: 0,
+      stalls_triggered: 0,
+      late_results_ignored: 0
+    },
     outcome: 'unknown',
     stop_reason: null
   };
@@ -243,6 +258,15 @@ function formatKpiBlock(
     lines.push('verify: (no verification data)');
   }
 
+  // Reliability metrics
+  const rel = kpi.reliability;
+  const relParts: string[] = [];
+  if (rel.infra_retries > 0) relParts.push(`retries=${rel.infra_retries}`);
+  if (rel.fallback_used) relParts.push(`fallback=${rel.fallback_count}`);
+  if (rel.stalls_triggered > 0) relParts.push(`stalls=${rel.stalls_triggered}`);
+  if (rel.late_results_ignored > 0) relParts.push(`late_ignored=${rel.late_results_ignored}`);
+  lines.push(`reliability: ${relParts.length ? relParts.join(' ') : 'clean'}`);
+
   // Context pack status
   lines.push(formatContextPackStatus(contextPackArtifact ?? null));
 
@@ -264,6 +288,12 @@ export function computeKpiFromEvents(events: Array<Record<string, unknown>>): De
   let milestonesCompleted = 0;
   let outcome: DerivedKpi['outcome'] = 'unknown';
   let stopReason: string | null = null;
+
+  // Reliability metrics
+  let infraRetries = 0;
+  let fallbackCount = 0;
+  let stallsTriggered = 0;
+  let lateResultsIgnored = 0;
 
   for (const event of events) {
     const eventType = event.type as string | undefined;
@@ -358,6 +388,24 @@ export function computeKpiFromEvents(events: Array<Record<string, unknown>>): De
         phases[currentPhase].duration_ms += phaseDuration;
       }
     }
+
+    // Track reliability metrics
+    if (eventType === 'parse_failed') {
+      const retryCount = (payload.retry_count as number) ?? 0;
+      infraRetries += retryCount;
+    }
+
+    if (eventType === 'worker_fallback') {
+      fallbackCount += 1;
+    }
+
+    if (eventType === 'stop' && payload.reason === 'stalled_timeout') {
+      stallsTriggered += 1;
+    }
+
+    if (eventType === 'late_worker_result_ignored') {
+      lateResultsIgnored += 1;
+    }
   }
 
   // Compute total duration
@@ -391,6 +439,13 @@ export function computeKpiFromEvents(events: Array<Record<string, unknown>>): De
     },
     milestones: {
       completed: milestonesCompleted
+    },
+    reliability: {
+      infra_retries: infraRetries,
+      fallback_used: fallbackCount > 0,
+      fallback_count: fallbackCount,
+      stalls_triggered: stallsTriggered,
+      late_results_ignored: lateResultsIgnored
     },
     outcome,
     stop_reason: stopReason
