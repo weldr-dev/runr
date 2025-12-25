@@ -2,6 +2,7 @@ import { RunStore } from '../store/run-store.js';
 import { resolveRunId } from '../store/run-utils.js';
 import { computeKpiFromEvents } from './report.js';
 import { RunState } from '../types/schemas.js';
+import { diagnoseStop, formatStopMarkdown, DiagnosisContext, StopDiagnosisJson } from '../diagnosis/index.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -90,6 +91,16 @@ export interface SummaryJson {
     /** ISO timestamp when run ended */
     ended_at: string | null;
   };
+
+  /** Diagnosis (for stopped runs) */
+  diagnosis?: {
+    /** Primary diagnosis category */
+    primary: string;
+    /** Confidence score (0-1) */
+    confidence: number;
+    /** First recommended action */
+    next_action?: string;
+  };
 }
 
 export interface SummarizeOptions {
@@ -128,6 +139,42 @@ export async function summarizeCommand(options: SummarizeOptions): Promise<void>
   // Extract ticks info from timeline events (sum across all sessions including resumes)
   const ticksInfo = extractTicksInfo(events, state);
 
+  // Generate diagnosis for stopped runs (not for successful completions)
+  let diagnosisResult: StopDiagnosisJson | undefined;
+  const isFailedStop = state.phase === 'STOPPED' && state.stop_reason !== 'complete';
+  if (isFailedStop) {
+    const diagnosisContext: DiagnosisContext = {
+      runId: resolvedRunId,
+      runDir,
+      state: {
+        phase: state.phase,
+        stop_reason: state.stop_reason,
+        milestone_index: state.milestone_index,
+        milestones_total: state.milestones?.length ?? 0,
+        last_error: state.last_error
+      },
+      events,
+      configSnapshot: configSnapshot as unknown as Record<string, unknown>
+    };
+
+    diagnosisResult = diagnoseStop(diagnosisContext);
+
+    // Write diagnosis artifacts to handoffs directory
+    const handoffsDir = path.join(runDir, 'handoffs');
+    if (!fs.existsSync(handoffsDir)) {
+      fs.mkdirSync(handoffsDir, { recursive: true });
+    }
+
+    // Write stop.json
+    const stopJsonPath = path.join(handoffsDir, 'stop.json');
+    fs.writeFileSync(stopJsonPath, JSON.stringify(diagnosisResult, null, 2) + '\n', 'utf-8');
+
+    // Write stop.md
+    const stopMdPath = path.join(handoffsDir, 'stop.md');
+    const stopMd = formatStopMarkdown(diagnosisResult);
+    fs.writeFileSync(stopMdPath, stopMd + '\n', 'utf-8');
+  }
+
   const summary: SummaryJson = {
     run_id: resolvedRunId,
     outcome: kpi.outcome,
@@ -159,7 +206,14 @@ export async function summarizeCommand(options: SummarizeOptions): Promise<void>
     timestamps: {
       started_at: kpi.started_at,
       ended_at: kpi.ended_at
-    }
+    },
+    diagnosis: diagnosisResult
+      ? {
+          primary: diagnosisResult.primary_diagnosis,
+          confidence: diagnosisResult.confidence,
+          next_action: diagnosisResult.next_actions[0]?.command
+        }
+      : undefined
   };
 
   // Write summary.json to run directory (idempotent - overwrites if exists)
@@ -168,6 +222,16 @@ export async function summarizeCommand(options: SummarizeOptions): Promise<void>
   fs.writeFileSync(summaryPath, formattedJson + '\n', 'utf-8');
 
   console.log(`Summary written to ${summaryPath}`);
+
+  // Log diagnosis info if available
+  if (diagnosisResult) {
+    const handoffsDir = path.join(runDir, 'handoffs');
+    console.log(`Diagnosis written to ${path.join(handoffsDir, 'stop.json')} and stop.md`);
+    console.log(`  Primary: ${diagnosisResult.primary_diagnosis} (${Math.round(diagnosisResult.confidence * 100)}%)`);
+    if (diagnosisResult.next_actions[0]) {
+      console.log(`  Next: ${diagnosisResult.next_actions[0].title}`);
+    }
+  }
 }
 
 async function readTimelineEvents(timelinePath: string): Promise<Array<Record<string, unknown>>> {

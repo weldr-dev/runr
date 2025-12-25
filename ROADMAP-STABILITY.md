@@ -3,7 +3,7 @@
 **Goal**: Prove stability → lock in benchmark loop → prune complexity → add autonomy multipliers.
 
 **Started**: 2025-12-25
-**Last Updated**: 2025-12-25 (Phase 4.4, 5, 6 complete)
+**Last Updated**: 2025-12-25 (Phases 4-7 complete)
 
 ---
 
@@ -283,21 +283,52 @@ node dist/cli.js resume <run_id> --max-ticks 75
 
 ---
 
-## Phase 7: Autonomy Multiplier [PENDING]
+## Phase 7: Autonomy Multiplier [COMPLETE]
 
-**Choose ONE after phases 1-6 complete**:
+**Chose Option B: Auto-Diagnose Stop Reason**
 
-### Option A: Fast Path for Trivial Diffs
+### Option B: Auto-Diagnose Stop Reason [COMPLETE]
+
+**Implementation**: Created diagnosis module with 10 diagnostic rules.
+
+**Output Artifacts** (for stopped runs):
+- `runs/<id>/handoffs/stop.json` - Machine-readable diagnosis
+- `runs/<id>/handoffs/stop.md` - Human-readable diagnosis
+
+**Diagnostic Categories Implemented**:
+1. `auth_expired` - Worker authentication issues
+2. `verification_cwd_mismatch` - Wrong directory for verification
+3. `scope_violation` - Files outside allowlist
+4. `lockfile_restricted` - Lockfile modified without --allow-deps
+5. `verification_failure` - Tests/lint/typecheck failed
+6. `worker_parse_failure` - Malformed worker response
+7. `stall_timeout` - No progress detected
+8. `max_ticks_reached` - Tick limit hit
+9. `time_budget_exceeded` - Time limit hit
+10. `guard_violation_dirty` - Uncommitted changes in repo
+
+**Each Diagnosis Includes**:
+- Confidence score (0-1)
+- Evidence signals (source + pattern + snippet)
+- Prioritized next actions with exact commands
+- Escalation advice for repeated failures
+
+**Integration**:
+- `summarize` command now generates diagnosis for failed stops
+- `bench.ts` aggregates diagnoses by category
+- Summary output includes primary diagnosis and next action
+
+**Files Created**:
+- `src/diagnosis/types.ts` - Type definitions
+- `src/diagnosis/analyzer.ts` - Diagnostic rules engine
+- `src/diagnosis/formatter.ts` - Markdown formatter
+- `src/diagnosis/index.ts` - Module exports
+
+### Option A: Fast Path for Trivial Diffs [DEFERRED]
 - [ ] Detect "trivial" change set (< N files, < M lines)
 - [ ] If tier0 passed and change set trivial: skip REVIEW
 - [ ] Checkpoint immediately
 - [ ] Add `fast_path_used` timeline event
-
-### Option B: Auto-Diagnose Stop Reason
-- [ ] Parse `last_error` into structured diagnosis
-- [ ] Map common errors to likely causes
-- [ ] Generate specific next-action in `stop.md`
-- [ ] Include exact commands to run
 
 ---
 
@@ -313,6 +344,7 @@ After each significant change, record:
 | 2025-12-25 | Phase 6: Defaults UX | - | - | - | Config logging + structured stop memos |
 | 2025-12-25 | Phase 5.4: bench:full | 1 guard-fail | 1 complete ✅ | - | Worktree runs passed |
 | 2025-12-25 | Phase 4.4: progress tracking | 1 complete, 1 guard-fail | - | - | `last_progress_at` now set initially |
+| 2025-12-25 | Phase 7: auto-diagnose | - | - | - | 10 diagnostic rules, stop.json/stop.md artifacts |
 
 ---
 
@@ -324,6 +356,12 @@ After each significant change, record:
 - `src/context/__tests__/artifact.test.ts` - Fixed to include blockers field
 - `src/supervisor/runner.ts` - Added `checkForLateResult()` helper, `buildStructuredStopMemo()`, structured stop output
 - `src/supervisor/state-machine.ts` - Added `last_progress_at` to initial state, documented progress tracking design
+- `src/diagnosis/types.ts` - **NEW** Diagnosis type definitions
+- `src/diagnosis/analyzer.ts` - **NEW** Diagnostic rules engine (10 rules)
+- `src/diagnosis/formatter.ts` - **NEW** Markdown formatter for stop.md
+- `src/diagnosis/index.ts` - **NEW** Module exports
+- `src/commands/summarize.ts` - Integrated diagnosis generation, writes handoffs/stop.json + stop.md
+- `scripts/bench.ts` - Added diagnosis aggregation and per-run diagnosis in reports
 - `src/commands/gc.ts` - **NEW** Disk cleanup command
 - `src/commands/run.ts` - Added `formatEffectiveConfig()` for config logging at startup
 - `src/commands/resume.ts` - Added `formatResumeConfig()`, worktree event logging
