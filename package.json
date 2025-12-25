@@ -11,7 +11,13 @@
     "dev": "ts-node src/cli.ts",
     "start": "node dist/cli.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "bench": "npx ts-node scripts/bench.ts",
+    "bench:dry": "npx ts-node scripts/bench.ts --dry-run",
+    "bench:minimal": "npx ts-node scripts/bench.ts --preset minimal",
+    "bench:context": "npx ts-node scripts/bench.ts --preset context",
+    "bench:stress": "npx ts-node scripts/bench.ts --preset stress",
+    "bench:full": "npx ts-node scripts/bench.ts --preset full"
   },
   "dependencies": {
     "commander": "^12.1.0",
