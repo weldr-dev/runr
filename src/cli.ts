@@ -29,6 +29,7 @@ program
   .option('--max-ticks <count>', 'Max supervisor ticks', '10')
   .option('--skip-doctor', 'Skip worker health checks', false)
   .option('--fresh-target', 'Wipe target root before starting', false)
+  .option('--worktree', 'Create isolated git worktree for this run', false)
   .action(async (options) => {
     const noBranch = options.branch === false;
     const noWrite = options.write === false;
@@ -45,7 +46,8 @@ program
       noWrite,
       maxTicks: Number.parseInt(options.maxTicks, 10),
       skipDoctor: options.skipDoctor,
-      freshTarget: options.freshTarget
+      freshTarget: options.freshTarget,
+      worktree: options.worktree
     });
   });
 

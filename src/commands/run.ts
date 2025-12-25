@@ -3,6 +3,7 @@ import path from 'node:path';
 import { loadConfig, resolveConfigPath } from '../config/load.js';
 import { RunStore } from '../store/run-store.js';
 import { git, gitOptional } from '../repo/git.js';
+import { createWorktree, WorktreeInfo } from '../repo/worktree.js';
 import { buildMilestonesFromTask } from '../supervisor/planner.js';
 import { createInitialState, stopRun, updatePhase } from '../supervisor/state-machine.js';
 import { runPreflight } from './preflight.js';
@@ -24,6 +25,7 @@ export interface RunOptions {
   maxTicks: number;
   skipDoctor: boolean;
   freshTarget: boolean;
+  worktree: boolean;
 }
 
 function makeRunId(): string {
@@ -188,13 +190,35 @@ export async function runCommand(options: RunOptions): Promise<void> {
 
   const runId = makeRunId();
   const slug = slugFromTask(taskPath);
+  const runDir = path.resolve('runs', runId);
   const milestones = buildMilestonesFromTask(taskText);
   const milestoneRiskLevel = milestones[0]?.risk_level ?? 'medium';
+
+  // Create worktree for isolated execution if enabled
+  let effectiveRepoPath = repoPath;
+  let worktreeInfo: WorktreeInfo | null = null;
+  if (options.worktree) {
+    const worktreePath = path.join(runDir, 'worktree');
+    const runBranch = options.noBranch
+      ? undefined
+      : `agent/${runId}/${slug}`;
+
+    try {
+      worktreeInfo = await createWorktree(repoPath, worktreePath, runBranch);
+      effectiveRepoPath = worktreeInfo.effective_repo_path;
+      console.log(`Worktree created: ${worktreePath}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Failed to create worktree: ${message}`);
+      process.exitCode = 1;
+      return;
+    }
+  }
 
   // Always run ping for quick auth check (catches OAuth failures early)
   // Doctor is more thorough but ping is faster for auth validation
   const preflight = await runPreflight({
-    repoPath,
+    repoPath: effectiveRepoPath,
     runId,
     slug,
     config,
@@ -204,14 +228,28 @@ export async function runCommand(options: RunOptions): Promise<void> {
     skipPing: false
   });
 
-  const runDir = path.resolve('runs', runId);
   const runStore = options.noWrite ? null : RunStore.init(runId);
 
   if (runStore) {
-    runStore.writeConfigSnapshot(config);
+    // Write config snapshot with worktree info if enabled
+    const configWithWorktree = worktreeInfo
+      ? { ...config, _worktree: worktreeInfo }
+      : config;
+    runStore.writeConfigSnapshot(configWithWorktree);
     runStore.writeArtifact('task.md', taskText);
-    const fingerprint = await captureFingerprint(config, repoPath);
+    const fingerprint = await captureFingerprint(config, effectiveRepoPath);
     runStore.writeFingerprint(fingerprint);
+    if (worktreeInfo) {
+      runStore.appendEvent({
+        type: 'worktree_created',
+        source: 'cli',
+        payload: {
+          worktree_path: worktreeInfo.effective_repo_path,
+          base_sha: worktreeInfo.base_sha,
+          run_branch: worktreeInfo.run_branch
+        }
+      });
+    }
     if (freshTargetRoot) {
       runStore.appendEvent({
         type: 'fresh_target',
@@ -263,7 +301,7 @@ export async function runCommand(options: RunOptions): Promise<void> {
     if (runStore) {
       let state = createInitialState({
         run_id: runId,
-        repo_path: repoPath,
+        repo_path: effectiveRepoPath,
         task_text: taskText,
         allowlist: config.scope.allowlist,
         denylist: config.scope.denylist
@@ -337,7 +375,7 @@ export async function runCommand(options: RunOptions): Promise<void> {
 
   let state = createInitialState({
     run_id: runId,
-    repo_path: repoPath,
+    repo_path: effectiveRepoPath,
     task_text: taskText,
     allowlist: config.scope.allowlist,
     denylist: config.scope.denylist
@@ -367,7 +405,7 @@ export async function runCommand(options: RunOptions): Promise<void> {
     runStore.writeSummary('# Summary\n\nRun initialized. Supervisor loop not yet executed.');
     await runSupervisorLoop({
       runStore,
-      repoPath,
+      repoPath: effectiveRepoPath,
       taskText,
       config,
       timeBudgetMinutes: options.time,

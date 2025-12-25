@@ -6,6 +6,7 @@ import { AgentConfig, agentConfigSchema } from '../config/schema.js';
 import { loadConfig, resolveConfigPath } from '../config/load.js';
 import { runSupervisorLoop } from '../supervisor/runner.js';
 import { captureFingerprint, compareFingerprints, FingerprintDiff } from '../env/fingerprint.js';
+import { WorktreeInfo, validateWorktree, recreateWorktree } from '../repo/worktree.js';
 
 export interface ResumeOptions {
   runId: string;
@@ -16,14 +17,25 @@ export interface ResumeOptions {
   force: boolean;
 }
 
-function readConfigSnapshot(runDir: string): AgentConfig | null {
+interface ConfigSnapshotWithWorktree extends AgentConfig {
+  _worktree?: WorktreeInfo;
+}
+
+function readConfigSnapshot(runDir: string): { config: AgentConfig | null; worktree: WorktreeInfo | null } {
   const snapshotPath = path.join(runDir, 'config.snapshot.json');
   if (!fs.existsSync(snapshotPath)) {
-    return null;
+    return { config: null, worktree: null };
   }
   const raw = fs.readFileSync(snapshotPath, 'utf-8');
-  const parsed = JSON.parse(raw) as unknown;
-  return agentConfigSchema.parse(parsed);
+  const parsed = JSON.parse(raw) as ConfigSnapshotWithWorktree;
+
+  // Extract worktree info before parsing config
+  const worktree = parsed._worktree ?? null;
+  delete parsed._worktree;
+
+  // Parse the config without worktree field
+  const config = agentConfigSchema.parse(parsed);
+  return { config, worktree };
 }
 
 function readTaskArtifact(runDir: string): string {
@@ -43,16 +55,44 @@ export async function resumeCommand(options: ResumeOptions): Promise<void> {
     throw new Error(`Run state not found for ${options.runId}`);
   }
 
-  const configSnapshot = readConfigSnapshot(runStore.path);
+  const { config: configSnapshot, worktree: worktreeInfo } = readConfigSnapshot(runStore.path);
   const config =
     configSnapshot ??
     loadConfig(resolveConfigPath(state.repo_path, options.config));
   const taskText = readTaskArtifact(runStore.path);
 
+  // Handle worktree reattachment if this run used a worktree
+  let effectiveRepoPath = state.repo_path;
+  if (worktreeInfo?.worktree_enabled) {
+    const worktreeValid = await validateWorktree(worktreeInfo.effective_repo_path);
+    if (!worktreeValid) {
+      console.log(`Worktree missing, recreating: ${worktreeInfo.effective_repo_path}`);
+      try {
+        await recreateWorktree(worktreeInfo);
+        runStore.appendEvent({
+          type: 'worktree_recreated',
+          source: 'cli',
+          payload: {
+            worktree_path: worktreeInfo.effective_repo_path,
+            base_sha: worktreeInfo.base_sha
+          }
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`Failed to recreate worktree: ${message}`);
+        console.error('Run with a fresh start using: node dist/cli.js run --worktree ...');
+        process.exitCode = 1;
+        return;
+      }
+    }
+    effectiveRepoPath = worktreeInfo.effective_repo_path;
+    console.log(`Using worktree: ${effectiveRepoPath}`);
+  }
+
   // Check environment fingerprint
   const originalFingerprint = runStore.readFingerprint();
   if (originalFingerprint) {
-    const currentFingerprint = await captureFingerprint(config, state.repo_path);
+    const currentFingerprint = await captureFingerprint(config, effectiveRepoPath);
     const diffs = compareFingerprints(originalFingerprint, currentFingerprint);
     if (diffs.length > 0) {
       console.warn('Environment fingerprint mismatch:');
@@ -104,7 +144,7 @@ export async function resumeCommand(options: ResumeOptions): Promise<void> {
 
   await runSupervisorLoop({
     runStore,
-    repoPath: state.repo_path,
+    repoPath: effectiveRepoPath,
     taskText,
     config,
     timeBudgetMinutes: options.time,
