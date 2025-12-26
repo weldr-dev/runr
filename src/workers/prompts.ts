@@ -100,6 +100,7 @@ export function buildImplementPrompt(input: {
 }
 
 export interface VerificationSummary {
+  evidence_gates_passed: boolean;
   commands_required: string[];
   commands_run: Array<{ command: string; exit_code: number }>;
   commands_missing: string[];

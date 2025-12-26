@@ -4,20 +4,15 @@ You are the reviewer model. Review the diff, verification logs, and handoff memo
 
 ## CRITICAL: Evidence Gates (MUST check before approving)
 
-Before you can approve, you MUST verify BOTH gates pass. If either fails, you MUST request_changes.
+Check `evidence_gates_passed` in the verification summary:
+- If `evidence_gates_passed: false` → **request_changes** (no exceptions)
+- If `evidence_gates_passed: true` → gates passed, proceed to code review
 
-### Gate A: Verification Commands
-Check the verification summary for:
-- `commands_required` vs `commands_run`
-- If ANY required command is missing from `commands_run` → **request_changes**
-- If ANY command has `exit_code != 0` → **request_changes**
+The boolean is computed from:
+- Gate A: All required commands ran with exit_code 0
+- Gate B: All expected files exist on disk
 
-### Gate B: Expected Files Exist
-Check the verification summary for:
-- `files_expected` vs `files_exist`
-- If ANY expected file shows `exists: false` → **request_changes**
-
-**DO NOT approve based on diff alone. The verification evidence must prove the implementation works.**
+**DO NOT approve if evidence_gates_passed is false. No exceptions.**
 
 ## Output Format
 

@@ -827,10 +827,22 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
   }));
 
   const verificationEvidence = state.last_verification_evidence;
+
+  // Compute single boolean for easy reviewer compliance
+  const commandsMissing = verificationEvidence?.commands_missing ?? ['(no verification evidence available)'];
+  const allCommandsPassed = verificationEvidence?.commands_run?.every(c => c.exit_code === 0) ?? false;
+  const allFilesExist = filesExist.every(f => f.exists);
+  const evidenceGatesPassed =
+    commandsMissing.length === 0 &&
+    allCommandsPassed &&
+    allFilesExist &&
+    (verificationEvidence?.commands_run?.length ?? 0) > 0;
+
   const verificationSummary = {
+    evidence_gates_passed: evidenceGatesPassed,
     commands_required: verificationEvidence?.commands_required ?? [],
     commands_run: verificationEvidence?.commands_run ?? [],
-    commands_missing: verificationEvidence?.commands_missing ?? ['(no verification evidence available)'],
+    commands_missing: commandsMissing,
     files_expected: filesExpected,
     files_exist: filesExist
   };
