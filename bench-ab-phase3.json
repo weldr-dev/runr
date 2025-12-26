@@ -1,0 +1,124 @@
+{
+  "scenarios": [
+    {
+      "name": "ab-A-r1-off",
+      "task": "tasks/tactical-grid/ab-A-feature.md",
+      "repo": "apps/tactical-grid",
+      "config": "tasks/tactical-grid/agent.config.json",
+      "time": 15,
+      "maxTicks": 30,
+      "worktree": true,
+      "env": { "CONTEXT_PACK": "0" }
+    },
+    {
+      "name": "ab-A-r1-on",
+      "task": "tasks/tactical-grid/ab-A-feature.md",
+      "repo": "apps/tactical-grid",
+      "config": "tasks/tactical-grid/agent.config.json",
+      "time": 15,
+      "maxTicks": 30,
+      "worktree": true,
+      "env": { "CONTEXT_PACK": "1" }
+    },
+    {
+      "name": "ab-B-r1-off",
+      "task": "tasks/tactical-grid/ab-B-guard.md",
+      "repo": "apps/tactical-grid",
+      "config": "tasks/tactical-grid/agent.config.json",
+      "time": 15,
+      "maxTicks": 30,
+      "worktree": true,
+      "env": { "CONTEXT_PACK": "0" }
+    },
+    {
+      "name": "ab-B-r1-on",
+      "task": "tasks/tactical-grid/ab-B-guard.md",
+      "repo": "apps/tactical-grid",
+      "config": "tasks/tactical-grid/agent.config.json",
+      "time": 15,
+      "maxTicks": 30,
+      "worktree": true,
+      "env": { "CONTEXT_PACK": "1" }
+    },
+    {
+      "name": "ab-A-r2-off",
+      "task": "tasks/tactical-grid/ab-A-feature.md",
+      "repo": "apps/tactical-grid",
+      "config": "tasks/tactical-grid/agent.config.json",
+      "time": 15,
+      "maxTicks": 30,
+      "worktree": true,
+      "env": { "CONTEXT_PACK": "0" }
+    },
+    {
+      "name": "ab-A-r2-on",
+      "task": "tasks/tactical-grid/ab-A-feature.md",
+      "repo": "apps/tactical-grid",
+      "config": "tasks/tactical-grid/agent.config.json",
+      "time": 15,
+      "maxTicks": 30,
+      "worktree": true,
+      "env": { "CONTEXT_PACK": "1" }
+    },
+    {
+      "name": "ab-B-r2-off",
+      "task": "tasks/tactical-grid/ab-B-guard.md",
+      "repo": "apps/tactical-grid",
+      "config": "tasks/tactical-grid/agent.config.json",
+      "time": 15,
+      "maxTicks": 30,
+      "worktree": true,
+      "env": { "CONTEXT_PACK": "0" }
+    },
+    {
+      "name": "ab-B-r2-on",
+      "task": "tasks/tactical-grid/ab-B-guard.md",
+      "repo": "apps/tactical-grid",
+      "config": "tasks/tactical-grid/agent.config.json",
+      "time": 15,
+      "maxTicks": 30,
+      "worktree": true,
+      "env": { "CONTEXT_PACK": "1" }
+    },
+    {
+      "name": "ab-A-r3-off",
+      "task": "tasks/tactical-grid/ab-A-feature.md",
+      "repo": "apps/tactical-grid",
+      "config": "tasks/tactical-grid/agent.config.json",
+      "time": 15,
+      "maxTicks": 30,
+      "worktree": true,
+      "env": { "CONTEXT_PACK": "0" }
+    },
+    {
+      "name": "ab-A-r3-on",
+      "task": "tasks/tactical-grid/ab-A-feature.md",
+      "repo": "apps/tactical-grid",
+      "config": "tasks/tactical-grid/agent.config.json",
+      "time": 15,
+      "maxTicks": 30,
+      "worktree": true,
+      "env": { "CONTEXT_PACK": "1" }
+    },
+    {
+      "name": "ab-B-r3-off",
+      "task": "tasks/tactical-grid/ab-B-guard.md",
+      "repo": "apps/tactical-grid",
+      "config": "tasks/tactical-grid/agent.config.json",
+      "time": 15,
+      "maxTicks": 30,
+      "worktree": true,
+      "env": { "CONTEXT_PACK": "0" }
+    },
+    {
+      "name": "ab-B-r3-on",
+      "task": "tasks/tactical-grid/ab-B-guard.md",
+      "repo": "apps/tactical-grid",
+      "config": "tasks/tactical-grid/agent.config.json",
+      "time": 15,
+      "maxTicks": 30,
+      "worktree": true,
+      "env": { "CONTEXT_PACK": "1" }
+    }
+  ]
+}
