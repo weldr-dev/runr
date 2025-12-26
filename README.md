@@ -1,4 +1,4 @@
-# Dual-LLM Agent Runner
+# Agent Runner
 
 **Reliable autonomy for unattended coding runs.**
 
@@ -27,73 +27,74 @@ See [docs/vision.md](docs/vision.md) for the full philosophy.
 - **Verification tiers**: Risk-based test selection with automatic retries (up to 3 per milestone)
 - **Full auditability**: Event timeline, state snapshots, artifacts, and handoff memos
 - **Resumable runs**: Environment fingerprinting ensures safe resume across sessions
+- **Run anywhere**: Use in any repository via `npm link`
 
-## When to Use
+## Quick Start
 
-- You want a long-running agent loop with checkpoints and artifacts
-- You need a repeatable run record (plan, events, logs, summary)
-- You want safety guards (scope, lockfiles, dirty worktree)
-- You're automating multi-step development tasks with verification gates
+### Install (one-time, from this repo)
 
-## Quickstart
-Prereqs:
-- Node.js + npm
-- Git in the target repo
-- `codex` and `claude` CLIs available on PATH (headless mode)
-
-Build:
-```
-npm install
-npm run build
+```bash
+npm install && npm run build && npm link
 ```
 
-Doctor (first step in every example):
-```
-node dist/cli.js doctor --repo . --config agent.config.json
+### Use in any project
+
+```bash
+cd /path/to/your-project
+npm link agent-runner
+
+# Create .agent directory
+mkdir -p .agent/tasks
+
+# Create config
+cat > .agent/agent.config.json << 'EOF'
+{
+  "scope": { "allowlist": ["src/**"], "denylist": [] },
+  "verification": { "tier0": ["npm test"] }
+}
+EOF
+
+# Create a task
+echo "# Task: Fix the login bug" > .agent/tasks/fix-login.md
+
+# Run
+agent doctor                                           # Check workers
+agent run --task .agent/tasks/fix-login.md --worktree  # Run isolated
+agent follow                                           # Watch progress
+agent report latest                                    # View results
 ```
 
-Plan-only run (one tick):
-```
-node dist/cli.js run \
-  --repo . \
-  --task tasks/noop.md \
-  --config agent.config.json \
-  --max-ticks 1
-```
-This executes the PLAN phase only and leaves the run ready to resume.
-
-Grab the `run_id=...` from the summary line, then inspect:
-```
-node dist/cli.js report <run_id> --tail 80
-```
-
-Resume the run later:
-```
-node dist/cli.js resume <run_id> --time 60 --max-ticks 5
-```
+See **[docs/TARGET_REPO_SETUP.md](docs/TARGET_REPO_SETUP.md)** for the full setup guide.
 
 ## Phases (as implemented)
 PLAN -> IMPLEMENT -> VERIFY -> REVIEW -> CHECKPOINT -> FINALIZE
 
 ## Run Artifacts
 
-Each run creates a self-contained directory under `runs/<run_id>/`:
+Each run creates a self-contained directory under `.agent/runs/<run_id>/` in the target repo:
 
 ```
-runs/<run_id>/
-  artifacts/
-    task.md              # Original task file
-    tests_tier0.log      # Verification output
-  handoffs/
-    milestone_01_handoff.md
-    stop.md              # Stop reason memo
-  config.snapshot.json   # Config used for this run
-  env.fingerprint.json   # Environment snapshot for resume safety
-  plan.md                # Generated milestone plan
-  seq.txt                # Event sequence counter
-  state.json             # Current phase, milestone index, timestamps
-  summary.md             # Final summary
-  timeline.jsonl         # Append-only event log
+.agent/
+├── agent.config.json        # Your config
+├── tasks/                   # Task files
+│   └── your-task.md
+└── runs/
+    └── <run_id>/            # Timestamp-based ID
+        ├── artifacts/
+        │   ├── task.md              # Original task file
+        │   └── tests_tier0.log      # Verification output
+        ├── handoffs/
+        │   ├── milestone_01_handoff.md
+        │   └── stop.md              # Stop reason memo
+        ├── worktree/                # Git worktree (if --worktree)
+        ├── config.snapshot.json     # Config used for this run
+        ├── env.fingerprint.json     # Environment snapshot for resume
+        ├── plan.md                  # Generated milestone plan
+        ├── seq.txt                  # Event sequence counter
+        ├── state.json               # Current phase, milestone, timestamps
+        ├── summary.json             # Machine-readable summary
+        ├── summary.md               # Human-readable summary
+        └── timeline.jsonl           # Append-only event log
 ```
 
 ## Documentation
@@ -103,6 +104,7 @@ Full documentation is available in the [docs/](docs/) directory. Start with the 
 ### Getting Started
 | Doc | Description |
 |-----|-------------|
+| [Target Repo Setup](docs/TARGET_REPO_SETUP.md) | **Full guide for using the agent in other projects** |
 | [Vision](docs/vision.md) | Why this exists and the core philosophy |
 | [Mental Model](docs/mental-model.md) | Core concepts and how the system thinks |
 | [CLI Reference](docs/cli.md) | All commands and options |
