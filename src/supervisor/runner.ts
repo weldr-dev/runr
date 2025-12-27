@@ -1337,6 +1337,20 @@ async function handleFinalize(state: RunState, options: SupervisorOptions): Prom
     payload: stats
   });
 
+  // Write completion artifact for meta-agent coordination
+  const completePayload = {
+    run_id: state.run_id,
+    status: 'complete',
+    phase: 'FINALIZE',
+    progress: {
+      milestone: state.milestones.length,
+      of: state.milestones.length
+    },
+    worker_stats: stats,
+    ts: new Date().toISOString()
+  };
+  options.runStore.writeMemo('complete.json', JSON.stringify(completePayload, null, 2));
+
   writeStopMemo(options.runStore, DEFAULT_STOP_MEMO);
 
   return stopRun(state, 'complete');

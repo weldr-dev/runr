@@ -10,6 +10,7 @@ import { guardsOnlyCommand } from './commands/guards-only.js';
 import { doctorCommand } from './commands/doctor.js';
 import { followCommand, findBestRunToFollow } from './commands/follow.js';
 import { gcCommand } from './commands/gc.js';
+import { waitCommand, findLatestRunId as findLatestRunIdForWait } from './commands/wait.js';
 
 const program = new Command();
 
@@ -219,6 +220,42 @@ program
       repo: options.repo,
       dryRun: options.dryRun,
       olderThan: Number.parseInt(options.olderThan, 10)
+    });
+  });
+
+program
+  .command('wait')
+  .description('Block until run reaches terminal state (for meta-agent coordination)')
+  .argument('[runId]', 'Run ID (or "latest")')
+  .option('--repo <path>', 'Target repo path (default: current directory)', '.')
+  .option('--for <condition>', 'Wait condition: terminal, stop, complete', 'terminal')
+  .option('--timeout <ms>', 'Timeout in milliseconds')
+  .option('--json', 'Output JSON (default: true)', true)
+  .option('--no-json', 'Output human-readable text')
+  .action(async (runId: string | undefined, options) => {
+    let resolvedRunId: string;
+
+    if (!runId || runId === 'latest') {
+      const latest = findLatestRunIdForWait(options.repo);
+      if (!latest) {
+        if (options.json) {
+          console.log(JSON.stringify({ error: 'no_runs', message: 'No runs found' }));
+        } else {
+          console.error('No runs found');
+        }
+        process.exit(1);
+      }
+      resolvedRunId = latest;
+    } else {
+      resolvedRunId = runId;
+    }
+
+    await waitCommand({
+      runId: resolvedRunId,
+      repo: options.repo,
+      for: options.for as 'terminal' | 'stop' | 'complete',
+      timeout: options.timeout ? Number.parseInt(options.timeout, 10) : undefined,
+      json: options.json
     });
   });
 
