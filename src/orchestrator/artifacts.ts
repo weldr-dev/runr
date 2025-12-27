@@ -251,8 +251,8 @@ export function generateOrchestrationMarkdown(
   lines.push('## Configuration');
   lines.push('');
   lines.push(`- Collision policy: ${summary.policy.collision_policy}`);
-  lines.push(`- Time budget: ${summary.policy.time_budget_minutes}min per run`);
-  lines.push(`- Max ticks: ${summary.policy.max_ticks} per run`);
+  lines.push(`- Run time limit: ${summary.policy.time_budget_minutes}min (each run)`);
+  lines.push(`- Run tick limit: ${summary.policy.max_ticks} (each run)`);
   lines.push('');
 
   // Tracks table
