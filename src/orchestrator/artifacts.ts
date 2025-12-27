@@ -14,7 +14,8 @@ import {
   OrchestratorSummaryArtifact,
   OrchestratorStopReason,
   OrchestratorStopReasonFamily,
-  Track
+  Track,
+  ORCHESTRATOR_ARTIFACT_SCHEMA_VERSION
 } from './types.js';
 import { getOrchestrationsRoot, getLegacyOrchestrationsRoot } from '../store/runs-root.js';
 
@@ -216,6 +217,7 @@ export function buildWaitResult(
   const stopReason = isComplete ? undefined : determineStopReason(state);
 
   const result: OrchestratorWaitResult = {
+    schema_version: ORCHESTRATOR_ARTIFACT_SCHEMA_VERSION,
     orchestrator_id: state.orchestrator_id,
     orchestrator_dir: orchDir,
     repo_root: path.resolve(repoPath),
@@ -306,6 +308,7 @@ export function buildSummaryArtifact(
   }
 
   return {
+    schema_version: ORCHESTRATOR_ARTIFACT_SCHEMA_VERSION,
     orchestrator_id: state.orchestrator_id,
     status: isComplete ? 'complete' : 'stopped',
     repo_root: path.resolve(repoPath),

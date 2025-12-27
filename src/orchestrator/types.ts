@@ -283,9 +283,17 @@ export type OrchestratorStopReason =
   | 'orchestrator_internal_error';     // Unexpected error
 
 /**
+ * Current schema version for orchestration artifacts.
+ * Increment when making breaking changes to the structure.
+ */
+export const ORCHESTRATOR_ARTIFACT_SCHEMA_VERSION = 1;
+
+/**
  * Wait result for orchestrations (mirrors run WaitResult).
  */
 export interface OrchestratorWaitResult {
+  /** Schema version for forward compatibility */
+  schema_version: number;
   orchestrator_id: string;
   orchestrator_dir: string;
   repo_root: string;
@@ -323,6 +331,8 @@ export interface OrchestratorStopArtifact extends OrchestratorWaitResult {
  * Summary artifact for meta-agent consumption.
  */
 export interface OrchestratorSummaryArtifact {
+  /** Schema version for forward compatibility */
+  schema_version: number;
   orchestrator_id: string;
   status: 'complete' | 'stopped';
   repo_root: string;

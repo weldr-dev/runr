@@ -18,7 +18,15 @@ export interface WaitOptions {
   json: boolean;
 }
 
+/**
+ * Current schema version for WaitResult.
+ * Increment when making breaking changes to the structure.
+ */
+export const WAIT_RESULT_SCHEMA_VERSION = 1;
+
 export interface WaitResult {
+  /** Schema version for forward compatibility */
+  schema_version: number;
   run_id: string;
   run_dir: string;
   repo_root: string;
@@ -83,6 +91,7 @@ function buildResult(
   const isComplete = state.stop_reason === 'complete';
 
   const result: WaitResult = {
+    schema_version: WAIT_RESULT_SCHEMA_VERSION,
     run_id: runId,
     run_dir: runDir,
     repo_root: repoRoot,
