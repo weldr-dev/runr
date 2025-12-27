@@ -20,6 +20,8 @@ export interface WaitOptions {
 
 export interface WaitResult {
   run_id: string;
+  run_dir: string;
+  repo_root: string;
   status: 'complete' | 'stopped' | 'timeout';
   stop_reason?: string;
   phase: string;
@@ -72,6 +74,8 @@ function matchesCondition(state: RunState, condition: WaitOptions['for']): boole
 
 function buildResult(
   runId: string,
+  runDir: string,
+  repoRoot: string,
   state: RunState,
   elapsedMs: number,
   timedOut: boolean
@@ -80,6 +84,8 @@ function buildResult(
 
   const result: WaitResult = {
     run_id: runId,
+    run_dir: runDir,
+    repo_root: repoRoot,
     status: timedOut ? 'timeout' : isComplete ? 'complete' : 'stopped',
     phase: state.phase,
     progress: {
@@ -130,6 +136,7 @@ export async function waitCommand(options: WaitOptions): Promise<void> {
     return;
   }
 
+  const repoRoot = path.resolve(options.repo);
   const startTime = Date.now();
   const timeoutMs = options.timeout ?? Infinity;
   let pollInterval = POLL_INTERVAL_MS;
@@ -142,7 +149,7 @@ export async function waitCommand(options: WaitOptions): Promise<void> {
     if (elapsed >= timeoutMs) {
       const state = readState(statePath);
       if (state) {
-        const result = buildResult(options.runId, state, elapsed, true);
+        const result = buildResult(options.runId, runDir, repoRoot, state, elapsed, true);
         if (options.json) {
           console.log(JSON.stringify(result, null, 2));
         } else {
@@ -166,7 +173,7 @@ export async function waitCommand(options: WaitOptions): Promise<void> {
 
     // Check if condition is met
     if (matchesCondition(state, options.for)) {
-      const result = buildResult(options.runId, state, elapsed, false);
+      const result = buildResult(options.runId, runDir, repoRoot, state, elapsed, false);
 
       if (options.json) {
         console.log(JSON.stringify(result, null, 2));
