@@ -263,9 +263,14 @@ program
     });
   });
 
-program
+// Orchestrate subcommands
+const orchestrateCmd = program
   .command('orchestrate')
-  .description('Run multiple tracks of tasks in parallel with collision-aware scheduling')
+  .description('Run multiple tracks of tasks in parallel with collision-aware scheduling');
+
+orchestrateCmd
+  .command('run')
+  .description('Start a new orchestration from config')
   .requiredOption('--config <path>', 'Path to orchestration config file (YAML or JSON)')
   .option('--repo <path>', 'Target repo path (default: current directory)', '.')
   .option('--time <minutes>', 'Time budget per run in minutes', '120')
@@ -296,8 +301,8 @@ program
     });
   });
 
-program
-  .command('orchestrate-resume')
+orchestrateCmd
+  .command('resume')
   .description('Resume a previously started orchestration')
   .argument('<orchestratorId>', 'Orchestrator ID to resume (or "latest")')
   .option('--repo <path>', 'Target repo path (default: current directory)', '.')
