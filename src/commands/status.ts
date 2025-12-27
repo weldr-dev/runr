@@ -3,6 +3,7 @@ import path from 'node:path';
 import { RunStore, WorkerCallInfo } from '../store/run-store.js';
 import { getRunsRoot } from '../store/runs-root.js';
 import { RunState } from '../types/schemas.js';
+import { getActiveRuns, getCollisionRisk } from '../supervisor/collision.js';
 
 export interface StatusOptions {
   runId: string;
@@ -22,6 +23,7 @@ interface RunSummary {
   stopReason: string;
   autoResumeCount: number;
   inFlight: string;
+  collisionRisk: 'none' | 'low' | 'high';
   updatedAt: Date;
 }
 
@@ -57,6 +59,9 @@ export async function statusAllCommand(options: StatusAllOptions): Promise<void>
 
   const summaries: RunSummary[] = [];
 
+  // Pre-compute active runs for collision detection
+  const allActiveRuns = getActiveRuns(options.repo);
+
   for (const runId of runDirs) {
     const statePath = path.join(runsRoot, runId, 'state.json');
     if (!fs.existsSync(statePath)) {
@@ -89,6 +94,26 @@ export async function statusAllCommand(options: StatusAllOptions): Promise<void>
         inFlight = `${workerCall.worker}/${workerCall.stage} (${elapsed}s)`;
       }
 
+      // Compute collision risk with other active runs (excluding this run)
+      let collisionRisk: 'none' | 'low' | 'high' = 'none';
+      if (isRunning) {
+        const otherActiveRuns = allActiveRuns.filter(r => r.runId !== runId);
+        if (otherActiveRuns.length > 0) {
+          // Extract files_expected from milestones
+          const touchFiles: string[] = [];
+          for (const milestone of state.milestones) {
+            if (milestone.files_expected) {
+              touchFiles.push(...milestone.files_expected);
+            }
+          }
+          collisionRisk = getCollisionRisk(
+            state.scope_lock?.allowlist ?? [],
+            touchFiles,
+            otherActiveRuns
+          );
+        }
+      }
+
       summaries.push({
         runId,
         status: isRunning ? 'running' : 'stopped',
@@ -98,6 +123,7 @@ export async function statusAllCommand(options: StatusAllOptions): Promise<void>
         stopReason: state.stop_reason ?? '-',
         autoResumeCount: state.auto_resume_count ?? 0,
         inFlight,
+        collisionRisk,
         updatedAt
       });
     } catch {
@@ -149,7 +175,7 @@ function formatAge(date: Date): string {
  */
 function printTable(summaries: RunSummary[]): void {
   // Column headers
-  const headers = ['RUN ID', 'STATUS', 'PHASE', 'PROGRESS', 'AGE', 'STOP REASON', 'RESUMES', 'IN-FLIGHT'];
+  const headers = ['RUN ID', 'STATUS', 'PHASE', 'PROGRESS', 'AGE', 'STOP REASON', 'RESUMES', 'RISK', 'IN-FLIGHT'];
 
   // Calculate column widths
   const widths = headers.map((h, i) => {
@@ -162,7 +188,8 @@ function printTable(summaries: RunSummary[]): void {
         case 4: return s.age;
         case 5: return s.stopReason;
         case 6: return String(s.autoResumeCount);
-        case 7: return s.inFlight;
+        case 7: return s.collisionRisk;
+        case 8: return s.inFlight;
         default: return '';
       }
     });
@@ -184,7 +211,8 @@ function printTable(summaries: RunSummary[]): void {
       s.age.padEnd(widths[4]),
       s.stopReason.padEnd(widths[5]),
       String(s.autoResumeCount).padEnd(widths[6]),
-      s.inFlight.padEnd(widths[7])
+      s.collisionRisk.padEnd(widths[7]),
+      s.inFlight.padEnd(widths[8])
     ];
     console.log(row.join('  '));
   }
@@ -192,6 +220,11 @@ function printTable(summaries: RunSummary[]): void {
   // Print summary
   const running = summaries.filter(s => s.status === 'running').length;
   const stopped = summaries.filter(s => s.status === 'stopped').length;
+  const withRisk = summaries.filter(s => s.collisionRisk !== 'none').length;
   console.log('');
-  console.log(`Total: ${summaries.length} runs (${running} running, ${stopped} stopped)`);
+  let summaryLine = `Total: ${summaries.length} runs (${running} running, ${stopped} stopped)`;
+  if (withRisk > 0) {
+    summaryLine += ` - ${withRisk} with collision risk`;
+  }
+  console.log(summaryLine);
 }

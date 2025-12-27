@@ -35,6 +35,7 @@ program
   .option('--worktree', 'Create isolated git worktree for this run', false)
   .option('--fast', 'Fast path: skip PLAN and REVIEW phases for small tasks', false)
   .option('--auto-resume', 'Auto-resume on transient failures (stall, worker timeout)', false)
+  .option('--force-parallel', 'Bypass file collision checks with active runs', false)
   .action(async (options) => {
     const noBranch = options.branch === false;
     const noWrite = options.write === false;
@@ -54,7 +55,8 @@ program
       freshTarget: options.freshTarget,
       worktree: options.worktree,
       fast: options.fast,
-      autoResume: options.autoResume
+      autoResume: options.autoResume,
+      forceParallel: options.forceParallel
     });
   });
 

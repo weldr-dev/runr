@@ -27,6 +27,11 @@ import { checkLockfiles, checkScope } from './scope-guard.js';
 import { commandsForTier, selectTiersWithReasons } from './verification-policy.js';
 import { runVerification } from '../verification/engine.js';
 import { stopRun, updatePhase, prepareForResume } from './state-machine.js';
+import {
+  getActiveRuns,
+  checkFileCollisions,
+  formatFileCollisionError
+} from './collision.js';
 
 /**
  * Stop reasons that are eligible for auto-resume.
@@ -101,6 +106,8 @@ export interface SupervisorOptions {
   fast?: boolean;
   /** Enable automatic resume on transient failures (CLI flag overrides config) */
   autoResume?: boolean;
+  /** Bypass file collision checks with active runs */
+  forceParallel?: boolean;
 }
 
 const DEFAULT_STOP_MEMO = [
@@ -684,6 +691,48 @@ async function handlePlan(state: RunState, options: SupervisorOptions): Promise<
       'plan_scope_violation',
       `Planner produced files_expected outside allowlist: ${scopeViolations.join(', ')}`
     );
+  }
+
+  // Stage 2: Post-PLAN file collision check (STOP by default)
+  if (!options.forceParallel) {
+    // Extract union of all files_expected from milestones
+    const expectedFiles: string[] = [];
+    for (const milestone of plan.milestones) {
+      if (milestone.files_expected) {
+        expectedFiles.push(...milestone.files_expected);
+      }
+    }
+
+    // Get active runs (excluding this run)
+    const activeRuns = getActiveRuns(options.repoPath, state.run_id);
+
+    if (activeRuns.length > 0 && expectedFiles.length > 0) {
+      const fileCollisions = checkFileCollisions(expectedFiles, activeRuns);
+
+      if (fileCollisions.length > 0) {
+        options.runStore.appendEvent({
+          type: 'parallel_file_collision',
+          source: 'supervisor',
+          payload: {
+            expected_files: expectedFiles,
+            collisions: fileCollisions.map(c => ({
+              run_id: c.runId,
+              colliding_files: c.collidingFiles
+            }))
+          }
+        });
+        const collisionSummary = fileCollisions
+          .map(c => `Run ${c.runId}: ${c.collidingFiles.slice(0, 3).join(', ')}${c.collidingFiles.length > 3 ? ` (+${c.collidingFiles.length - 3} more)` : ''}`)
+          .join('; ');
+        console.error('\n' + formatFileCollisionError(fileCollisions));
+        return stopWithError(
+          state,
+          options,
+          'parallel_file_collision',
+          `File collision detected with active runs: ${collisionSummary}`
+        );
+      }
+    }
   }
 
   const updated: RunState = {

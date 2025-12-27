@@ -11,6 +11,11 @@ import { runPreflight } from './preflight.js';
 import { runSupervisorLoop } from '../supervisor/runner.js';
 import { runDoctorChecks, WorkerCheck } from './doctor.js';
 import { captureFingerprint } from '../env/fingerprint.js';
+import {
+  getActiveRuns,
+  checkAllowlistOverlaps,
+  formatAllowlistWarning
+} from '../supervisor/collision.js';
 
 export interface RunOptions {
   repo: string;
@@ -29,6 +34,7 @@ export interface RunOptions {
   worktree: boolean;
   fast: boolean;
   autoResume: boolean;
+  forceParallel: boolean;
 }
 
 function makeRunId(): string {
@@ -196,6 +202,19 @@ export async function runCommand(options: RunOptions): Promise<void> {
       console.error('\nRun with --skip-doctor to bypass worker health checks.');
       process.exitCode = 1;
       return;
+    }
+  }
+
+  // Stage 1: Pre-PLAN collision check (allowlist overlap warning)
+  if (!options.forceParallel) {
+    const activeRuns = getActiveRuns(repoPath);
+    if (activeRuns.length > 0) {
+      const overlaps = checkAllowlistOverlaps(config.scope.allowlist, activeRuns);
+      if (overlaps.length > 0) {
+        console.warn('');
+        console.warn(formatAllowlistWarning(overlaps));
+        console.warn('');
+      }
     }
   }
 
@@ -436,7 +455,8 @@ export async function runCommand(options: RunOptions): Promise<void> {
       maxTicks: options.maxTicks,
       allowDeps: options.allowDeps,
       fast: options.fast,
-      autoResume: options.autoResume
+      autoResume: options.autoResume,
+      forceParallel: options.forceParallel
     });
   }
 
