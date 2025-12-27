@@ -14,6 +14,7 @@ import { waitCommand, findLatestRunId as findLatestRunIdForWait } from './comman
 import { orchestrateCommand, resumeOrchestrationCommand, waitOrchestrationCommand } from './commands/orchestrate.js';
 import { pathsCommand } from './commands/paths.js';
 import { metricsCommand } from './commands/metrics.js';
+import { versionCommand } from './commands/version.js';
 import { CollisionPolicy } from './orchestrator/types.js';
 
 const program = new Command();
@@ -213,6 +214,16 @@ program
     await metricsCommand({
       repo: options.repo,
       days: parseInt(options.days, 10),
+      json: options.json
+    });
+  });
+
+program
+  .command('version')
+  .description('Show version information')
+  .option('--json', 'Output JSON format', false)
+  .action(async (options) => {
+    await versionCommand({
       json: options.json
     });
   });
