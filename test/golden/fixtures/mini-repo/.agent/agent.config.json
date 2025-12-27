@@ -1,0 +1,27 @@
+{
+  "agent": {
+    "name": "golden-test",
+    "version": "1"
+  },
+  "scope": {
+    "allowlist": ["src/**"],
+    "denylist": ["node_modules/**", ".git/**"]
+  },
+  "verification": {
+    "tier0": [],
+    "tier1": [],
+    "tier2": []
+  },
+  "workers": {
+    "codex": {
+      "bin": "echo",
+      "args": ["CODEX_MOCK"],
+      "output": "text"
+    },
+    "claude": {
+      "bin": "echo",
+      "args": ["CLAUDE_MOCK"],
+      "output": "text"
+    }
+  }
+}

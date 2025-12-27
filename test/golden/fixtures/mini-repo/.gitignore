@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.log
+
+# Ignore .agent but keep config
+.agent/*
+!.agent/agent.config.json

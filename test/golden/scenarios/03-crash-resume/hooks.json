@@ -1,0 +1,5 @@
+{
+  "kill_after_state": {
+    "predicate": "status_running"
+  }
+}

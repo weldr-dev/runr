@@ -1,0 +1,15 @@
+# Happy path: Two independent tracks that don't collide
+# Both should complete successfully in parallel
+
+tracks:
+  - name: api-track
+    steps:
+      - task: tasks/api.md
+        allowlist:
+          - src/api.ts
+
+  - name: ui-track
+    steps:
+      - task: tasks/ui.md
+        allowlist:
+          - src/ui.ts

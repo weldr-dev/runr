@@ -1,0 +1,17 @@
+# Collision serialize: Two tracks that both touch shared.ts
+# With serialize policy, one should wait for the other
+
+tracks:
+  - name: api-track
+    steps:
+      - task: tasks/api-shared.md
+        allowlist:
+          - src/api.ts
+          - src/shared.ts
+
+  - name: ui-track
+    steps:
+      - task: tasks/ui-shared.md
+        allowlist:
+          - src/ui.ts
+          - src/shared.ts

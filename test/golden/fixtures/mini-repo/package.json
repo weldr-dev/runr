@@ -1,0 +1,10 @@
+{
+  "name": "golden-mini-repo",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "echo 'Tests passed'",
+    "lint": "echo 'Lint passed'",
+    "typecheck": "echo 'Typecheck passed'"
+  }
+}

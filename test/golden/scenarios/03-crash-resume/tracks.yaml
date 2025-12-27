@@ -1,0 +1,15 @@
+# Crash resume: Test orchestrator recovery after crash
+# The harness will kill the process mid-run and resume
+
+tracks:
+  - name: api-track
+    steps:
+      - task: tasks/api.md
+        allowlist:
+          - src/api.ts
+
+  - name: ui-track
+    steps:
+      - task: tasks/ui.md
+        allowlist:
+          - src/ui.ts
