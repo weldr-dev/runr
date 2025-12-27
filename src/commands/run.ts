@@ -35,6 +35,16 @@ export interface RunOptions {
   fast: boolean;
   autoResume: boolean;
   forceParallel: boolean;
+  json: boolean;
+}
+
+export interface RunJsonOutput {
+  run_id: string;
+  run_dir: string;
+  repo_root: string;
+  status: 'started' | 'guard_failed' | 'dry_run';
+  guard_ok?: boolean;
+  tiers?: string[];
 }
 
 function makeRunId(): string {
@@ -185,8 +195,10 @@ export async function runCommand(options: RunOptions): Promise<void> {
   const config = loadConfig(configPath);
   const taskText = fs.readFileSync(taskPath, 'utf-8');
 
-  // Log effective configuration for transparency
-  console.log(formatEffectiveConfig(options));
+  // Log effective configuration for transparency (skip in JSON mode)
+  if (!options.json) {
+    console.log(formatEffectiveConfig(options));
+  }
 
   // Run doctor checks unless skipped
   if (options.skipDoctor) {
@@ -403,7 +415,19 @@ export async function runCommand(options: RunOptions): Promise<void> {
       ].join('\n');
       runStore.writeSummary(summary);
     }
-    console.log(summaryLine);
+    if (options.json) {
+      const jsonOutput: RunJsonOutput = {
+        run_id: runId,
+        run_dir: runDir,
+        repo_root: preflight.repo_context.git_root,
+        status: 'guard_failed',
+        guard_ok: false,
+        tiers: preflight.tiers
+      };
+      console.log(JSON.stringify(jsonOutput));
+    } else {
+      console.log(summaryLine);
+    }
     return;
   }
 
@@ -440,8 +464,33 @@ export async function runCommand(options: RunOptions): Promise<void> {
       });
       runStore.writeSummary('# Summary\n\nRun initialized in dry-run mode.');
     }
-    console.log(summaryLine);
+    if (options.json) {
+      const jsonOutput: RunJsonOutput = {
+        run_id: runId,
+        run_dir: runDir,
+        repo_root: preflight.repo_context.git_root,
+        status: 'dry_run',
+        guard_ok: true,
+        tiers: preflight.tiers
+      };
+      console.log(JSON.stringify(jsonOutput));
+    } else {
+      console.log(summaryLine);
+    }
     return;
+  }
+
+  // Output JSON early for orchestrator consumption (run_id available immediately)
+  if (options.json) {
+    const jsonOutput: RunJsonOutput = {
+      run_id: runId,
+      run_dir: runDir,
+      repo_root: preflight.repo_context.git_root,
+      status: 'started',
+      guard_ok: true,
+      tiers: preflight.tiers
+    };
+    console.log(JSON.stringify(jsonOutput));
   }
 
   if (runStore) {
@@ -460,5 +509,7 @@ export async function runCommand(options: RunOptions): Promise<void> {
     });
   }
 
-  console.log(summaryLine);
+  if (!options.json) {
+    console.log(summaryLine);
+  }
 }

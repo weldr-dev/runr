@@ -11,6 +11,8 @@ import { doctorCommand } from './commands/doctor.js';
 import { followCommand, findBestRunToFollow } from './commands/follow.js';
 import { gcCommand } from './commands/gc.js';
 import { waitCommand, findLatestRunId as findLatestRunIdForWait } from './commands/wait.js';
+import { orchestrateCommand } from './commands/orchestrate.js';
+import { CollisionPolicy } from './orchestrator/types.js';
 
 const program = new Command();
 
@@ -37,6 +39,7 @@ program
   .option('--fast', 'Fast path: skip PLAN and REVIEW phases for small tasks', false)
   .option('--auto-resume', 'Auto-resume on transient failures (stall, worker timeout)', false)
   .option('--force-parallel', 'Bypass file collision checks with active runs', false)
+  .option('--json', 'Output JSON with run_id (for orchestrator consumption)', false)
   .action(async (options) => {
     const noBranch = options.branch === false;
     const noWrite = options.write === false;
@@ -57,7 +60,8 @@ program
       worktree: options.worktree,
       fast: options.fast,
       autoResume: options.autoResume,
-      forceParallel: options.forceParallel
+      forceParallel: options.forceParallel,
+      json: options.json
     });
   });
 
@@ -256,6 +260,39 @@ program
       for: options.for as 'terminal' | 'stop' | 'complete',
       timeout: options.timeout ? Number.parseInt(options.timeout, 10) : undefined,
       json: options.json
+    });
+  });
+
+program
+  .command('orchestrate')
+  .description('Run multiple tracks of tasks in parallel with collision-aware scheduling')
+  .requiredOption('--config <path>', 'Path to orchestration config file (YAML or JSON)')
+  .option('--repo <path>', 'Target repo path (default: current directory)', '.')
+  .option('--time <minutes>', 'Time budget per run in minutes', '120')
+  .option('--max-ticks <count>', 'Max supervisor ticks per run', '50')
+  .option('--collision-policy <policy>', 'Collision policy: serialize, force, fail', 'serialize')
+  .option('--allow-deps', 'Allow lockfile changes', false)
+  .option('--worktree', 'Create isolated git worktree for each run', false)
+  .option('--fast', 'Fast path: skip PLAN and REVIEW phases', false)
+  .option('--dry-run', 'Show planned execution without running', false)
+  .action(async (options) => {
+    const collisionPolicy = options.collisionPolicy as CollisionPolicy;
+    if (!['serialize', 'force', 'fail'].includes(collisionPolicy)) {
+      console.error(`Invalid collision policy: ${collisionPolicy}`);
+      console.error('Valid values: serialize, force, fail');
+      process.exit(1);
+    }
+
+    await orchestrateCommand({
+      config: options.config,
+      repo: options.repo,
+      time: Number.parseInt(options.time, 10),
+      maxTicks: Number.parseInt(options.maxTicks, 10),
+      collisionPolicy,
+      allowDeps: options.allowDeps,
+      worktree: options.worktree,
+      fast: options.fast,
+      dryRun: options.dryRun
     });
   });
 
