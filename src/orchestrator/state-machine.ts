@@ -75,6 +75,7 @@ export function createInitialOrchestratorState(
     timeBudgetMinutes: number;
     maxTicks: number;
     collisionPolicy: CollisionPolicy;
+    fast?: boolean;
   }
 ): OrchestratorState {
   const tracks: Track[] = config.tracks.map((tc, idx) => ({
@@ -98,7 +99,8 @@ export function createInitialOrchestratorState(
     status: 'running',
     started_at: new Date().toISOString(),
     time_budget_minutes: options.timeBudgetMinutes,
-    max_ticks: options.maxTicks
+    max_ticks: options.maxTicks,
+    fast: options.fast
   };
 }
 

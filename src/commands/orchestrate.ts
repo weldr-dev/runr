@@ -99,6 +99,7 @@ async function launchRun(
     worktree: boolean;
     fast: boolean;
     forceParallel: boolean;
+    skipDoctor?: boolean;
   }
 ): Promise<{ runId: string; runDir: string } | { error: string }> {
   const args = [
@@ -114,7 +115,7 @@ async function launchRun(
   if (options.worktree) args.push('--worktree');
   if (options.fast) args.push('--fast');
   if (options.forceParallel) args.push('--force-parallel');
-
+  if (options.skipDoctor) args.push('--skip-doctor');
   const result = await runAgentCommand(args, repoPath);
 
   if (result.exitCode !== 0 && !result.stdout.includes('"run_id"')) {
@@ -232,7 +233,8 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
   let state = createInitialOrchestratorState(config, repoPath, {
     timeBudgetMinutes: options.time,
     maxTicks: options.maxTicks,
-    collisionPolicy: options.collisionPolicy
+    collisionPolicy: options.collisionPolicy,
+    fast: options.fast
   });
 
   console.log(`Orchestrator ID: ${state.orchestrator_id}`);
@@ -279,7 +281,7 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
         const track = state.tracks.find((t) => t.id === trackId)!;
         const step = track.steps[track.current_step];
 
-        console.log(`Launching: ${track.name} - ${step.task_path}`);
+        console.log(`Launching: ${track.name} - ${step.task_path} (fast=${options.fast})`);
 
         const launchResult = await launchRun(step.task_path, repoPath, {
           time: options.time,
@@ -466,7 +468,7 @@ export async function resumeOrchestrationCommand(options: OrchestrateResumeOptio
           maxTicks: state.max_ticks,
           allowDeps: false, // Default for resume
           worktree: false,
-          fast: false,
+          fast: state.fast ?? false,
           forceParallel: state.collision_policy === 'force'
         });
 

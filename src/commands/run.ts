@@ -200,8 +200,9 @@ export async function runCommand(options: RunOptions): Promise<void> {
     console.log(formatEffectiveConfig(options));
   }
 
-  // Run doctor checks unless skipped
-  if (options.skipDoctor) {
+  // Run doctor checks unless skipped (via flag or env var)
+  const skipDoctor = options.skipDoctor || process.env.AGENT_SKIP_DOCTOR === '1';
+  if (skipDoctor) {
     console.warn('WARNING: Skipping worker health checks (--skip-doctor)');
   } else {
     const doctorChecks = await runDoctorChecks(config, repoPath);
@@ -450,7 +451,8 @@ export async function runCommand(options: RunOptions): Promise<void> {
   state.current_branch = preflight.repo_context.current_branch;
   state.planned_run_branch = preflight.repo_context.run_branch;
   state.tier_reasons = preflight.tier_reasons;
-  state = updatePhase(state, 'PLAN');
+  // Fast path: skip PLAN, go directly to IMPLEMENT
+  state = updatePhase(state, options.fast ? 'IMPLEMENT' : 'PLAN');
   if (runStore) {
     runStore.writeState(state);
   }

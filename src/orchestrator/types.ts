@@ -90,6 +90,8 @@ export interface OrchestratorState {
   time_budget_minutes: number;
   /** Max ticks per run */
   max_ticks: number;
+  /** Fast mode (skip PLAN/REVIEW phases) */
+  fast?: boolean;
 }
 
 export type OrchestratorStatus =
@@ -214,7 +216,8 @@ export const orchestratorStateSchema = z.object({
   started_at: z.string(),
   ended_at: z.string().optional(),
   time_budget_minutes: z.number(),
-  max_ticks: z.number()
+  max_ticks: z.number(),
+  fast: z.boolean().optional()
 });
 
 /**
