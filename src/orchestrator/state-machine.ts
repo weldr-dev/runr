@@ -571,7 +571,8 @@ export async function probeRunStatus(
     const content = fs.readFileSync(statePath, 'utf-8');
     const runState = JSON.parse(content);
 
-    const isTerminal = runState.phase === 'STOPPED' || runState.phase === 'DONE';
+    // STOPPED is the only terminal phase (DONE was never a valid phase)
+    const isTerminal = runState.phase === 'STOPPED';
 
     if (isTerminal) {
       const isComplete = runState.stop_reason === 'complete';

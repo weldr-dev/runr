@@ -36,7 +36,7 @@ import {
   reconcileState,
   getEffectivePolicy
 } from '../orchestrator/state-machine.js';
-import { writeTerminalArtifacts, getOrchestrationDir } from '../orchestrator/artifacts.js';
+import { writeTerminalArtifacts, getOrchestrationDir, buildWaitResult } from '../orchestrator/artifacts.js';
 import { getRunsRoot } from '../store/runs-root.js';
 import { RunJsonOutput } from './run.js';
 import { WaitResult } from './wait.js';
@@ -765,7 +765,6 @@ function buildWaitResultFromState(
   repoPath: string,
   timedOut: boolean
 ): OrchestratorWaitResult {
-  const { buildWaitResult } = require('../orchestrator/artifacts.js');
   const result = buildWaitResult(state, repoPath) as OrchestratorWaitResult;
 
   if (timedOut) {

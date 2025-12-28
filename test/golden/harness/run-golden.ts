@@ -42,6 +42,8 @@ interface ScenarioConfig {
   extra_args?: string[];
   /** Environment variables to set */
   env?: Record<string, string>;
+  /** Disable --fast mode (needed for testing REVIEW phase) */
+  skip_fast?: boolean;
 }
 
 /**
@@ -147,9 +149,13 @@ async function runStandardScenario(
     '--config', 'tracks.yaml',
     '--repo', '.',
     '--time', '5',
-    '--max-ticks', '10',
-    '--fast'
+    '--max-ticks', '10'
   ];
+
+  // Add --fast unless explicitly skipped (needed for testing REVIEW phase)
+  if (!config.skip_fast) {
+    args.push('--fast');
+  }
 
   // Add collision policy if specified
   if (config.collision_policy) {

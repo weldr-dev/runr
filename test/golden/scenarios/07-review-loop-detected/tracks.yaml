@@ -1,0 +1,12 @@
+# Scenario 07: Review Loop Detection
+# Tests: reviewer always returns request_changes → review_loop_detected after max_review_rounds
+#
+# Uses AGENT_MOCK_WORKER=review_always_request_changes
+# Reviewer returns identical request_changes message every time, triggering loop detection
+
+tracks:
+  - name: single
+    steps:
+      - task: tasks/review-loop.md
+        allowlist:
+          - src/review-loop-test.ts

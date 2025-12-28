@@ -77,6 +77,10 @@ export interface RunState {
   worker_stats: WorkerStats;
   /** Count of auto-resumes for this run (migration-safe: defaults to 0 if absent) */
   auto_resume_count?: number;
+  /** Count of review rounds for current milestone (resets on checkpoint) */
+  review_rounds?: number;
+  /** Hash of last review request_changes payload for loop detection */
+  last_review_fingerprint?: string;
 }
 
 export type WorkerStatus = 'ok' | 'blocked' | 'failed';

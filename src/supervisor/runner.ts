@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import picomatch from 'picomatch';
 import { AgentConfig } from '../config/schema.js';
@@ -1273,11 +1274,52 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
   };
 
   if (review.status === 'request_changes' || review.status === 'reject') {
+    // Compute fingerprint of review changes for loop detection
+    const changesText = review.changes.join('\n');
+    const fingerprint = crypto.createHash('sha256').update(changesText).digest('hex').slice(0, 16);
+
+    // Increment review rounds and check for loops
+    const currentRounds = (updatedWithStats.review_rounds ?? 0) + 1;
+    const maxRounds = options.config.resilience?.max_review_rounds ?? 2;
+    const lastFingerprint = updatedWithStats.last_review_fingerprint;
+
+    // Detect loop: same fingerprint twice in a row OR exceeded max rounds
+    const sameFingerprint = lastFingerprint === fingerprint;
+    const exceededRounds = currentRounds > maxRounds;
+
+    if (sameFingerprint || exceededRounds) {
+      const reason = sameFingerprint ? 'identical_review_feedback' : 'max_review_rounds_exceeded';
+      options.runStore.appendEvent({
+        type: 'review_loop_detected',
+        source: 'supervisor',
+        payload: {
+          milestone_index: state.milestone_index,
+          review_rounds: currentRounds,
+          max_review_rounds: maxRounds,
+          same_fingerprint: sameFingerprint,
+          last_changes: review.changes.slice(0, 2) // First 2 items for context
+        }
+      });
+
+      const errorMsg = sameFingerprint
+        ? `Identical review feedback detected after ${currentRounds} rounds. Manual intervention required.`
+        : `Review loop detected after ${currentRounds} rounds (max: ${maxRounds}). Manual intervention required.`;
+
+      return stopWithError(updatedWithStats, options, 'review_loop_detected', errorMsg);
+    }
+
+    // Update state with new review_rounds and fingerprint
+    const stateWithReviewTracking: RunState = {
+      ...updatedWithStats,
+      review_rounds: currentRounds,
+      last_review_fingerprint: fingerprint
+    };
+
     options.runStore.writeMemo(
       `milestone_${String(state.milestone_index + 1).padStart(2, '0')}_review.md`,
-      review.changes.join('\n')
+      changesText
     );
-    return updatePhase(updatedWithStats, 'IMPLEMENT');
+    return updatePhase(stateWithReviewTracking, 'IMPLEMENT');
   }
 
   return updatePhase(updatedWithStats, 'CHECKPOINT');
@@ -1309,7 +1351,9 @@ async function handleCheckpoint(state: RunState, options: SupervisorOptions): Pr
     checkpoint_commit_sha: shaResult.stdout.trim(),
     milestone_index: nextIndex,
     milestone_retries: 0,
-    last_verify_failure: undefined
+    last_verify_failure: undefined,
+    review_rounds: 0, // Reset for next milestone
+    last_review_fingerprint: undefined // Reset for next milestone
   };
 
   options.runStore.appendEvent({

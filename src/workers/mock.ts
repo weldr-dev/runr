@@ -24,7 +24,8 @@ const MOCK_WORKER_MODES = [
   'hang_once',
   'delay_5s',
   'timeout_once_then_ok',
-  'no_changes_no_evidence'
+  'no_changes_no_evidence',
+  'review_always_request_changes'
 ] as const;
 
 /**
@@ -52,29 +53,31 @@ export function resetMockWorker(): void {
 /**
  * Generate valid JSON output based on stage.
  * This ensures the mock can produce parseable responses.
+ * Uses specific prompt template markers to avoid false matches in task content.
  */
 function generateValidOutput(prompt: string): string {
-  // Detect stage from prompt content
-  if (prompt.includes('PLAN') || prompt.includes('milestones')) {
+  // Detect stage from prompt template headers (avoids matching task content)
+  if (prompt.includes('# Planner Prompt') || prompt.includes('You are the planning model')) {
     return JSON.stringify({
       milestones: [
         {
           goal: 'Mock milestone for testing',
-          files_expected: ['test.txt'],
+          files_expected: ['src/test.ts'],
+          done_checks: ['Build passes', 'Tests pass'],
           risk_level: 'low'
         }
       ]
     });
   }
 
-  if (prompt.includes('IMPLEMENT') || prompt.includes('implement')) {
+  if (prompt.includes('# Implementer Prompt') || prompt.includes('You are the implementer')) {
     return JSON.stringify({
       status: 'ok',
       handoff_memo: 'Mock implementation complete.'
     });
   }
 
-  if (prompt.includes('REVIEW') || prompt.includes('review')) {
+  if (prompt.includes('# Reviewer Prompt') || prompt.includes('You are the reviewer model')) {
     return JSON.stringify({
       status: 'approve',
       changes: []
@@ -168,6 +171,32 @@ export async function runMockWorker(input: WorkerRunInput): Promise<WorkerResult
         };
       }
       // For other phases, return normal success
+      return {
+        status: 'ok',
+        commands_run: ['mock-worker'],
+        observations: [generateValidOutput(input.prompt)]
+      };
+
+    case 'review_always_request_changes':
+      // Review always returns request_changes with identical message (triggers review_loop_detected)
+      // Use more specific phase detection to avoid false matches in task content
+      console.log('[mock-worker] review_always_request_changes mode');
+      if (input.prompt.includes('# Reviewer Prompt') || input.prompt.includes('You are the reviewer model')) {
+        console.log('[mock-worker] Returning request_changes for REVIEW phase');
+        return {
+          status: 'ok',
+          commands_run: ['mock-worker'],
+          observations: [JSON.stringify({
+            status: 'request_changes',
+            changes: [
+              'The done checks require testing the actual CLI behavior.',
+              'Please run the CLI commands to confirm the implementation works.'
+            ]
+          })]
+        };
+      }
+      // For PLAN and IMPLEMENT, return normal success
+      console.log('[mock-worker] Returning success for non-REVIEW phase');
       return {
         status: 'ok',
         commands_run: ['mock-worker'],

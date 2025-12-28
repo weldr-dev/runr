@@ -1,0 +1,9 @@
+{
+  "exit_code": 1,
+  "orchestrator": {
+    "status": "stopped"
+  },
+  "run": {
+    "stop_reason": "review_loop_detected"
+  }
+}

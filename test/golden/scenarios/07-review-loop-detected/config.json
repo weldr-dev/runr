@@ -1,0 +1,4 @@
+{
+  "mock_worker_mode": "review_always_request_changes",
+  "skip_fast": true
+}
