@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-12-28
+
+Resilience improvements based on dogfooding feedback.
+
+### Added
+
+- **Review loop detection**: Prevents infinite IMPLEMENT→REVIEW cycles
+  - `max_review_rounds` config option (default: 2)
+  - Fingerprint-based detection for identical consecutive `request_changes`
+  - New stop reason: `review_loop_detected`
+  - Timeline event with diagnostic payload
+
+### Fixed
+
+- **ESM compatibility**: `agent orchestrate wait` no longer crashes under ESM / Node 22
+  - Replaced `require()` with proper ESM import
+
+- **State sync**: Removed dead `'DONE'` phase check in orchestrator reconciliation
+
+### Testing
+
+- **Golden scenario 07**: `07-review-loop-detected` validates review loop detection
+- **Mock worker**: New `review_always_request_changes` mode for testing
+
 ## [0.1.0] - 2025-12-27
 
 Initial stable release with full dual-LLM orchestration and autonomy features.
@@ -67,5 +91,6 @@ Initial stable release with full dual-LLM orchestration and autonomy features.
 - Worktree strategy documentation
 - CLI reference
 
-[Unreleased]: https://github.com/user/agent-runner/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/user/agent-runner/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/user/agent-runner/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/user/agent-runner/releases/tag/v0.1.0
