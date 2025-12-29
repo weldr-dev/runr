@@ -1,51 +1,87 @@
-Status: Implemented
-Source: src/supervisor/runner.ts, src/commands/run.ts, src/store/run-store.ts
-
 # Run Lifecycle
 
-## Phase flow
+## Phase Flow
+
 ```
-PLAN -> IMPLEMENT -> VERIFY -> REVIEW -> CHECKPOINT -> FINALIZE
+INIT → PLAN → MILESTONE_START → IMPLEMENT → VERIFY → REVIEW → CHECKPOINT → FINALIZE
+                    ↑                                    ↓
+                    └────────────── (more milestones) ───┘
 ```
 
-Mermaid:
 ```mermaid
 flowchart TD
-  A[PLAN] --> B[IMPLEMENT]
-  B --> C[VERIFY]
-  C --> D[REVIEW]
-  D -->|approved| E[CHECKPOINT]
-  D -->|request changes| B
-  E -->|more milestones| B
-  E -->|done| F[FINALIZE]
+  A[INIT] --> B[PLAN]
+  B --> C[MILESTONE_START]
+  C --> D[IMPLEMENT]
+  D --> E[VERIFY]
+  E --> F[REVIEW]
+  F -->|approved| G[CHECKPOINT]
+  F -->|request_changes| D
+  G -->|more milestones| C
+  G -->|done| H[FINALIZE]
+  
+  B -->|error| S[STOPPED]
+  D -->|blocked| S
+  E -->|failed max retries| S
+  F -->|review_loop_detected| S
 ```
 
-## Phase definitions
-- PLAN: Claude generates a milestone plan and writes `plan.md`.
-- IMPLEMENT: Codex executes the current milestone and writes a handoff memo.
-- VERIFY: Tiered commands run; failure stops the run.
-- REVIEW: Claude reviews diff and verification output; may request changes.
-- CHECKPOINT: Commits changes and records the checkpoint SHA.
-- FINALIZE: Writes a summary and stop memo, then stops the run.
+## Phases
 
-## Tick-based execution
-- The supervisor loop runs one phase per tick.
-- `--max-ticks` limits how many phases execute per run/resume.
-- `--time` caps total runtime across all ticks.
+| Phase | Description |
+|-------|-------------|
+| `INIT` | Initialize run state, create worktree if needed |
+| `PLAN` | Worker generates milestone plan with file scopes |
+| `MILESTONE_START` | Begin next milestone |
+| `IMPLEMENT` | Worker executes current milestone |
+| `VERIFY` | Run tier0/tier1 verification commands |
+| `REVIEW` | Worker reviews diff and verification output |
+| `CHECKPOINT` | Commit changes, advance milestone counter |
+| `FINALIZE` | Write summary, cleanup |
+| `STOPPED` | Terminal state (error or `review_loop_detected`) |
 
-## Run IDs and branches
-- Run IDs use UTC timestamps: `YYYYMMDDHHMMSS`.
-- Run branch format: `agent/<run_id>/<slug>`.
-- Branch checkout is skipped when `--no-branch`, `--dry-run`, or `--no-write` is set.
+## Terminal States
 
-## Stop conditions
-- Guard violations (preflight or post-implement). See [Guards and Scope](guards-and-scope.md).
-- Verification failure after max retries (3 attempts per milestone). See [Verification](verification.md).
-- JSON parse failure from workers. See [Workers](workers.md).
-- Time budget exceeded.
-- Implementer reports `blocked` or `failed`.
+Runs end in one of:
+
+- **FINALIZE** - Completed successfully
+- **STOPPED** - Stopped due to error, guard violation, or loop detection
+
+The `stop_reason` field in `state.json` indicates why:
+
+| Stop Reason | Description |
+|-------------|-------------|
+| `complete` | All milestones finished |
+| `time_budget_exceeded` | Ran out of time |
+| `max_ticks_reached` | Hit tick limit |
+| `guard_violation` | Scope or lockfile violation |
+| `plan_scope_violation` | Plan proposed files outside allowlist |
+| `review_loop_detected` | Reviewer requested same changes repeatedly |
+| `verification_failed_max_retries` | Tests/lint failed too many times |
+| `implement_blocked` | Implementer couldn't proceed |
+
+## Tick-Based Execution
+
+- The supervisor loop runs one phase per tick
+- `--max-ticks` limits phase transitions per run (default: 50)
+- `--time` caps total runtime in minutes (default: 120)
+
+## Run IDs and Branches
+
+- Run IDs use UTC timestamps: `YYYYMMDDHHMMSS`
+- Run branch format: `agent/<run_id>/<slug>`
+- With `--worktree`: isolated git worktree per run
+
+## Fast Path
+
+With `--fast` flag:
+- Skips PLAN phase (single implicit milestone)
+- Skips REVIEW phase
+- Useful for small, low-risk tasks
 
 ## See Also
-- [Run Store](run-store.md) - Where run artifacts are persisted
-- [Architecture](architecture.md) - Component overview
-- [CLI Reference](cli.md) - Command options for controlling runs
+
+- [Run Store](run-store.md) - Where artifacts are persisted
+- [Guards and Scope](guards-and-scope.md) - Scope constraints
+- [Verification](verification.md) - Test tier selection
+- [CLI Reference](cli.md) - Run command options

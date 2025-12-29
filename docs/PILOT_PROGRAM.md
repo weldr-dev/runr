@@ -1,22 +1,23 @@
 # Agent Framework Pilot Program
 
-We're looking for early adopters to test the Agent Framework in real-world projects.
+Early adopter program for testing the Agent Framework on real projects.
 
 ## What is Agent Framework?
 
 A dual-LLM orchestrator that automates coding tasks with:
-- Milestone decomposition
-- Scope-based safety guards
-- Built-in verification (tests, lint, build)
-- Auto-recovery from transient failures
-- Collision detection for parallel runs
+
+- **Milestone decomposition** - Breaks tasks into manageable steps
+- **Scope guards** - Prevents modifications outside allowed patterns
+- **Verification tiers** - Runs tests/lint after each change
+- **Review loop detection** - Stops when feedback becomes repetitive
+- **Worktree isolation** - Each run operates in its own git worktree
 
 ## Who Should Join?
 
-Ideal pilot participants:
+Ideal participants:
 - Have a TypeScript/JavaScript project with tests and linting
 - Want to experiment with AI-assisted development
-- Can provide structured feedback on issues encountered
+- Can provide structured feedback on issues
 - Comfortable with CLI tools
 
 ## What You'll Get
@@ -24,25 +25,16 @@ Ideal pilot participants:
 - Early access to new features
 - Direct support for setup and issues
 - Influence on roadmap priorities
-- Framework improvements based on your feedback
-
-## Time Commitment
-
-- ~30 minutes for initial setup
-- Running 2-3 tasks per week
-- Brief feedback on each run (success/failure + notes)
 
 ## Prerequisites
 
 1. **Node.js 18+**
-2. **Git** (for worktree isolation)
-3. **Claude Code CLI** or **Codex CLI** (worker)
-4. A project with:
-   - `package.json`
-   - TypeScript/JavaScript source
-   - Some tests/lint configured
+2. **Git**
+3. **Claude Code CLI** authenticated (`claude --version`)
 
 ## Getting Started
+
+See [Quickstart](quickstart.md) for full setup instructions.
 
 ### 1. Install
 
@@ -50,27 +42,19 @@ Ideal pilot participants:
 npm install -g agent-runner
 ```
 
-### 2. Initialize Config
+### 2. Configure
 
-In your project root:
-
-```bash
-agent init
-```
-
-This creates `.agent/agent.config.json`. Edit it to match your project:
+Create `.agent/agent.config.json` in your project:
 
 ```json
 {
   "agent": { "name": "my-project", "version": "1" },
   "scope": {
-    "allowlist": ["src/**", "tests/**"],
+    "allowlist": ["src/**"],
     "presets": ["typescript", "vitest"]
   },
   "verification": {
-    "tier0": ["npm run typecheck", "npm run lint"],
-    "tier1": ["npm run build"],
-    "tier2": ["npm test"]
+    "tier0": ["npm run typecheck", "npm run lint"]
   },
   "phases": {
     "plan": "claude",
@@ -80,83 +64,58 @@ This creates `.agent/agent.config.json`. Edit it to match your project:
 }
 ```
 
+See [Configuration Reference](configuration.md) for full schema.
+
 ### 3. Create a Task
 
-Create `tasks/my-first-task.md`:
+Create `.agent/tasks/my-task.md`:
 
 ```markdown
 # Add Health Check Endpoint
 
-Add a `/health` endpoint that returns `{ status: "ok" }`.
-
-## Requirements
-- Create GET /api/health route
-- Return JSON with status field
-- Should always return 200
-
-## Success Criteria
-- Endpoint exists and returns expected JSON
-- TypeScript types are correct
-- Tests pass
+Add a GET /api/health endpoint that returns { status: "ok" }.
 ```
 
 ### 4. Run
 
 ```bash
-agent run tasks/my-first-task.md --time 10
+agent doctor          # Check environment
+agent run --task .agent/tasks/my-task.md --worktree --time 10
+agent follow latest   # Monitor progress
+agent report latest   # View results
 ```
 
-### 5. Report Results
+See [CLI Reference](cli.md) for all commands.
+
+## Providing Feedback
 
 After each run, note:
 - Did it complete successfully?
-- What was the stop reason?
+- Stop reason (from `state.json`)
 - Any unexpected behavior?
-- How long did it take?
+- Duration
+
+Report via GitHub Issues.
 
 ## Common Issues
 
-### "Config not found"
+### Scope violation
 
-Run `agent init` in your project root.
+Task requires files outside allowlist. Add patterns to `scope.allowlist` or use `scope.presets`.
 
-### "Worker not found"
+### Review loop detected
 
-Ensure Claude Code or Codex is installed and authenticated:
+Implementer couldn't satisfy reviewer. Check `review_digest.md` for requested changes.
 
-```bash
-claude --version
-# or
-codex --version
-```
-
-### "Scope violation"
-
-Your task requires files outside the allowlist. Either:
-- Add patterns to `scope.allowlist`
-- Use `scope.presets` for common stacks
-
-## Feedback
-
-Report issues and feedback to:
-- GitHub Issues: [link]
-- Or email: [email]
-
-Include:
-- `agent doctor` output
-- Stop reason from `state.json`
-- Any error messages
+See [Troubleshooting](troubleshooting.md) for more.
 
 ## FAQ
 
 **Q: Does this modify my main branch?**
-A: No. All runs happen in isolated git worktrees on a new branch.
+A: No. With `--worktree`, runs happen in isolated git worktrees.
 
 **Q: What if it breaks something?**
-A: The worktree is isolated. Your main code is untouched. You can delete the worktree anytime.
+A: The worktree is isolated. Delete it anytime with `agent gc`.
 
-**Q: How much does it cost?**
-A: API costs depend on your Claude/Codex usage. Expect $0.50-$5 per complex task.
-
-**Q: Can I run multiple tasks in parallel?**
-A: Yes, but the framework will serialize runs that touch the same files to prevent conflicts.
+**Q: Can I run multiple tasks?**
+A: Yes. Use `agent orchestrate run` for multi-track execution.

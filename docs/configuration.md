@@ -1,29 +1,29 @@
-Status: Implemented
-Source: src/config/schema.ts, src/config/load.ts
+# Configuration Reference
 
-# Configuration
+Config is loaded from `.agent/agent.config.json` by default, or a path provided with `--config`.
 
-Config is loaded from `<repo>/agent.config.json` by default, or a path provided with `--config`.
+## Full Schema
 
-## Top-level shape
 ```json
 {
   "agent": {
-    "name": "dual-llm-orchestrator",
+    "name": "my-project",
     "version": "1"
   },
   "repo": {
     "default_branch": "main"
   },
   "scope": {
-    "allowlist": ["src/**"],
-    "denylist": ["infra/**"],
-    "lockfiles": ["package-lock.json", "pnpm-lock.yaml", "yarn.lock"]
+    "allowlist": ["src/**", "tests/**"],
+    "denylist": ["node_modules/**", ".next/**"],
+    "lockfiles": ["package-lock.json", "pnpm-lock.yaml", "yarn.lock"],
+    "presets": ["typescript", "vitest"]
   },
   "verification": {
-    "tier0": ["pnpm lint"],
-    "tier1": ["pnpm test"],
-    "tier2": ["pnpm test"],
+    "cwd": ".",
+    "tier0": ["npm run typecheck", "npm run lint"],
+    "tier1": ["npm run build"],
+    "tier2": ["npm test"],
     "risk_triggers": [
       { "name": "deps", "patterns": ["package.json"], "tier": "tier1" }
     ],
@@ -43,21 +43,133 @@ Config is loaded from `<repo>/agent.config.json` by default, or a path provided 
   },
   "phases": {
     "plan": "claude",
-    "implement": "codex",
+    "implement": "claude",
     "review": "claude"
+  },
+  "resilience": {
+    "auto_resume": false,
+    "max_auto_resumes": 1,
+    "auto_resume_delays_ms": [30000, 120000, 300000],
+    "max_worker_call_minutes": 45,
+    "max_review_rounds": 2
   }
 }
 ```
 
-## Notes
-- `scope.allowlist` is optional, but if set it acts as a strict allowlist.
-- `scope.denylist` always blocks matching files.
-- `verification` tier arrays are shell commands executed in the target repo.
-- `workers.*.args` are used at runtime; `doctor` uses fixed args for headless tests.
-- `phases` maps each phase to a worker (`claude` or `codex`). Defaults: plan=claude, implement=codex, review=claude.
+## Sections
+
+### agent
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `name` | string | `"dual-llm-orchestrator"` | Project identifier |
+| `version` | string | `"1"` | Config version |
+
+### repo
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `default_branch` | string | - | Default git branch (auto-detected if omitted) |
+
+### scope
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `allowlist` | string[] | `[]` | Glob patterns for allowed files |
+| `denylist` | string[] | `[]` | Glob patterns for blocked files |
+| `lockfiles` | string[] | `["package-lock.json", ...]` | Protected lockfiles |
+| `presets` | string[] | `[]` | Named pattern collections (see below) |
+
+#### Scope Presets
+
+Instead of manually listing patterns, use presets for common stacks:
+
+```json
+{
+  "scope": {
+    "allowlist": ["src/**"],
+    "presets": ["nextjs", "vitest", "drizzle"]
+  }
+}
+```
+
+**Available presets:**
+
+| Preset | Expands to |
+|--------|------------|
+| `nextjs` | `next.config.*`, `next-env.d.ts`, `middleware.ts`, `middleware.js` |
+| `react` | `vite.config.*`, `index.html` |
+| `drizzle` | `drizzle.config.*`, `drizzle/**` |
+| `prisma` | `prisma/**` |
+| `vitest` | `vitest.config.*`, `vite.config.*`, `**/*.test.ts`, `**/*.test.tsx`, `**/*.spec.ts`, `**/*.spec.tsx` |
+| `jest` | `jest.config.*`, `jest.setup.*`, `**/*.test.ts`, `**/*.test.tsx`, `**/*.spec.ts`, `**/*.spec.tsx` |
+| `playwright` | `playwright.config.*`, `e2e/**`, `tests/**` |
+| `typescript` | `tsconfig*.json` |
+| `tailwind` | `tailwind.config.*`, `postcss.config.*` |
+| `eslint` | `eslint.config.*`, `.eslintrc*` |
+| `env` | `.env.example`, `.env.local.example`, `.env.template` |
+
+Preset patterns are merged into `allowlist` at config load time.
+
+### verification
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `cwd` | string | - | Working directory for commands (relative to repo) |
+| `tier0` | string[] | `[]` | Always run (lint, typecheck) |
+| `tier1` | string[] | `[]` | Run on risk triggers (build) |
+| `tier2` | string[] | `[]` | Run at finalize (full tests) |
+| `risk_triggers` | object[] | `[]` | Patterns that trigger tier1 |
+| `max_verify_time_per_milestone` | number | `600` | Timeout in seconds |
+
+### workers
+
+Configure worker CLI binaries and arguments:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `bin` | string | Binary name |
+| `args` | string[] | CLI arguments |
+| `output` | string | Output format: `text`, `json`, `jsonl` |
+
+### phases
+
+Map phases to workers:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `plan` | string | `"claude"` | Worker for PLAN phase |
+| `implement` | string | `"codex"` | Worker for IMPLEMENT phase |
+| `review` | string | `"claude"` | Worker for REVIEW phase |
+
+### resilience
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `auto_resume` | boolean | `false` | Enable auto-resume on transient failures |
+| `max_auto_resumes` | number | `1` | Max auto-resume attempts per run |
+| `auto_resume_delays_ms` | number[] | `[30000, 120000, 300000]` | Backoff delays |
+| `max_worker_call_minutes` | number | `45` | Hard cap on worker call duration |
+| `max_review_rounds` | number | `2` | Max review rounds before `review_loop_detected` |
+
+## Minimal Config
+
+The smallest valid config:
+
+```json
+{
+  "agent": { "name": "my-project", "version": "1" },
+  "scope": {
+    "allowlist": ["src/**"]
+  },
+  "verification": {
+    "tier0": ["npm run lint"]
+  }
+}
+```
 
 ## See Also
+
 - [Guards and Scope](guards-and-scope.md) - How scope patterns are enforced
 - [Verification](verification.md) - How verification tiers work
-- [Workers](workers.md) - Worker adapter details
 - [CLI Reference](cli.md) - Overriding config with `--config`

@@ -1,38 +1,67 @@
-Status: Implemented
-Source: docs/*.md
+# Agent Framework Documentation
 
-# Docs Index
+## Canonical Conventions
 
-A wiki-style entry point to the agent runner documentation. Start here and branch into details as needed.
+| Aspect | Convention |
+|--------|------------|
+| **CLI** | `agent` (installed via `npm install -g agent-runner`) |
+| **Config** | `.agent/agent.config.json` |
+| **Tasks** | `.agent/tasks/*.md` |
+| **Runs** | `.agent/runs/<run_id>/` |
+| **Orchestrations** | `.agent/orchestrations/<orch_id>/` |
 
-## Vision and Concepts
-- Vision and philosophy: docs/vision.md
-- Mental model: docs/mental-model.md
-- Glossary: docs/glossary.md
+> Some legacy docs may reference `agent.config.json` at repo root or `runs/` at repo root. The canonical public interface is `.agent/...`.
 
-## Getting Started
-- CLI reference: docs/cli.md
-- Run lifecycle: docs/run-lifecycle.md
-- Run store: docs/run-store.md
+---
 
-## System Overview
-- Architecture: docs/architecture.md
-- Workers and adapters: docs/workers.md
-- Verification system: docs/verification.md
-- Guards and scope: docs/guards-and-scope.md
+## Start Here
 
-## Configuration and Tasks
-- Configuration: docs/configuration.md
-- Tasks and templates: docs/tasks-and-templates.md
-- Deckbuilder fixture: docs/deckbuilder-fixture.md
+- **[Quickstart](quickstart.md)** - Get running in 5 minutes
+- **[CLI Reference](cli.md)** - All commands and flags
 
-## Development and Support
-- Development setup: docs/development.md
-- Troubleshooting: docs/troubleshooting.md
-- Glossary: docs/glossary.md
+## Core Concepts
 
-## Suggested Reading Paths
-- New user: `docs/vision.md` -> `docs/mental-model.md` -> `docs/cli.md` -> `docs/run-lifecycle.md`
-- First run: `docs/cli.md` -> `docs/configuration.md` -> `docs/run-store.md`
-- Safety and controls: `docs/guards-and-scope.md` -> `docs/verification.md` -> `docs/self-hosting-safety.md`
-- Extensibility: `docs/workers.md` -> `docs/tasks-and-templates.md` -> `docs/deckbuilder-fixture.md`
+- [Run Lifecycle](run-lifecycle.md) - Phase flow: PLAN → IMPLEMENT → VERIFY → REVIEW → CHECKPOINT
+- [Guards and Scope](guards-and-scope.md) - Allowlist, denylist, presets
+- [Verification](verification.md) - Tier0/1/2 test selection
+- [Configuration](configuration.md) - Full config schema
+
+## Architecture
+
+- [Architecture Overview](architecture.md) - System design
+- [Workers](workers.md) - Claude/Codex integration
+- [Worktrees](worktrees.md) - Git worktree isolation
+- [Run Store](run-store.md) - State and artifacts
+
+## Reference
+
+- [Glossary](glossary.md) - Terms and definitions
+- [Troubleshooting](troubleshooting.md) - Common issues
+- [RUNBOOK](RUNBOOK.md) - Operator workflows
+
+## Guides
+
+- [Target Repo Setup](TARGET_REPO_SETUP.md) - Using in your project
+- [Pilot Program](PILOT_PROGRAM.md) - Early adopter guide
+
+## Status
+
+| Feature | Status |
+|---------|--------|
+| Milestone execution | Implemented |
+| Scope guards | Implemented |
+| Review loop detection | Implemented |
+| Worktree isolation | Implemented |
+| Auto-resume | Implemented |
+| Collision detection | Implemented |
+| Scope presets | Implemented (v0.2.1) |
+
+---
+
+## Reading Paths
+
+**New user**: Quickstart → Run Lifecycle → Configuration
+
+**Understanding safety**: Guards and Scope → Verification → Worktrees
+
+**Debugging a run**: CLI Reference → Troubleshooting → RUNBOOK

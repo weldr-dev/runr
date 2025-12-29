@@ -10,9 +10,9 @@ This glossary explains key terms used throughout the documentation. Terms are or
 ## Core Concepts
 
 ### Run
-A single supervised execution session. When you execute `agent-run run --task mytask.md`, that creates one "run" with:
+A single supervised execution session. When you execute `agent run --task mytask.md`, that creates one "run" with:
 - A unique **run ID** (timestamp like `20231215143022`)
-- A **run store** on disk (`runs/<run_id>/`)
+- A **run store** on disk (`.agent/runs/<run_id>/`)
 - Optionally, a **branch** in the target repo (`agent/<run_id>/<slug>`)
 
 Think of a run as a complete audit trail of one task execution attempt.
@@ -139,7 +139,7 @@ This enables targeted fixes instead of blind retrying.
 ## Persistence and Observability
 
 ### Run Store
-The directory where all run data lives: `runs/<run_id>/`. Contains:
+The directory where all run data lives: `.agent/runs/<run_id>/`. Contains:
 - `state.json` - Current phase, progress, errors
 - `timeline.jsonl` - Event log with timestamps
 - `plan.md` - The milestone plan

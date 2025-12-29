@@ -13,10 +13,10 @@ By combining the complementary strengths of different LLM workers—Claude for h
 
 ### System Purpose
 
-The orchestrator takes high-level software tasks and produces production-ready code changes through a 7-phase pipeline:
+The orchestrator takes high-level software tasks and produces production-ready code changes through a phase-based pipeline:
 
 ```
-INIT → PLAN → IMPLEMENT → VERIFY → REVIEW → CHECKPOINT → FINALIZE
+INIT → PLAN → MILESTONE_START → IMPLEMENT → VERIFY → REVIEW → CHECKPOINT → FINALIZE
 ```
 
 Key capabilities:
@@ -136,7 +136,7 @@ interface WorkerConfig {
 - `run-store.ts` - File I/O for state, artifacts, timeline, and memos
 
 **Responsibilities**:
-- Creates and manages run directories (`runs/{runId}/`)
+- Creates and manages run directories (`.agent/runs/{runId}/`)
 - Writes/reads JSON state (`state.json`) after each phase
 - Appends JSONL timeline events (`timeline.jsonl`) for observability
 - Stores artifacts (test logs, diffs, raw worker outputs)
@@ -145,7 +145,7 @@ interface WorkerConfig {
 
 **Run Directory Structure**:
 ```
-runs/{runId}/
+.agent/runs/{runId}/
 ├── state.json              # Current run state (phase, milestones, stats)
 ├── timeline.jsonl          # Event log (JSONL format)
 ├── plan.md                 # Generated milestones from plan phase
@@ -311,7 +311,7 @@ This section explains the complete journey of a run from CLI invocation to compl
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                           CLI Invocation                                  │
-│                        npx agent run task.md                             │
+│            agent run --task .agent/tasks/task.md                         │
 └─────────────────────────────────┬────────────────────────────────────────┘
                                   │
                                   ▼
@@ -324,7 +324,7 @@ This section explains the complete journey of a run from CLI invocation to compl
                                   ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                        RunStore Initialization                           │
-│  • Create run directory (runs/{runId}/)                                  │
+│  • Create run directory (.agent/runs/{runId}/)                           │
 │  • Initialize state.json with INIT phase                                 │
 │  • Create timeline.jsonl for event logging                               │
 │  • Capture environment fingerprint                                       │
@@ -369,13 +369,13 @@ This section explains the complete journey of a run from CLI invocation to compl
 
 | Artifact | Location | Description |
 |----------|----------|-------------|
-| Run state | `runs/{runId}/state.json` | Current phase, milestones, worker stats |
-| Timeline | `runs/{runId}/timeline.jsonl` | Event log for observability |
-| Plan | `runs/{runId}/plan.md` | Generated milestones from PLAN phase |
-| Summary | `runs/{runId}/summary.md` | Final summary from FINALIZE |
-| Handoffs | `runs/{runId}/handoffs/*.md` | Memos passed between phases |
-| Test logs | `runs/{runId}/artifacts/tests_*.log` | Verification command outputs |
-| Stop memo | `runs/{runId}/handoffs/stop.md` | Context for resumption or debugging |
+| Run state | `.agent/runs/{runId}/state.json` | Current phase, milestones, worker stats |
+| Timeline | `.agent/runs/{runId}/timeline.jsonl` | Event log for observability |
+| Plan | `.agent/runs/{runId}/plan.md` | Generated milestones from PLAN phase |
+| Summary | `.agent/runs/{runId}/summary.md` | Final summary from FINALIZE |
+| Handoffs | `.agent/runs/{runId}/handoffs/*.md` | Memos passed between phases |
+| Test logs | `.agent/runs/{runId}/artifacts/tests_*.log` | Verification command outputs |
+| Stop memo | `.agent/runs/{runId}/handoffs/stop.md` | Context for resumption or debugging |
 
 ---
 
@@ -744,7 +744,7 @@ class RunStore {
 
 **Directory Structure Created**:
 ```
-runs/{runId}/
+.agent/runs/{runId}/
 ├── state.json           # RunState persistence
 ├── timeline.jsonl       # Event log (JSONL)
 ├── seq.txt              # Event sequence counter

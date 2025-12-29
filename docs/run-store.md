@@ -3,11 +3,11 @@ Source: src/store/run-store.ts, src/commands/report.ts, src/supervisor/runner.ts
 
 # Run Store
 
-A run store lives under `runs/<run_id>/` and holds the state, timeline, and artifacts for a run.
+A run store lives under `.agent/runs/<run_id>/` and holds the state, timeline, and artifacts for a run.
 
 ## Directory layout
 ```
-runs/<run_id>/
+.agent/runs/<run_id>/
   artifacts/
     task.md
     tests_tier0.log
@@ -102,7 +102,7 @@ Each event line is JSON with:
 - `source`: `cli`, `supervisor`, `codex`, `claude`, or `verifier`.
 
 ## Report command
-`agent-run report` scans the timeline and prints:
+`agent report` scans the timeline and prints:
 - The latest run state
 - The tail of recent events
 - Pointers to state, timeline, and last verification log
