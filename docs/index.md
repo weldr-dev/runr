@@ -16,6 +16,8 @@
 
 ## Start Here
 
+- **[Overview](overview.md)** - Simple explanation (non-technical)
+- **[How It Works](how-it-works.md)** - Technical explanation
 - **[Quickstart](quickstart.md)** - Get running in 5 minutes
 - **[CLI Reference](cli.md)** - All commands and flags
 
