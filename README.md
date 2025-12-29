@@ -1,8 +1,26 @@
 # Agent Framework
 
-A dual-LLM orchestrator that decomposes coding tasks into milestones and executes them with built-in verification, scope guards, and collision handling.
+A reliability-first agent runner for real codebases, focused on resumability, guardrails, and measurable outcomes.
 
-> **Status**: v0.2.1 is the first public release. The project went through heavy iteration prior to this version — that history is preserved as evidence of real-world refinement, not hidden. See [CHANGELOG.md](CHANGELOG.md) for release notes.
+> **Status**: v0.2.1 is the first public release. Early, opinionated, evolving. The project went through heavy iteration prior to this version — that history is preserved as evidence of real-world refinement, not hidden. See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
+## Why This Exists
+
+Most AI coding tools optimize for speed. This one optimizes for **reliability**.
+
+When runs fail (and they will), you should be able to:
+- Understand *why* (structured diagnostics)
+- Resume *where you left off* (checkpointing)
+- Trust it won't break unrelated code (scope guards)
+
+This is an orchestrator, not a model. It coordinates LLM workers (Claude, Codex) through a phase-based workflow with explicit state, verification gates, and collision detection.
+
+## What This Is NOT
+
+- **Not a chatbot**: No interactive mode. Task in, code out.
+- **Not a code generator**: It orchestrates generators, doesn't replace them.
+- **Not magic**: Runs fail. The goal is *understandable, resumable* failure.
+- **Not stable API**: Internals will change. The CLI is more stable than the code.
 
 ## Overview
 
@@ -153,6 +171,14 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+
+## Support
+
+This project is actively developed but not a support channel.
+
+- **Issues**: Welcome. Responses are best-effort.
+- **PRs**: Considered, but not guaranteed to be merged.
+- **Roadmap**: No promises. The project evolves based on real usage.
 
 ## License
 
