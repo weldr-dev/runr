@@ -44,15 +44,23 @@ The agent framework orchestrates AI-powered coding sessions by:
 ## Quick Start
 
 ```bash
-# Install
-npm install -g agent-runner
+# Clone and install
+git clone https://github.com/yourusername/agent-framework.git
+cd agent-framework
+npm install
+npm run build
+npm link
 
-# Check environment
+# Verify installation
+agent version
 agent doctor
 
-# Run a task
+# Run a task in your project
+cd /path/to/your-project
 agent run --task .agent/tasks/my-task.md --worktree
 ```
+
+> **Note**: Not yet published to npm. Installation is via `git clone` + `npm link` for now.
 
 ## Configuration
 

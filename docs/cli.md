@@ -4,11 +4,17 @@ Complete reference for all `agent` commands and flags.
 
 ## Installation
 
+Not yet published to npm. Install from source:
+
 ```bash
-npm install -g agent-runner
+git clone https://github.com/yourusername/agent-framework.git
+cd agent-framework
+npm install
+npm run build
+npm link
 ```
 
-The package installs as `agent-runner`, the binary is `agent`.
+The package name is `agent-runner`, the binary is `agent`.
 
 ---
 

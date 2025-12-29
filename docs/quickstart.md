@@ -10,14 +10,21 @@ Get Agent Framework running on your project in 5 minutes.
 
 ## Install
 
+Not yet published to npm. Install from source:
+
 ```bash
-npm install -g agent-runner
+git clone https://github.com/yourusername/agent-framework.git
+cd agent-framework
+npm install
+npm run build
+npm link
 ```
 
-Or use npx without installing:
+Verify installation:
 
 ```bash
-npx agent-runner doctor
+agent version
+agent doctor
 ```
 
 ## Configure Your Project

@@ -38,8 +38,14 @@ See [Quickstart](quickstart.md) for full setup instructions.
 
 ### 1. Install
 
+Not yet published to npm. Install from source:
+
 ```bash
-npm install -g agent-runner
+git clone https://github.com/yourusername/agent-framework.git
+cd agent-framework
+npm install
+npm run build
+npm link
 ```
 
 ### 2. Configure
