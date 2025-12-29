@@ -29,11 +29,11 @@ The agent framework orchestrates AI-powered coding sessions by:
 # Install
 npm install -g agent-runner
 
-# Initialize config in your project
-agent init
+# Check environment
+agent doctor
 
 # Run a task
-agent run tasks/my-task.md
+agent run --task .agent/tasks/my-task.md --worktree
 ```
 
 ## Configuration
@@ -85,11 +85,14 @@ Available presets: `nextjs`, `react`, `drizzle`, `prisma`, `vitest`, `jest`, `pl
 
 | Command | Description |
 |---------|-------------|
-| `agent run <task>` | Run a task file |
+| `agent run --task <file>` | Run a task file |
 | `agent resume <run-id>` | Resume a stopped run |
-| `agent status` | Show current run status |
+| `agent status [run-id]` | Show run status |
 | `agent report [run-id]` | Generate run report |
 | `agent doctor` | Check environment health |
+| `agent follow [run-id]` | Tail run progress |
+
+See [docs/cli.md](docs/cli.md) for all commands and flags.
 
 ## Task Files
 

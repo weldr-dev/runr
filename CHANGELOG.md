@@ -29,7 +29,7 @@ Adoption improvements: scope presets, better diagnostics, and OSS packaging.
 ### Documentation
 
 - **README.md**: Quick start, configuration, CLI reference, stop reasons
-- **LICENSE**: MIT license
+- **LICENSE**: Apache 2.0 license
 - **CONTRIBUTING.md**: Development workflow, code style, PR process, architecture overview
 - **docs/PILOT_PROGRAM.md**: Early adopter onboarding guide
 
