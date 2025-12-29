@@ -19,6 +19,7 @@
 - **[Overview](overview.md)** - Simple explanation (non-technical)
 - **[How It Works](how-it-works.md)** - Technical explanation
 - **[Quickstart](quickstart.md)** - Get running in 5 minutes
+- **[Tutorial](tutorial.md)** - Hands-on exercises (30 min)
 - **[CLI Reference](cli.md)** - All commands and flags
 
 ## Core Concepts
