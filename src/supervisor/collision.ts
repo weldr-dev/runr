@@ -104,7 +104,7 @@ function extractPredictedTouchFiles(state: RunState): string[] {
  * Check if two allowlist patterns could overlap.
  * Uses picomatch to test pattern intersection.
  */
-function patternsOverlap(pattern1: string, pattern2: string): boolean {
+export function patternsOverlap(pattern1: string, pattern2: string): boolean {
   // If patterns are identical, they definitely overlap
   if (pattern1 === pattern2) return true;
 

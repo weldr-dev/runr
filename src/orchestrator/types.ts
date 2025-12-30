@@ -15,6 +15,10 @@ export interface Step {
   task_path: string;
   /** Optional explicit allowlist override for this step */
   allowlist?: string[];
+  /** Raw ownership patterns from task frontmatter */
+  owns_raw?: string[];
+  /** Normalized ownership patterns used for reservation */
+  owns_normalized?: string[];
   /** Run ID once launched */
   run_id?: string;
   /** Run directory once launched */
@@ -77,10 +81,29 @@ export interface OrchestratorPolicy {
   fast: boolean;
   /** Auto-resume on transient failures */
   auto_resume: boolean;
+  /** Require ownership claims for no-worktree parallel runs */
+  ownership_required?: boolean;
   /** Time budget per run in minutes */
   time_budget_minutes: number;
   /** Max supervisor ticks per run */
   max_ticks: number;
+}
+
+export interface OwnershipClaim {
+  track_id: string;
+  run_id?: string;
+  owns_raw: string[];
+  owns_normalized: string[];
+}
+
+export interface OwnershipClaimEvent {
+  timestamp: string;
+  action: 'acquire' | 'release';
+  track_id: string;
+  run_id?: string;
+  claims: string[];
+  owns_raw: string[];
+  owns_normalized: string[];
 }
 
 /**
@@ -96,7 +119,9 @@ export interface OrchestratorState {
   /** Currently active run IDs by track ID */
   active_runs: Record<string, string>;
   /** File claims: which run owns which file patterns */
-  file_claims: Record<string, string>;
+  file_claims: Record<string, OwnershipClaim | string>;
+  /** Ownership claim events for debugging */
+  claim_events?: OwnershipClaimEvent[];
   /** Overall status */
   status: OrchestratorStatus;
   /** Start timestamp */
@@ -220,6 +245,8 @@ export const stepResultSchema = z.object({
 export const stepSchema = z.object({
   task_path: z.string(),
   allowlist: z.array(z.string()).optional(),
+  owns_raw: z.array(z.string()).optional(),
+  owns_normalized: z.array(z.string()).optional(),
   run_id: z.string().optional(),
   run_dir: z.string().optional(),
   result: stepResultSchema.optional()
@@ -239,8 +266,26 @@ export const orchestratorPolicySchema = z.object({
   parallel: z.number(),
   fast: z.boolean(),
   auto_resume: z.boolean(),
+  ownership_required: z.boolean().optional(),
   time_budget_minutes: z.number(),
   max_ticks: z.number()
+});
+
+const ownershipClaimSchema = z.object({
+  track_id: z.string(),
+  run_id: z.string().optional(),
+  owns_raw: z.array(z.string()),
+  owns_normalized: z.array(z.string())
+});
+
+const ownershipClaimEventSchema = z.object({
+  timestamp: z.string(),
+  action: z.enum(['acquire', 'release']),
+  track_id: z.string(),
+  run_id: z.string().optional(),
+  claims: z.array(z.string()),
+  owns_raw: z.array(z.string()),
+  owns_normalized: z.array(z.string())
 });
 
 export const orchestratorStateSchema = z.object({
@@ -248,7 +293,8 @@ export const orchestratorStateSchema = z.object({
   repo_path: z.string(),
   tracks: z.array(trackSchema),
   active_runs: z.record(z.string()),
-  file_claims: z.record(z.string()),
+  file_claims: z.record(z.union([z.string(), ownershipClaimSchema])),
+  claim_events: z.array(ownershipClaimEventSchema).optional(),
   status: z.enum(['running', 'complete', 'stopped', 'failed']),
   started_at: z.string(),
   ended_at: z.string().optional(),

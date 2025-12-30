@@ -22,6 +22,7 @@ import {
   OrchestratorStatus,
   CollisionPolicy,
   StepResult,
+  OwnershipClaim,
   orchestrationConfigSchema,
   orchestratorStateSchema
 } from './types.js';
@@ -29,6 +30,7 @@ import {
   getActiveRuns,
   checkFileCollisions,
   checkAllowlistOverlaps,
+  patternsOverlap,
   ActiveRun
 } from '../supervisor/collision.js';
 import { getRunsRoot, getOrchestrationsRoot, getLegacyOrchestrationsRoot } from '../store/runs-root.js';
@@ -85,6 +87,7 @@ export function createInitialOrchestratorState(
     fast?: boolean;
     autoResume?: boolean;
     parallel?: number;
+    ownershipRequired?: boolean;
   }
 ): OrchestratorState {
   const tracks: Track[] = config.tracks.map((tc, idx) => ({
@@ -104,6 +107,7 @@ export function createInitialOrchestratorState(
     parallel: options.parallel ?? tracks.length, // Default: all tracks can run
     fast: options.fast ?? false,
     auto_resume: options.autoResume ?? false,
+    ownership_required: options.ownershipRequired ?? false,
     time_budget_minutes: options.timeBudgetMinutes,
     max_ticks: options.maxTicks
   };
@@ -116,6 +120,7 @@ export function createInitialOrchestratorState(
     file_claims: {},
     status: 'running',
     started_at: new Date().toISOString(),
+    claim_events: [],
     // v1+ policy block
     policy,
     // Legacy fields (kept for backward compat with existing readers)
@@ -141,6 +146,7 @@ export function getEffectivePolicy(state: OrchestratorState): OrchestratorPolicy
     parallel: state.tracks.length, // No parallelism limit in v0
     fast: state.fast ?? false,
     auto_resume: false, // Not available in v0
+    ownership_required: false,
     time_budget_minutes: state.time_budget_minutes,
     max_ticks: state.max_ticks
   };
@@ -215,12 +221,152 @@ function checkTrackCollision(
   return { ok: true };
 }
 
+function isOwnershipClaim(value: OwnershipClaim | string): value is OwnershipClaim {
+  return typeof value !== 'string';
+}
+
+function listOwnershipConflicts(
+  state: OrchestratorState,
+  trackId: string,
+  ownsNormalized: string[]
+): string[] {
+  const conflicts = new Set<string>();
+  const existing = Object.entries(state.file_claims);
+
+  for (const pattern of ownsNormalized) {
+    for (const [claimedPattern, claim] of existing) {
+      if (isOwnershipClaim(claim) && claim.track_id === trackId) {
+        continue;
+      }
+      if (patternsOverlap(pattern, claimedPattern)) {
+        conflicts.add(claimedPattern);
+      }
+    }
+  }
+
+  return [...conflicts];
+}
+
+export function reserveOwnershipClaims(
+  state: OrchestratorState,
+  trackId: string,
+  ownsRaw: string[],
+  ownsNormalized: string[]
+): { state: OrchestratorState; conflicts: string[] } {
+  const normalized = [...new Set(ownsNormalized)];
+  if (normalized.length === 0) {
+    return { state, conflicts: [] };
+  }
+
+  const conflicts = listOwnershipConflicts(state, trackId, normalized);
+  if (conflicts.length > 0) {
+    return { state, conflicts };
+  }
+
+  const file_claims = { ...state.file_claims };
+  for (const pattern of normalized) {
+    file_claims[pattern] = {
+      track_id: trackId,
+      owns_raw: ownsRaw,
+      owns_normalized: normalized
+    };
+  }
+
+  const claim_events = [
+    ...(state.claim_events ?? []),
+    {
+      timestamp: new Date().toISOString(),
+      action: 'acquire' as const,
+      track_id: trackId,
+      claims: normalized,
+      owns_raw: ownsRaw,
+      owns_normalized: normalized
+    }
+  ];
+
+  return {
+    state: {
+      ...state,
+      file_claims,
+      claim_events
+    },
+    conflicts: []
+  };
+}
+
+export function attachRunIdToClaims(
+  state: OrchestratorState,
+  trackId: string,
+  runId: string
+): OrchestratorState {
+  let updated = false;
+  const file_claims = { ...state.file_claims };
+
+  for (const [pattern, claim] of Object.entries(file_claims)) {
+    if (isOwnershipClaim(claim) && claim.track_id === trackId) {
+      file_claims[pattern] = { ...claim, run_id: runId };
+      updated = true;
+    }
+  }
+
+  if (!updated) {
+    return state;
+  }
+
+  return { ...state, file_claims };
+}
+
+export function releaseOwnershipClaims(
+  state: OrchestratorState,
+  trackId: string
+): OrchestratorState {
+  const file_claims = { ...state.file_claims };
+  const released: string[] = [];
+  let firstClaim: OwnershipClaim | undefined;
+
+  for (const [pattern, claim] of Object.entries(state.file_claims)) {
+    if (isOwnershipClaim(claim) && claim.track_id === trackId) {
+      if (!firstClaim) {
+        firstClaim = claim;
+      }
+      delete file_claims[pattern];
+      released.push(pattern);
+    }
+  }
+
+  if (released.length === 0) {
+    return state;
+  }
+
+  const claim_events = [
+    ...(state.claim_events ?? []),
+    {
+      timestamp: new Date().toISOString(),
+      action: 'release' as const,
+      track_id: trackId,
+      run_id: firstClaim?.run_id,
+      claims: released,
+      owns_raw: firstClaim?.owns_raw ?? [],
+      owns_normalized: firstClaim?.owns_normalized ?? []
+    }
+  ];
+
+  return {
+    ...state,
+    file_claims,
+    claim_events
+  };
+}
+
 /**
  * Make a scheduling decision: what should the orchestrator do next?
  */
 export function makeScheduleDecision(
   state: OrchestratorState
 ): ScheduleDecision {
+  const policy = getEffectivePolicy(state);
+  const ownershipRequired = policy.ownership_required ?? false;
+
   // Check if all tracks are done
   const allDone = state.tracks.every(
     (t) => t.status === 'complete' || t.status === 'stopped' || t.status === 'failed'
@@ -239,6 +385,22 @@ export function makeScheduleDecision(
     const step = getNextStep(track);
     if (!step) {
       continue;
+    }
+
+    if (ownershipRequired) {
+      const ownsNormalized = step.owns_normalized ?? [];
+      if (ownsNormalized.length === 0) {
+        return {
+          action: 'blocked',
+          track_id: track.id,
+          reason: `Missing owns metadata for ${step.task_path}`
+        };
+      }
+
+      const conflicts = listOwnershipConflicts(state, track.id, ownsNormalized);
+      if (conflicts.length > 0) {
+        continue;
+      }
     }
 
     // Check for collisions
@@ -308,7 +470,7 @@ export function startTrackRun(
     };
   });
   newState.active_runs = { ...state.active_runs, [trackId]: runId };
-  return newState;
+  return attachRunIdToClaims(newState, trackId, runId);
 }
 
 /**
@@ -356,14 +518,15 @@ export function completeTrackStep(
   // Remove from active runs
   const { [trackId]: _, ...remainingActiveRuns } = state.active_runs;
   newState.active_runs = remainingActiveRuns;
+  const releasedState = releaseOwnershipClaims(newState, trackId);
 
   // Update overall status
-  newState.status = computeOverallStatus(newState);
-  if (newState.status !== 'running') {
-    newState.ended_at = new Date().toISOString();
+  releasedState.status = computeOverallStatus(releasedState);
+  if (releasedState.status !== 'running') {
+    releasedState.ended_at = new Date().toISOString();
   }
 
-  return newState;
+  return releasedState;
 }
 
 /**
@@ -414,12 +577,14 @@ export function failTrack(
   const { [trackId]: _, ...remainingActiveRuns } = state.active_runs;
   newState.active_runs = remainingActiveRuns;
 
-  newState.status = computeOverallStatus(newState);
-  if (newState.status !== 'running') {
-    newState.ended_at = new Date().toISOString();
+  const releasedState = releaseOwnershipClaims(newState, trackId);
+
+  releasedState.status = computeOverallStatus(releasedState);
+  if (releasedState.status !== 'running') {
+    releasedState.ended_at = new Date().toISOString();
   }
 
-  return newState;
+  return releasedState;
 }
 
 /**

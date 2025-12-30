@@ -5,6 +5,10 @@ export interface InitStateInput {
   run_id: string;
   repo_path: string;
   task_text: string;
+  owned_paths?: {
+    raw: string[];
+    normalized: string[];
+  };
   allowlist: string[];
   denylist: string[];
 }
@@ -30,6 +34,7 @@ export function createInitialState(input: InitStateInput): RunState {
     phase: 'INIT',
     milestone_index: 0,
     milestones,
+    owned_paths: input.owned_paths,
     scope_lock: {
       allowlist: input.allowlist,
       denylist: input.denylist
