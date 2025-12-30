@@ -30,6 +30,37 @@ Actions:
 - Inspect `summary.md` and `timeline.jsonl` for details.
 - Use `--allow-dirty` or `--allow-deps` if the change is intentional.
 
+## Ownership violations
+- Occurs when a task with `owns:` frontmatter modifies files outside its declared paths.
+- The timeline will show `ownership_violation` event with `violating_files`.
+- Fix: Either expand the `owns:` patterns in the task frontmatter, or constrain the implementation.
+- Note: Renames count as touching both old and new paths (conservative rule for parallel safety).
+
+## Worktree issues
+
+### "Worktree became dirty after env setup"
+This error occurs when `git status` shows untracked files after worktree creation.
+
+Common cause: Stale gitdir exclude. The agent writes exclude patterns to the main repo's `.git/info/exclude`. If this fails or patterns are missing, symlinked `node_modules` appears as untracked.
+
+Fix:
+```bash
+# Check if excludes are present
+cat .git/info/exclude
+
+# Manually add if missing
+echo "node_modules" >> .git/info/exclude
+```
+
+### "Unable to create index.lock"
+Git lock contention when creating multiple worktrees simultaneously.
+
+Fix: Stagger worktree creation or clean up stale locks:
+```bash
+rm .git/worktrees/*/index.lock
+git worktree prune
+```
+
 ## No events in report
 - `--no-write` disables the run store and supervisor loop.
 - If `timeline.jsonl` is missing, `report` will show no events.

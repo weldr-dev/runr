@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Worktree exclude injection**: Fixed `node_modules` symlinks appearing as untracked files in worktrees
+  - Git only reads `.git/info/exclude` from the main repo, not worktree gitdirs
+  - Now writes exclude patterns to main repo's `.git/info/exclude`
+  - Prevents "worktree became dirty after env setup" errors
+
+- **Tier escalation at final milestone**: `is_milestone_end` and `is_run_end` now correctly trigger at the last milestone
+  - Previously hardcoded to `false`, preventing tier1/tier2 from running
+  - Final milestone now runs all verification tiers (tier0 + tier1 + tier2)
+  - Fixes review loops caused by reviewer expecting `npm test` but verifier only running `npm run build`
+
+### Added
+
+- **Task ownership enforcement (Phase-2)**: Tasks with `owns:` frontmatter now enforce ownership at IMPLEMENT time
+  - Defensive normalization via shared `src/ownership/normalize.ts` module
+  - Renames count as touching both old and new paths (conservative rule)
+  - `ownership_violation` stop reason with actionable error message
+
 ## [0.2.1] - 2025-12-29
 
 Adoption improvements: scope presets, better diagnostics, and OSS packaging.

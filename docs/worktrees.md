@@ -51,6 +51,21 @@ If the source `node_modules` is missing:
 - Verification commands may fail with "module not found"
 - Fix: Run `npm install` in the original repo first
 
+### Git Exclude Injection
+
+When creating a worktree, we inject patterns into the **main repo's** `.git/info/exclude` to prevent symlinked artifacts from appearing as untracked files:
+
+```
+# agent-framework env ignores
+node_modules
+node_modules/
+/node_modules
+```
+
+**Why the main repo?** Git worktrees share the main repository's exclude file. Writing to the worktree's linked gitdir (e.g., `.git/worktrees/worktree1/info/exclude`) has no effect—git only reads from the main `.git/info/exclude`.
+
+This ensures `git status` stays clean after symlinking `node_modules`, preventing false "worktree became dirty" errors.
+
 ### Monorepo Considerations
 
 For monorepos with nested `node_modules` (e.g., pnpm workspaces):

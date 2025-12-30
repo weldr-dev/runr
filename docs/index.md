@@ -40,6 +40,7 @@
 
 - [Glossary](glossary.md) - Terms and definitions
 - [Troubleshooting](troubleshooting.md) - Common issues
+- [Bug Reporting](bug-reporting.md) - How agents should report issues
 - [RUNBOOK](RUNBOOK.md) - Operator workflows
 
 ## Guides

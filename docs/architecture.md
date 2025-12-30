@@ -629,6 +629,7 @@ The supervisor loop can stop for various reasons, recorded in `stop_reason`:
 | `implement_parse_failed` | Implementer output not parseable | Check worker config |
 | `implement_blocked` | Implementer returned blocked status | Check handoff memo |
 | `guard_violation` | Changed files outside scope/lockfiles | Review scope config |
+| `ownership_violation` | Task modified files outside declared `owns:` paths | Update task ownership or expand owns patterns |
 | `verification_failed_max_retries` | 3 failed verify attempts | Manual fix needed |
 | `review_parse_failed` | Reviewer output not parseable | Check worker config |
 | `milestone_missing` | No milestone at current index | Check state consistency |

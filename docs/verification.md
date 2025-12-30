@@ -39,11 +39,16 @@ Risk triggers are glob patterns in `verification.risk_triggers` that escalate ve
 
 **Note:** Triggers configured for `tier2` are normalized to `tier1` during selection (tier2 is reserved for run-end only).
 
-### Current limitations
+### Milestone and run-end escalation
 
-- `is_milestone_end` and `is_run_end` are currently always `false` in the supervisor loop
-- This means tier2 is never selected in practice
-- Future work may enable these flags for more comprehensive end-of-run testing
+At the final milestone, both `is_milestone_end` and `is_run_end` are set to `true`, triggering automatic tier escalation:
+
+```typescript
+const isLastMilestone = milestone_index === milestones.length - 1;
+// At final milestone: tier1 (milestone_end) and tier2 (run_end) both trigger
+```
+
+This ensures comprehensive testing at the end of a run without slowing down intermediate milestones.
 
 ## Execution model
 - Commands run sequentially per tier.
