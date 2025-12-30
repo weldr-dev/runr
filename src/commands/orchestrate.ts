@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import {
   OrchestrateOptions,
   OrchestratorState,
@@ -42,6 +43,7 @@ import { RunJsonOutput } from './run.js';
 import { WaitResult } from './wait.js';
 
 const POLL_INTERVAL_MS = 2000;
+const RUN_LAUNCH_TIMEOUT_MS = 30000;
 
 /**
  * Run a shell command and capture output.
@@ -87,6 +89,74 @@ function runAgentCommand(
 }
 
 /**
+ * Launch an agent run and resolve when the JSON run_id is emitted.
+ * The process keeps running; we continue to drain output to avoid backpressure.
+ */
+function launchAgentRun(
+  args: string[],
+  cwd: string,
+  timeoutMs = RUN_LAUNCH_TIMEOUT_MS
+): Promise<{ runId: string; runDir: string }> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('npx', ['agent', ...args], {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: true
+    });
+
+    let resolved = false;
+    let stderr = '';
+
+    const timeout = setTimeout(() => {
+      if (resolved) return;
+      resolved = true;
+      reject(new Error('Timed out waiting for agent run_id'));
+    }, timeoutMs);
+
+    const stdoutLines = createInterface({ input: proc.stdout });
+    stdoutLines.on('line', (line) => {
+      if (resolved) return;
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('{')) return;
+
+      try {
+        const output: RunJsonOutput = JSON.parse(trimmed);
+        if (output.run_id && output.run_dir) {
+          resolved = true;
+          clearTimeout(timeout);
+          resolve({ runId: output.run_id, runDir: output.run_dir });
+        }
+      } catch {
+        // Ignore non-JSON lines
+      }
+    });
+
+    proc.stderr.on('data', (data) => {
+      if (resolved) return;
+      const chunk = data.toString();
+      if (stderr.length < 4096) {
+        stderr = (stderr + chunk).slice(-4096);
+      }
+    });
+
+    proc.on('error', (err) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timeout);
+      reject(err);
+    });
+
+    proc.on('close', (code) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timeout);
+      const message = stderr.trim() || `Exit code ${code ?? 1}`;
+      reject(new Error(message));
+    });
+  });
+}
+
+/**
  * Launch a run for a track step.
  */
 async function launchRun(
@@ -118,27 +188,15 @@ async function launchRun(
   if (options.forceParallel) args.push('--force-parallel');
   if (options.skipDoctor) args.push('--skip-doctor');
   if (options.autoResume) args.push('--auto-resume');
-  const result = await runAgentCommand(args, repoPath);
-
-  if (result.exitCode !== 0 && !result.stdout.includes('"run_id"')) {
-    return { error: result.stderr || `Exit code ${result.exitCode}` };
-  }
-
   try {
-    // Find the JSON line in output
-    const lines = result.stdout.split('\n');
-    const jsonLine = lines.find((line) => line.startsWith('{'));
-    if (!jsonLine) {
-      return { error: 'No JSON output from agent run' };
-    }
-
-    const output: RunJsonOutput = JSON.parse(jsonLine);
+    const output = await launchAgentRun(args, repoPath);
     return {
-      runId: output.run_id,
-      runDir: output.run_dir
+      runId: output.runId,
+      runDir: output.runDir
     };
   } catch (err) {
-    return { error: `Failed to parse run output: ${err}` };
+    const message = err instanceof Error ? err.message : String(err);
+    return { error: message };
   }
 }
 
