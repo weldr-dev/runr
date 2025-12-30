@@ -37,11 +37,13 @@ import {
   validateNoChangesEvidence,
   formatEvidenceErrors
 } from './evidence-gate.js';
+import { normalizeOwnsPatterns, toPosixPath } from '../ownership/normalize.js';
 
 /**
  * Check if changed files are within owned paths.
  * Only enforced when ownedPaths is non-empty.
  * Uses semantic_changed (post env partition) to avoid env noise.
+ * Defensively normalizes ownedPaths to prevent caller from weakening enforcement.
  */
 export interface OwnershipCheckResult {
   ok: boolean;
@@ -65,6 +67,9 @@ export function checkOwnership(
     };
   }
 
+  // Defensive normalization: ensures consistent matching even if caller passes raw patterns
+  const normalizedOwned = normalizeOwnsPatterns(ownedPaths);
+
   // Partition to get semantic changes (exclude env artifacts)
   const { semantic_changed } = partitionChangedFiles(changedFiles, envAllowlist);
 
@@ -72,19 +77,19 @@ export function checkOwnership(
   if (semantic_changed.length === 0) {
     return {
       ok: true,
-      owned_paths: ownedPaths,
+      owned_paths: normalizedOwned,
       semantic_changed: [],
       violating_files: []
     };
   }
 
   // Compile ownership matchers
-  const ownershipMatchers = ownedPaths.map((p) => picomatch(p));
+  const ownershipMatchers = normalizedOwned.map((p) => picomatch(p));
 
   // Check each semantic change against ownership
   const violating_files: string[] = [];
   for (const file of semantic_changed) {
-    const posixFile = file.split(path.sep).join('/');
+    const posixFile = toPosixPath(file);
     const isOwned = ownershipMatchers.some((m) => m(posixFile));
     if (!isOwned) {
       violating_files.push(file);
@@ -93,7 +98,7 @@ export function checkOwnership(
 
   return {
     ok: violating_files.length === 0,
-    owned_paths: ownedPaths,
+    owned_paths: normalizedOwned,
     semantic_changed,
     violating_files
   };

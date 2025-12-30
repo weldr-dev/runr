@@ -36,16 +36,25 @@ export async function listChangedFiles(gitRoot: string): Promise<string[]> {
   if (lines.length === 0) {
     return [];
   }
-  return lines
-    .map((line) => line.slice(3))
-    .map((entry) => {
-      const arrow = entry.indexOf('->');
-      if (arrow !== -1) {
-        return entry.slice(arrow + 2).trim();
-      }
-      return entry.trim();
-    })
-    .filter(Boolean);
+
+  const files: string[] = [];
+  for (const line of lines) {
+    const entry = line.slice(3);
+    const arrow = entry.indexOf('->');
+    if (arrow !== -1) {
+      // Rename: include BOTH old and new paths for ownership/scope enforcement
+      // Old path was touched (deleted from), new path was touched (created at)
+      const oldPath = entry.slice(0, arrow).trim();
+      const newPath = entry.slice(arrow + 2).trim();
+      if (oldPath) files.push(oldPath);
+      if (newPath) files.push(newPath);
+    } else {
+      const path = entry.trim();
+      if (path) files.push(path);
+    }
+  }
+
+  return files;
 }
 
 export function getTouchedPackages(changedFiles: string[]): string[] {

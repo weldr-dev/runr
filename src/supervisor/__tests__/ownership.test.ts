@@ -105,4 +105,79 @@ describe('checkOwnership', () => {
       expect(result.violating_files).toEqual([]);
     });
   });
+
+  describe('rename handling (when both paths are included)', () => {
+    it('blocks rename from outside into owned paths', () => {
+      // Simulates: git mv README.md courses/a/README.md
+      // listChangedFiles now returns BOTH paths
+      const result = checkOwnership(
+        ['README.md', 'courses/a/README.md'],
+        ['courses/a/**'],
+        []
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.violating_files).toEqual(['README.md']);
+    });
+
+    it('allows rename within owned paths', () => {
+      // Simulates: git mv courses/a/old.md courses/a/new.md
+      const result = checkOwnership(
+        ['courses/a/old.md', 'courses/a/new.md'],
+        ['courses/a/**'],
+        []
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.violating_files).toEqual([]);
+    });
+
+    it('blocks rename from owned to outside', () => {
+      // Simulates: git mv courses/a/file.md README.md
+      const result = checkOwnership(
+        ['courses/a/file.md', 'README.md'],
+        ['courses/a/**'],
+        []
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.violating_files).toEqual(['README.md']);
+    });
+  });
+
+  describe('defensive normalization', () => {
+    it('normalizes raw directory paths to glob patterns', () => {
+      // Caller passes raw "courses/a/" instead of normalized "courses/a/**"
+      const result = checkOwnership(
+        ['courses/a/lesson.md'],
+        ['courses/a/'], // raw, not normalized
+        []
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.owned_paths).toEqual(['courses/a/**']); // normalized in output
+    });
+
+    it('normalizes Windows-style paths', () => {
+      const result = checkOwnership(
+        ['courses/a/lesson.md'],
+        ['courses\\a\\'], // Windows-style
+        []
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.owned_paths).toEqual(['courses/a/**']);
+    });
+
+    it('handles ./prefix in ownership patterns', () => {
+      const result = checkOwnership(
+        ['courses/a/lesson.md'],
+        ['./courses/a/'],
+        []
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.owned_paths).toEqual(['courses/a/**']);
+    });
+  });
 });

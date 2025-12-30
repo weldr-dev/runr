@@ -1,5 +1,9 @@
 import fs from 'node:fs';
 import yaml from 'yaml';
+import { normalizeOwnsPatterns } from '../ownership/normalize.js';
+
+// Re-export for backward compatibility
+export { normalizeOwnsPatterns } from '../ownership/normalize.js';
 
 export interface TaskMetadata {
   raw: string;
@@ -53,37 +57,6 @@ function coerceOwns(value: unknown, taskPath: string): string[] {
   }
 
   throw new Error(`Invalid owns entry in ${taskPath}: must be string or string[]`);
-}
-
-function normalizeOwnPattern(pattern: string): string | null {
-  let normalized = pattern.replace(/\\/g, '/').trim();
-  normalized = normalized.replace(/^\.\/+/, '').replace(/^\/+/, '');
-  normalized = normalized.replace(/\/{2,}/g, '/');
-  if (!normalized) {
-    return null;
-  }
-
-  const hasGlob = /[*?[\]]/.test(normalized);
-  if (!hasGlob) {
-    normalized = normalized.replace(/\/+$/, '');
-    if (!normalized) {
-      return null;
-    }
-    return `${normalized}/**`;
-  }
-
-  return normalized;
-}
-
-export function normalizeOwnsPatterns(patterns: string[]): string[] {
-  const normalized: string[] = [];
-  for (const pattern of patterns) {
-    const entry = normalizeOwnPattern(pattern);
-    if (entry) {
-      normalized.push(entry);
-    }
-  }
-  return [...new Set(normalized)];
 }
 
 export function loadTaskMetadata(taskPath: string): TaskMetadata {
