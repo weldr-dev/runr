@@ -19,6 +19,37 @@ Acceptance:
 - ...
 ```
 
+## Task ownership (for parallel runs)
+
+When running multiple tasks in parallel without worktree isolation, each task must declare which paths it owns using YAML frontmatter:
+
+```yaml
+---
+owns:
+  - src/courses/git-basics/
+  - docs/git-basics.md
+---
+
+# Task Title
+
+Create the Git Basics course...
+```
+
+**Rules:**
+- Directory paths become `prefix/**` patterns automatically
+- Matching uses repo-relative POSIX paths
+- Renames count as touching both old and new paths (conservative rule)
+- Overlapping claims are blocked at scheduling time
+- Worktrees (`--worktree`) are still recommended for full isolation
+
+**When ownership is required:**
+- Parallel orchestration without `--worktree`
+- If any task lacks `owns:`, the run is blocked with an actionable error
+
+**When ownership is optional:**
+- Single-task runs (no parallelism)
+- Runs with `--worktree` (worktree provides isolation)
+
 ## Included tasks
 - `tasks/noop.md`: safe planning task for smoke tests.
 - `tasks/deckbuilder/001_engine_combat.md`: fixture task for the deckbuilder app.

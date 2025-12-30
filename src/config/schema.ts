@@ -95,7 +95,22 @@ const scopeSchema = z.object({
     .array(z.string())
     .default(['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock']),
   /** Scope presets to include (expands allowlist with common patterns) */
-  presets: z.array(z.string()).default([])
+  presets: z.array(z.string()).default([]),
+  /**
+   * Paths allowed to be dirty AND exempt from scope violations.
+   * These are "env state" - artifacts that don't affect code correctness.
+   * Matches both symlinks and directories (e.g., node_modules and node_modules/).
+   */
+  env_allowlist: z.array(z.string()).default([
+    'node_modules',
+    'node_modules/**',
+    '.next/**',
+    'dist/**',
+    'build/**',
+    '.turbo/**',
+    '.eslintcache',
+    'coverage/**',
+  ]),
 });
 
 const agentSchema = z.object({

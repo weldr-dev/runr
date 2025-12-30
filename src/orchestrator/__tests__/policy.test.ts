@@ -37,7 +37,8 @@ describe('Policy Block', () => {
         collisionPolicy: 'serialize',
         fast: true,
         autoResume: true,
-        parallel: 1
+        parallel: 1,
+        ownershipRequired: true
       });
 
       // Policy block should exist
@@ -50,6 +51,7 @@ describe('Policy Block', () => {
       expect(state.policy!.fast).toBe(true);
       expect(state.policy!.auto_resume).toBe(true);
       expect(state.policy!.parallel).toBe(1);
+      expect(state.policy!.ownership_required).toBe(true);
     });
 
     it('sets default values for optional policy fields', () => {
@@ -64,6 +66,7 @@ describe('Policy Block', () => {
       expect(state.policy!.fast).toBe(false);
       expect(state.policy!.auto_resume).toBe(false);
       expect(state.policy!.parallel).toBe(2); // Default: track count
+      expect(state.policy!.ownership_required).toBe(false);
     });
 
     it('writes both policy block and legacy fields for backward compatibility', () => {

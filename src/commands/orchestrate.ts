@@ -35,12 +35,14 @@ import {
   saveOrchestratorState,
   findLatestOrchestrationId,
   reconcileState,
-  getEffectivePolicy
+  getEffectivePolicy,
+  reserveOwnershipClaims
 } from '../orchestrator/state-machine.js';
 import { writeTerminalArtifacts, getOrchestrationDir, buildWaitResult } from '../orchestrator/artifacts.js';
 import { getRunsRoot } from '../store/runs-root.js';
 import { RunJsonOutput } from './run.js';
 import { WaitResult } from './wait.js';
+import { loadTaskMetadata } from '../tasks/task-metadata.js';
 
 const POLL_INTERVAL_MS = 2000;
 const RUN_LAUNCH_TIMEOUT_MS = 30000;
@@ -86,6 +88,72 @@ function runAgentCommand(
       });
     });
   });
+}
+
+function applyTaskOwnershipMetadata(
+  state: OrchestratorState,
+  repoPath: string
+): { state: OrchestratorState; errors: string[] } {
+  const errors: string[] = [];
+
+  const tracks = state.tracks.map((track) => {
+    const steps = track.steps.map((step) => {
+      if (step.owns_normalized !== undefined && step.owns_raw !== undefined) {
+        return step;
+      }
+
+      const taskPath = path.resolve(repoPath, step.task_path);
+      try {
+        const metadata = loadTaskMetadata(taskPath);
+        return {
+          ...step,
+          owns_raw: metadata.owns_raw,
+          owns_normalized: metadata.owns_normalized
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        errors.push(`${step.task_path}: ${message}`);
+        return step;
+      }
+    });
+
+    return { ...track, steps };
+  });
+
+  return { state: { ...state, tracks }, errors };
+}
+
+function collectMissingOwnership(state: OrchestratorState): Array<{ track: string; task: string }> {
+  const missing: Array<{ track: string; task: string }> = [];
+  for (const track of state.tracks) {
+    for (const step of track.steps) {
+      if (!step.owns_normalized || step.owns_normalized.length === 0) {
+        missing.push({ track: track.name, task: step.task_path });
+      }
+    }
+  }
+  return missing;
+}
+
+function formatOwnershipMissingMessage(missing: Array<{ track: string; task: string }>): string {
+  const lines = [
+    'Parallel runs without worktrees require ownership declarations.',
+    '',
+    'Fix: Add YAML frontmatter to each task file:',
+    '',
+    '  ---',
+    '  owns:',
+    '    - src/courses/my-course/',
+    '  ---',
+    '',
+    'Or use --worktree for full isolation (recommended).',
+    '',
+    `Missing owns (${missing.length} task${missing.length === 1 ? '' : 's'}):`
+  ];
+  for (const entry of missing) {
+    lines.push(`  ${entry.task}`);
+  }
+  return lines.join('\n');
 }
 
 /**
@@ -290,11 +358,13 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
   console.log(`Loaded ${config.tracks.length} track(s) from ${configPath}`);
 
   // Create initial state
+  const ownershipRequired = !options.worktree && config.tracks.length > 1;
   let state = createInitialOrchestratorState(config, repoPath, {
     timeBudgetMinutes: options.time,
     maxTicks: options.maxTicks,
     collisionPolicy: options.collisionPolicy,
-    fast: options.fast
+    fast: options.fast,
+    ownershipRequired
   });
 
   console.log(`Orchestrator ID: ${state.orchestrator_id}`);
@@ -310,6 +380,26 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
       }
     }
     return;
+  }
+
+  const ownershipApplied = applyTaskOwnershipMetadata(state, repoPath);
+  if (ownershipApplied.errors.length > 0) {
+    console.error('Failed to parse task ownership metadata:');
+    for (const err of ownershipApplied.errors) {
+      console.error(`  - ${err}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
+  state = ownershipApplied.state;
+
+  if (ownershipRequired) {
+    const missing = collectMissingOwnership(state);
+    if (missing.length > 0) {
+      console.error(formatOwnershipMissingMessage(missing));
+      process.exitCode = 1;
+      return;
+    }
   }
 
   saveState(state, repoPath);
@@ -340,6 +430,22 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
         const trackId = decision.track_id!;
         const track = state.tracks.find((t) => t.id === trackId)!;
         const step = track.steps[track.current_step];
+        const policy = getEffectivePolicy(state);
+
+        if (policy.ownership_required) {
+          const ownsRaw = step.owns_raw ?? [];
+          const ownsNormalized = step.owns_normalized ?? [];
+          const reservation = reserveOwnershipClaims(state, trackId, ownsRaw, ownsNormalized);
+          if (reservation.conflicts.length > 0) {
+            const conflictList = reservation.conflicts.join(', ');
+            const message = `Ownership claim conflict for ${step.task_path}: ${conflictList}`;
+            console.error(`  ${message}`);
+            state = failTrack(state, trackId, message);
+            saveState(state, repoPath);
+            break;
+          }
+          state = reservation.state;
+        }
 
         console.log(`Launching: ${track.name} - ${step.task_path} (fast=${options.fast})`);
 
@@ -559,6 +665,27 @@ export async function resumeOrchestrationCommand(options: OrchestrateResumeOptio
     }
   }
 
+  const ownershipApplied = applyTaskOwnershipMetadata(state, repoPath);
+  if (ownershipApplied.errors.length > 0) {
+    console.error('Failed to parse task ownership metadata:');
+    for (const err of ownershipApplied.errors) {
+      console.error(`  - ${err}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
+  state = ownershipApplied.state;
+
+  const resumePolicy = getEffectivePolicy(state);
+  if (resumePolicy.ownership_required) {
+    const missing = collectMissingOwnership(state);
+    if (missing.length > 0) {
+      console.error(formatOwnershipMissingMessage(missing));
+      process.exitCode = 1;
+      return;
+    }
+  }
+
   // Check if already terminal
   if (state.status !== 'running') {
     console.log(`Orchestration already ${state.status}`);
@@ -627,6 +754,21 @@ export async function resumeOrchestrationCommand(options: OrchestrateResumeOptio
 
         // Use effective policy (from policy block or legacy fields)
         const policy = getEffectivePolicy(state);
+
+        if (policy.ownership_required) {
+          const ownsRaw = step.owns_raw ?? [];
+          const ownsNormalized = step.owns_normalized ?? [];
+          const reservation = reserveOwnershipClaims(state, trackId, ownsRaw, ownsNormalized);
+          if (reservation.conflicts.length > 0) {
+            const conflictList = reservation.conflicts.join(', ');
+            const message = `Ownership claim conflict for ${step.task_path}: ${conflictList}`;
+            console.error(`  ${message}`);
+            state = failTrack(state, trackId, message);
+            saveState(state, repoPath);
+            break;
+          }
+          state = reservation.state;
+        }
 
         console.log(`Launching: ${track.name} - ${step.task_path} (fast=${policy.fast})`);
 

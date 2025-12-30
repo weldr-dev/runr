@@ -33,6 +33,7 @@ export type DiagnosisCategory =
   | 'max_ticks_reached'
   | 'time_budget_exceeded'
   | 'guard_violation_dirty'
+  | 'ownership_violation'
   | 'unknown';
 
 /**

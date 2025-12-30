@@ -24,7 +24,7 @@ import {
   reviewOutputSchema
 } from '../workers/schemas.js';
 import { parseJsonWithSchema } from '../workers/json.js';
-import { checkLockfiles, checkScope } from './scope-guard.js';
+import { checkLockfiles, checkScope, partitionChangedFiles } from './scope-guard.js';
 import { commandsForTier, selectTiersWithReasons } from './verification-policy.js';
 import { runVerification } from '../verification/engine.js';
 import { stopRun, updatePhase, prepareForResume } from './state-machine.js';
@@ -37,6 +37,72 @@ import {
   validateNoChangesEvidence,
   formatEvidenceErrors
 } from './evidence-gate.js';
+import { normalizeOwnsPatterns, toPosixPath } from '../ownership/normalize.js';
+
+/**
+ * Check if changed files are within owned paths.
+ * Only enforced when ownedPaths is non-empty.
+ * Uses semantic_changed (post env partition) to avoid env noise.
+ * Defensively normalizes ownedPaths to prevent caller from weakening enforcement.
+ */
+export interface OwnershipCheckResult {
+  ok: boolean;
+  owned_paths: string[];
+  semantic_changed: string[];
+  violating_files: string[];
+}
+
+export function checkOwnership(
+  changedFiles: string[],
+  ownedPaths: string[],
+  envAllowlist: string[]
+): OwnershipCheckResult {
+  // No enforcement if no ownership declared
+  if (ownedPaths.length === 0) {
+    return {
+      ok: true,
+      owned_paths: [],
+      semantic_changed: [],
+      violating_files: []
+    };
+  }
+
+  // Defensive normalization: ensures consistent matching even if caller passes raw patterns
+  const normalizedOwned = normalizeOwnsPatterns(ownedPaths);
+
+  // Partition to get semantic changes (exclude env artifacts)
+  const { semantic_changed } = partitionChangedFiles(changedFiles, envAllowlist);
+
+  // No semantic changes = no violation
+  if (semantic_changed.length === 0) {
+    return {
+      ok: true,
+      owned_paths: normalizedOwned,
+      semantic_changed: [],
+      violating_files: []
+    };
+  }
+
+  // Compile ownership matchers
+  const ownershipMatchers = normalizedOwned.map((p) => picomatch(p));
+
+  // Check each semantic change against ownership
+  const violating_files: string[] = [];
+  for (const file of semantic_changed) {
+    const posixFile = toPosixPath(file);
+    const isOwned = ownershipMatchers.some((m) => m(posixFile));
+    if (!isOwned) {
+      violating_files.push(file);
+    }
+  }
+
+  return {
+    ok: violating_files.length === 0,
+    owned_paths: normalizedOwned,
+    semantic_changed,
+    violating_files
+  };
+}
 
 /**
  * Stop reasons that are eligible for auto-resume.
@@ -159,6 +225,8 @@ export interface SupervisorOptions {
   autoResume?: boolean;
   /** Bypass file collision checks with active runs */
   forceParallel?: boolean;
+  /** Normalized ownership patterns from task frontmatter (Phase-2 enforcement) */
+  ownedPaths?: string[];
 }
 
 const DEFAULT_STOP_MEMO = [
@@ -215,6 +283,7 @@ function buildStructuredStopMemo(params: StopMemoParams): string {
     verification_failed_max_retries: 'Verification failed too many times on the same milestone.',
     implement_blocked: 'Implementer reported it could not proceed.',
     guard_violation: 'Changes violated scope or lockfile constraints.',
+    ownership_violation: 'Task modified files outside its declared ownership.',
     parallel_file_collision: 'Stopped to avoid merge conflicts with another active run.',
     insufficient_evidence: 'Implementer claimed no changes needed but provided insufficient evidence.',
     plan_parse_failed: 'Planner output could not be parsed.',
@@ -233,6 +302,7 @@ function buildStructuredStopMemo(params: StopMemoParams): string {
     verification_failed_max_retries: 'Code changes broke tests/lint and fixes kept failing.',
     implement_blocked: 'Missing dependencies, unclear requirements, or environment issue.',
     guard_violation: 'Implementer modified files outside allowed scope.',
+    ownership_violation: 'Task declared owns: paths in frontmatter but touched files outside that claim.',
     parallel_file_collision: 'Another run is expected to modify the same files. Running in parallel would create merge conflicts.',
     insufficient_evidence: 'Worker claimed work was already done without proving it. This prevents false certainty.',
     plan_parse_failed: 'Planner returned malformed JSON.',
@@ -1007,6 +1077,33 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
       }
     });
     return stopWithError(state, options, 'guard_violation', 'Guard violation detected.');
+  }
+
+  // Phase-2 ownership enforcement: only when owns is declared
+  if (options.ownedPaths && options.ownedPaths.length > 0) {
+    const ownershipCheck = checkOwnership(
+      changedFiles,
+      options.ownedPaths,
+      options.config.scope.env_allowlist ?? []
+    );
+
+    if (!ownershipCheck.ok) {
+      options.runStore.appendEvent({
+        type: 'ownership_violation',
+        source: 'supervisor',
+        payload: {
+          owned_paths: ownershipCheck.owned_paths,
+          semantic_changed: ownershipCheck.semantic_changed,
+          violating_files: ownershipCheck.violating_files
+        }
+      });
+      return stopWithError(
+        state,
+        options,
+        'ownership_violation',
+        `Task modified files outside declared ownership: ${ownershipCheck.violating_files.join(', ')}`
+      );
+    }
   }
 
   options.runStore.appendEvent({

@@ -11,6 +11,7 @@ import { runPreflight } from './preflight.js';
 import { runSupervisorLoop } from '../supervisor/runner.js';
 import { runDoctorChecks, WorkerCheck } from './doctor.js';
 import { captureFingerprint } from '../env/fingerprint.js';
+import { loadTaskMetadata } from '../tasks/task-metadata.js';
 import {
   getActiveRuns,
   checkAllowlistOverlaps,
@@ -193,7 +194,10 @@ export async function runCommand(options: RunOptions): Promise<void> {
   const taskPath = path.resolve(options.task);
   const configPath = resolveConfigPath(repoPath, options.config);
   const config = loadConfig(configPath);
-  const taskText = fs.readFileSync(taskPath, 'utf-8');
+  const taskMetadata = loadTaskMetadata(taskPath);
+  const taskText = taskMetadata.body;
+  const ownsRaw = taskMetadata.owns_raw;
+  const ownsNormalized = taskMetadata.owns_normalized;
 
   // Log effective configuration for transparency (skip in JSON mode)
   if (!options.json) {
@@ -293,6 +297,18 @@ export async function runCommand(options: RunOptions): Promise<void> {
       : config;
     runStore.writeConfigSnapshot(configWithWorktree);
     runStore.writeArtifact('task.md', taskText);
+    runStore.writeArtifact(
+      'task.meta.json',
+      JSON.stringify(
+        {
+          task_path: taskPath,
+          owns_raw: ownsRaw,
+          owns_normalized: ownsNormalized
+        },
+        null,
+        2
+      )
+    );
     const fingerprint = await captureFingerprint(config, effectiveRepoPath);
     runStore.writeFingerprint(fingerprint);
     if (worktreeInfo) {
@@ -359,6 +375,10 @@ export async function runCommand(options: RunOptions): Promise<void> {
         run_id: runId,
         repo_path: effectiveRepoPath,
         task_text: taskText,
+        owned_paths: {
+          raw: ownsRaw,
+          normalized: ownsNormalized
+        },
         allowlist: config.scope.allowlist,
         denylist: config.scope.denylist
       });
@@ -445,6 +465,10 @@ export async function runCommand(options: RunOptions): Promise<void> {
     run_id: runId,
     repo_path: effectiveRepoPath,
     task_text: taskText,
+    owned_paths: {
+      raw: ownsRaw,
+      normalized: ownsNormalized
+    },
     allowlist: config.scope.allowlist,
     denylist: config.scope.denylist
   });
@@ -507,7 +531,8 @@ export async function runCommand(options: RunOptions): Promise<void> {
       allowDeps: options.allowDeps,
       fast: options.fast,
       autoResume: options.autoResume,
-      forceParallel: options.forceParallel
+      forceParallel: options.forceParallel,
+      ownedPaths: ownsNormalized
     });
   }
 

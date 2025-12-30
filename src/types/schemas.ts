@@ -52,6 +52,10 @@ export interface RunState {
   phase: Phase;
   milestone_index: number;
   milestones: Milestone[];
+  owned_paths?: {
+    raw: string[];
+    normalized: string[];
+  };
   scope_lock: {
     allowlist: string[];
     denylist: string[];

@@ -18,6 +18,7 @@ const categoryDescriptions: Record<DiagnosisCategory, string> = {
   max_ticks_reached: 'Reached maximum phase transitions before completion.',
   time_budget_exceeded: 'Ran out of allocated time.',
   guard_violation_dirty: 'Working directory has uncommitted changes.',
+  ownership_violation: 'Task modified files outside its declared owns: paths.',
   unknown: 'Could not determine specific cause.'
 };
 
