@@ -3,7 +3,7 @@ import path from 'node:path';
 import { execa } from 'execa';
 import { AgentConfig, WorkerConfig } from '../config/schema.js';
 import { buildRepoContext } from '../repo/context.js';
-import { checkLockfiles, checkScope } from '../supervisor/scope-guard.js';
+import { checkLockfiles, checkScope, partitionChangedFiles } from '../supervisor/scope-guard.js';
 import { selectTiersWithReasons } from '../supervisor/verification-policy.js';
 import { RepoContext, RiskLevel, VerificationTier } from '../types/schemas.js';
 import { pingClaude, PingResult } from '../workers/claude.js';
@@ -72,6 +72,12 @@ export interface GuardStatus {
   dirty: boolean;
   scope_violations: string[];
   lockfile_violations: string[];
+  /** All files that were dirty (for diagnostics) */
+  dirty_files: string[];
+  /** Files matching env_allowlist (allowed noise) */
+  env_touched: string[];
+  /** True if dirty_files were all env artifacts (no semantic changes) */
+  dirty_is_env_only: boolean;
 }
 
 export interface BinaryStatus {
@@ -104,14 +110,27 @@ export async function runPreflight(
     options.config.repo.default_branch ?? 'main'
   );
 
-  const dirty = repoContext.changed_files.length > 0;
-  const scopeCheck = checkScope(
+  // Partition changed files into env artifacts vs semantic changes
+  // Env artifacts (node_modules, .next, etc.) are allowed noise
+  const { env_touched, semantic_changed } = partitionChangedFiles(
     repoContext.changed_files,
+    options.config.scope.env_allowlist ?? []
+  );
+
+  const dirty_files = repoContext.changed_files;
+  const dirty_is_env_only = dirty_files.length > 0 && semantic_changed.length === 0;
+
+  // "Dirty" means semantic dirty, not env noise
+  const dirty = semantic_changed.length > 0;
+
+  // Scope/lockfile checks should only consider semantic changes
+  const scopeCheck = checkScope(
+    semantic_changed,
     options.config.scope.allowlist,
     options.config.scope.denylist
   );
   const lockfileCheck = checkLockfiles(
-    repoContext.changed_files,
+    semantic_changed,
     options.config.scope.lockfiles,
     options.allowDeps
   );
@@ -211,7 +230,10 @@ export async function runPreflight(
       reasons,
       dirty,
       scope_violations: scopeCheck.violations,
-      lockfile_violations: lockfileCheck.violations
+      lockfile_violations: lockfileCheck.violations,
+      dirty_files,
+      env_touched,
+      dirty_is_env_only,
     },
     binary: binaryStatus,
     ping: pingStatus,

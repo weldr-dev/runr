@@ -2,6 +2,70 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { git, gitOptional } from './git.js';
 
+/**
+ * Resolve the actual git directory for a worktree.
+ * In a worktree, .git is a file containing "gitdir: <path>".
+ * In a normal repo, .git is the directory itself.
+ */
+function resolveWorktreeGitDir(worktreePath: string): string {
+  const dotGitPath = path.join(worktreePath, '.git');
+  const stat = fs.statSync(dotGitPath);
+
+  if (stat.isDirectory()) {
+    return dotGitPath;
+  }
+
+  // Worktree: .git is a file with "gitdir: ..."
+  const content = fs.readFileSync(dotGitPath, 'utf8').trim();
+  const m = content.match(/^gitdir:\s*(.+)\s*$/i);
+  if (!m) {
+    throw new Error(`Unexpected .git file format at ${dotGitPath}: ${content.slice(0, 120)}`);
+  }
+
+  const gitdirPath = m[1].trim();
+
+  // gitdir can be relative to worktreePath
+  return path.isAbsolute(gitdirPath)
+    ? gitdirPath
+    : path.resolve(worktreePath, gitdirPath);
+}
+
+/**
+ * Add patterns to .git/info/exclude (worktree-local ignores).
+ * This prevents env artifacts like node_modules symlinks from showing as untracked.
+ */
+function upsertInfoExclude(gitdir: string, patterns: string[]): void {
+  const infoDir = path.join(gitdir, 'info');
+  const excludePath = path.join(infoDir, 'exclude');
+
+  fs.mkdirSync(infoDir, { recursive: true });
+
+  const existing = fs.existsSync(excludePath)
+    ? fs.readFileSync(excludePath, 'utf8')
+    : '';
+
+  const existingLines = new Set(
+    existing
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(l => l.length > 0 && !l.startsWith('#'))
+  );
+
+  // Find patterns we need to add
+  const toAdd = patterns.filter(p => !existingLines.has(p));
+  if (toAdd.length === 0) return;
+
+  // Build new content
+  const needsNewline = existing.length > 0 && !existing.endsWith('\n');
+  const header = existing.includes('# agent-framework env ignores')
+    ? ''
+    : '# agent-framework env ignores\n';
+
+  const addition = (needsNewline ? '\n' : '') + header + toAdd.map(p => `${p}\n`).join('');
+
+  fs.writeFileSync(excludePath, existing + addition, 'utf8');
+}
+
 export interface WorktreeInfo {
   worktree_enabled: boolean;
   original_repo_path: string;
@@ -62,14 +126,31 @@ export async function createWorktree(
     await git(['worktree', 'add', '--detach', worktreePath, baseSha], originalRepoPath);
   }
 
-  // Validate worktree was created successfully (git throws on error)
-  await git(['status', '--porcelain'], worktreePath);
+  // Validate worktree was created successfully and is clean
+  const statusBefore = await git(['status', '--porcelain'], worktreePath);
+  if (statusBefore.stdout.trim().length > 0) {
+    throw new Error(`Newly created worktree is not clean:\n${statusBefore.stdout}`);
+  }
+
+  // Inject worktree-local ignores BEFORE creating symlinks / build artifacts
+  // This prevents env artifacts from showing as untracked noise
+  const gitdir = resolveWorktreeGitDir(worktreePath);
+  upsertInfoExclude(gitdir, [
+    'node_modules',
+    'node_modules/',
+  ]);
 
   // Symlink node_modules from original repo if present (for npm/pnpm projects)
   const originalNodeModules = path.join(originalRepoPath, 'node_modules');
   const worktreeNodeModules = path.join(worktreePath, 'node_modules');
   if (fs.existsSync(originalNodeModules) && !fs.existsSync(worktreeNodeModules)) {
     fs.symlinkSync(originalNodeModules, worktreeNodeModules, 'dir');
+  }
+
+  // Sanity check: worktree should still be clean after env setup
+  const statusAfter = await git(['status', '--porcelain'], worktreePath);
+  if (statusAfter.stdout.trim().length > 0) {
+    throw new Error(`Worktree became dirty after env setup:\n${statusAfter.stdout}`);
   }
 
   return {
