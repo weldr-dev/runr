@@ -531,7 +531,8 @@ export async function runCommand(options: RunOptions): Promise<void> {
       allowDeps: options.allowDeps,
       fast: options.fast,
       autoResume: options.autoResume,
-      forceParallel: options.forceParallel
+      forceParallel: options.forceParallel,
+      ownedPaths: ownsNormalized
     });
   }
 

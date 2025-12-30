@@ -24,7 +24,7 @@ import {
   reviewOutputSchema
 } from '../workers/schemas.js';
 import { parseJsonWithSchema } from '../workers/json.js';
-import { checkLockfiles, checkScope } from './scope-guard.js';
+import { checkLockfiles, checkScope, partitionChangedFiles } from './scope-guard.js';
 import { commandsForTier, selectTiersWithReasons } from './verification-policy.js';
 import { runVerification } from '../verification/engine.js';
 import { stopRun, updatePhase, prepareForResume } from './state-machine.js';
@@ -37,6 +37,67 @@ import {
   validateNoChangesEvidence,
   formatEvidenceErrors
 } from './evidence-gate.js';
+
+/**
+ * Check if changed files are within owned paths.
+ * Only enforced when ownedPaths is non-empty.
+ * Uses semantic_changed (post env partition) to avoid env noise.
+ */
+export interface OwnershipCheckResult {
+  ok: boolean;
+  owned_paths: string[];
+  semantic_changed: string[];
+  violating_files: string[];
+}
+
+export function checkOwnership(
+  changedFiles: string[],
+  ownedPaths: string[],
+  envAllowlist: string[]
+): OwnershipCheckResult {
+  // No enforcement if no ownership declared
+  if (ownedPaths.length === 0) {
+    return {
+      ok: true,
+      owned_paths: [],
+      semantic_changed: [],
+      violating_files: []
+    };
+  }
+
+  // Partition to get semantic changes (exclude env artifacts)
+  const { semantic_changed } = partitionChangedFiles(changedFiles, envAllowlist);
+
+  // No semantic changes = no violation
+  if (semantic_changed.length === 0) {
+    return {
+      ok: true,
+      owned_paths: ownedPaths,
+      semantic_changed: [],
+      violating_files: []
+    };
+  }
+
+  // Compile ownership matchers
+  const ownershipMatchers = ownedPaths.map((p) => picomatch(p));
+
+  // Check each semantic change against ownership
+  const violating_files: string[] = [];
+  for (const file of semantic_changed) {
+    const posixFile = file.split(path.sep).join('/');
+    const isOwned = ownershipMatchers.some((m) => m(posixFile));
+    if (!isOwned) {
+      violating_files.push(file);
+    }
+  }
+
+  return {
+    ok: violating_files.length === 0,
+    owned_paths: ownedPaths,
+    semantic_changed,
+    violating_files
+  };
+}
 
 /**
  * Stop reasons that are eligible for auto-resume.
@@ -159,6 +220,8 @@ export interface SupervisorOptions {
   autoResume?: boolean;
   /** Bypass file collision checks with active runs */
   forceParallel?: boolean;
+  /** Normalized ownership patterns from task frontmatter (Phase-2 enforcement) */
+  ownedPaths?: string[];
 }
 
 const DEFAULT_STOP_MEMO = [
@@ -1009,6 +1072,33 @@ async function handleImplement(state: RunState, options: SupervisorOptions): Pro
       }
     });
     return stopWithError(state, options, 'guard_violation', 'Guard violation detected.');
+  }
+
+  // Phase-2 ownership enforcement: only when owns is declared
+  if (options.ownedPaths && options.ownedPaths.length > 0) {
+    const ownershipCheck = checkOwnership(
+      changedFiles,
+      options.ownedPaths,
+      options.config.scope.env_allowlist ?? []
+    );
+
+    if (!ownershipCheck.ok) {
+      options.runStore.appendEvent({
+        type: 'ownership_violation',
+        source: 'supervisor',
+        payload: {
+          owned_paths: ownershipCheck.owned_paths,
+          semantic_changed: ownershipCheck.semantic_changed,
+          violating_files: ownershipCheck.violating_files
+        }
+      });
+      return stopWithError(
+        state,
+        options,
+        'ownership_violation',
+        `Task modified files outside declared ownership: ${ownershipCheck.violating_files.join(', ')}`
+      );
+    }
   }
 
   options.runStore.appendEvent({
