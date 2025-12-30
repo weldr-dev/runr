@@ -142,12 +142,13 @@ export async function createWorktree(
     throw new Error(`Newly created worktree is not clean:\n${statusBefore.stdout}`);
   }
 
-  // Inject worktree-local ignores BEFORE creating symlinks / build artifacts
-  // This prevents env artifacts from showing as untracked noise
-  const gitdir = resolveWorktreeGitDir(worktreePath);
-  upsertInfoExclude(gitdir, [
+  // Inject excludes into MAIN repo's .git/info/exclude (git only reads from there, not worktree gitdir)
+  // This prevents env artifacts like node_modules symlinks from showing as untracked
+  const mainGitDir = path.join(originalRepoPath, '.git');
+  upsertInfoExclude(mainGitDir, [
     'node_modules',
     'node_modules/',
+    '/node_modules',
   ]);
 
   // Symlink node_modules from original repo if present (for npm/pnpm projects)
@@ -239,9 +240,9 @@ export async function recreateWorktree(
 ): Promise<WorktreeRecreateResult> {
   // Check if worktree already exists and is valid
   if (await validateWorktree(info.effective_repo_path)) {
-    // Ensure excludes are present (upgrades old worktrees created before this fix)
-    const gitdir = resolveWorktreeGitDir(info.effective_repo_path);
-    upsertInfoExclude(gitdir, ['node_modules', 'node_modules/']);
+    // Ensure excludes are present in MAIN repo (upgrades old worktrees created before this fix)
+    const mainGitDir = path.join(info.original_repo_path, '.git');
+    upsertInfoExclude(mainGitDir, ['node_modules', 'node_modules/', '/node_modules']);
 
     // Verify branch matches if one was specified
     if (info.run_branch) {
