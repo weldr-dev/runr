@@ -1,0 +1,30 @@
+Git is set up. Here are your configs:
+
+  | Config                      | Use For       | Implementation Worker |
+  |-----------------------------|---------------|-----------------------|
+  | agent.config.json (default) | All tasks     | Claude                |
+  | agent.config.claude.json    | Simple tasks  | Claude                |
+  | agent.config.codex.json     | Complex tasks | Codex                 |
+
+  Run Task 1 (Scaffold - Simple)
+
+  cd /Users/vonwao/dev/marketing/word-game
+
+  # Use default config (Claude for all phases)
+  agent run --task .agent/tasks/01-scaffold.md --worktree
+
+  For Complex Tasks (03, 05)
+
+  # Use Codex for implementation
+  agent run --task .agent/tasks/03-game-engine.md --config .agent/agent.config.codex.json --worktree
+
+  Quick Reference
+
+  | Task           | Complexity   | Recommended Config      |
+  |----------------|--------------|-------------------------|
+  | 01-scaffold    | Light        | default (Claude)        |
+  | 02-data-models | Light-Medium | default (Claude)        |
+  | 03-game-engine | Heavy        | agent.config.codex.json |
+  | 04-websocket   | Medium       | default (Claude)        |
+  | 05-frontend-ui | Heavy        | agent.config.codex.json |
+  | 06-ai-players  | Medium       | default (Claude)        |
