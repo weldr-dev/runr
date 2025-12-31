@@ -13,8 +13,8 @@ Get Agent Framework running on your project in 5 minutes.
 Not yet published to npm. Install from source:
 
 ```bash
-git clone https://github.com/yourusername/agent-framework.git
-cd agent-framework
+git clone https://github.com/vonwao/agent-runner.git
+cd agent-runner
 npm install
 npm run build
 npm link

@@ -20,7 +20,7 @@ If you have access to `gh` CLI and can create issues:
 
 ```bash
 gh issue create \
-  --repo <owner>/agent-framework \
+  --repo vonwao/agent-runner \
   --title "[Agent Feedback] Brief description" \
   --body "$(cat <<'EOF'
 ## Context

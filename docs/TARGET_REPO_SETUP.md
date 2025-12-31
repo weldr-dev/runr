@@ -13,8 +13,8 @@ This guide explains how to set up and run the agent in any target repository.
 Not yet published to npm. Install from source:
 
 ```bash
-git clone https://github.com/yourusername/agent-framework.git
-cd agent-framework
+git clone https://github.com/vonwao/agent-runner.git
+cd agent-runner
 npm install
 npm run build
 npm link
