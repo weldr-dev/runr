@@ -4,7 +4,7 @@ import { loadConfig, resolveConfigPath } from '../config/load.js';
 import { RunStore } from '../store/run-store.js';
 import { getRunsRoot, getWorktreesRoot } from '../store/runs-root.js';
 import { git, gitOptional } from '../repo/git.js';
-import { createWorktree, WorktreeInfo } from '../repo/worktree.js';
+import { createWorktree, WorktreeInfo, ensureRepoInfoExclude } from '../repo/worktree.js';
 import { buildMilestonesFromTask } from '../supervisor/planner.js';
 import { createInitialState, stopRun, updatePhase } from '../supervisor/state-machine.js';
 import { runPreflight } from './preflight.js';
@@ -199,6 +199,15 @@ export async function runCommand(options: RunOptions): Promise<void> {
   const ownsRaw = taskMetadata.owns_raw;
   const ownsNormalized = taskMetadata.owns_normalized;
 
+  // Auto-inject git excludes for agent artifacts BEFORE any git status checks.
+  // This prevents .agent/ and .agent-worktrees/ from appearing as dirty on fresh repos.
+  ensureRepoInfoExclude(repoPath, [
+    '.agent',
+    '.agent/',
+    '.agent-worktrees',
+    '.agent-worktrees/',
+  ]);
+
   // Log effective configuration for transparency (skip in JSON mode)
   if (!options.json) {
     console.log(formatEffectiveConfig(options));
@@ -370,6 +379,49 @@ export async function runCommand(options: RunOptions): Promise<void> {
   });
 
   if (!preflight.guard.ok) {
+    // Build detailed guard diagnostics (always, not just when runStore exists)
+    const binaryLines = preflight.binary.results.map(r =>
+      r.ok
+        ? `- ${r.worker}: ${r.version}`
+        : `- ${r.worker}: FAIL - ${r.error}`
+    );
+    const pingLines = preflight.ping.skipped
+      ? ['- Skipped']
+      : preflight.ping.results.map(r =>
+          r.ok
+            ? `- ${r.worker}: OK (${r.ms}ms)`
+            : `- ${r.worker}: FAIL - ${r.category} (${r.message})`
+        );
+    const guardSummary = [
+      'Guard Failure Details:',
+      '',
+      'Reasons:',
+      preflight.guard.reasons.length
+        ? preflight.guard.reasons.map(r => `  - ${r}`).join('\n')
+        : '  - None',
+      '',
+      'Scope violations:',
+      preflight.guard.scope_violations.length
+        ? preflight.guard.scope_violations.map(f => `  - ${f}`).join('\n')
+        : '  - None',
+      '',
+      'Lockfile violations:',
+      preflight.guard.lockfile_violations.length
+        ? preflight.guard.lockfile_violations.map(f => `  - ${f}`).join('\n')
+        : '  - None',
+      '',
+      'Dirty files (env noise excluded):',
+      preflight.guard.dirty_files.length
+        ? preflight.guard.dirty_files.map(f => `  - ${f}`).join('\n')
+        : '  - None',
+      '',
+      'Binary checks:',
+      binaryLines.length ? binaryLines.join('\n') : '  - None',
+      '',
+      'Ping results:',
+      pingLines.map(l => `  ${l}`).join('\n')
+    ].join('\n');
+
     if (runStore) {
       let state = createInitialState({
         run_id: runId,
@@ -396,46 +448,17 @@ export async function runCommand(options: RunOptions): Promise<void> {
           ping: preflight.ping
         }
       });
-      const binaryLines = preflight.binary.results.map(r =>
-        r.ok
-          ? `- ${r.worker}: ${r.version}`
-          : `- ${r.worker}: FAIL - ${r.error}`
-      );
-      const pingLines = preflight.ping.skipped
-        ? ['- Skipped']
-        : preflight.ping.results.map(r =>
-            r.ok
-              ? `- ${r.worker}: OK (${r.ms}ms)`
-              : `- ${r.worker}: FAIL - ${r.category} (${r.message})`
-          );
-      const summary = [
+      // Write markdown summary to run store
+      const summaryMd = [
         '# Summary',
         '',
         'Run stopped due to guard violations.',
         '',
-        'Guard reasons:',
-        preflight.guard.reasons.length
-          ? `- ${preflight.guard.reasons.join('\n- ')}`
-          : '- None',
-        '',
-        'Scope violations:',
-        preflight.guard.scope_violations.length
-          ? `- ${preflight.guard.scope_violations.join('\n- ')}`
-          : '- None',
-        '',
-        'Lockfile violations:',
-        preflight.guard.lockfile_violations.length
-          ? `- ${preflight.guard.lockfile_violations.join('\n- ')}`
-          : '- None',
-        '',
-        'Binary checks:',
-        binaryLines.length ? binaryLines.join('\n') : '- None',
-        '',
-        'Ping results:',
-        ...pingLines
+        guardSummary
       ].join('\n');
-      runStore.writeSummary(summary);
+      runStore.writeSummary(summaryMd);
     }
+
     if (options.json) {
       const jsonOutput: RunJsonOutput = {
         run_id: runId,
@@ -447,7 +470,10 @@ export async function runCommand(options: RunOptions): Promise<void> {
       };
       console.log(JSON.stringify(jsonOutput));
     } else {
+      // Print detailed diagnostics to console (not just the one-liner)
       console.log(summaryLine);
+      console.log('');
+      console.log(guardSummary);
     }
     return;
   }

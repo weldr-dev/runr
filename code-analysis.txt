@@ -1,0 +1,125 @@
+Perfect — I unpacked `/src.zip` and read through the core modules. Here’s the **mental model of the project as it exists today**, so we can build on it without guesswork.
+
+## What this repo is (as implemented)
+
+A **reliability-first, CLI-driven agent runner** that executes a task against a repo using **phase gates**, **scope enforcement**, **verification tiers**, and **persistent run state** (timeline + artifacts) so runs are resumable and auditable.
+
+It also includes an **orchestrator** to run many tasks (“tracks”) in parallel with **collision-aware scheduling**.
+
+---
+
+## The big pieces
+
+### 1) CLI surface (`src/cli.ts` + `src/commands/*`)
+
+Key commands I saw wired up:
+
+* `agent run` / `agent resume` / `agent status` / `agent report` / `agent follow` / `agent wait`
+* `agent doctor` (preflight checks for worker binaries + ping)
+* `agent orchestrate` (multi-track parallel runner)
+* `agent gc`, `agent metrics`, `agent paths`, etc.
+
+### 2) Run persistence (`src/store/*`)
+
+A run gets a folder under the runs root with:
+
+* `state.json` (the canonical `RunState`)
+* `timeline.jsonl` (append-only events with sequence numbers)
+* config snapshot, fingerprint, and artifacts (like `task.md`, `plan.md`, summaries, etc.)
+
+This is the backbone that makes the system **observable + resumable**.
+
+### 3) Repo + worktrees (`src/repo/*`)
+
+* Git helpers + repo context utilities (changed files, etc.)
+* Optional worktree creation so each run can be isolated onto a branch/worktree (when enabled)
+
+### 4) Supervisor loop (the heart) (`src/supervisor/*`)
+
+`runSupervisorLoop()` runs a state machine over phases like:
+
+`INIT → PLAN → IMPLEMENT → VERIFY → REVIEW → CHECKPOINT → FINALIZE`
+(with `STOPPED/BLOCKED/ESCALATED` outcomes)
+
+Important reliability features I noticed:
+
+* **Scope guard**: allowlist/denylist enforcement on changed files
+* **Lockfile guard**: blocks dependency changes unless explicitly allowed
+* **Ownership enforcement**: “don’t touch outside declared ownership”
+* **Collision checks**: detects file-level collisions against other active runs
+* **Auto-resume** for a curated set of “transient infra” stop reasons (avoids budget treadmill / logic failures)
+* **Review loop detection** signals (e.g., fingerprints / review rounds)
+
+### 5) Planning + milestones (`src/workers/schemas.ts` + `src/supervisor/planner.ts`)
+
+There are *two* “planning” layers right now:
+
+* A simple fallback `buildMilestonesFromTask()` that generates a single milestone from the first non-empty line.
+* A real **PLAN worker** schema (`planOutputSchema`) that can return structured milestones (goal, expected files, done checks, risk level).
+
+### 6) Verification tiers (`src/supervisor/verification-policy.ts` + `src/verification/engine.ts`)
+
+* Policy selects `tier0/tier1/tier2` based on changed files + risk level + “end of milestone/run”
+* Verification executes shell commands (via `execa`) with time budgeting
+
+### 7) Workers (Claude/Codex) (`src/workers/*`)
+
+* Workers are implemented as **external CLI calls** (bin + args) piped a prompt
+* JSON extraction is done via `BEGIN_JSON/END_JSON` blocks (plus a fallback “whole output is JSON”)
+
+### 8) Parallel orchestration (`src/orchestrator/*` + `commands/orchestrate.ts`)
+
+This is already real:
+
+* Loads a tracks YAML
+* Schedules steps with ownership/collision policy
+* Advances tracks as runs complete
+
+That’s your “30 tasks in parallel” pathway.
+
+---
+
+## What’s already “strong” in the design
+
+* **RunStore + timeline.jsonl** gives you real auditability (most agent repos fake this).
+* **Hard gates** (scope, ownership, lockfiles, verification) make “reliability-first” concrete, not marketing.
+* **Auto-resume is scoped** (the right call): you avoid infinite retry loops on real logic failures.
+* **Orchestrator exists** (huge): most projects claim parallelism but don’t have collision-aware scheduling.
+
+---
+
+## Highest-leverage next steps (small code changes, big payoff)
+
+If we keep changes modest but meaningfully improve capability:
+
+1. **Unify milestone generation**
+
+   * Make PLAN always produce milestones (worker or deterministic parser), and reserve the “first line” fallback only if PLAN is skipped.
+   * Add a simple task format: headings or checkboxes → milestones.
+
+2. **Make “ownership” first-class in task metadata**
+
+   * You already write `task.meta.json` (raw + normalized). Tighten the contract: task must declare ownership, and orchestrate can schedule based on those claims deterministically.
+
+3. **Context pack: move from env var to config**
+
+   * Right now `CONTEXT_PACK=1` gates it. Turning it into config makes runs more reproducible and less “magic.”
+
+4. **Orchestrator UX**
+
+   * Add a helper command like `agent tracks init` to scaffold `tracks.yaml`.
+   * This makes “parallel tasks” dead simple to demo publicly.
+
+5. **Documentation that matches the code**
+
+   * One page: “Task format + ownership + phases + stop reasons”
+   * One page: “Verification tiers + how to customize commands”
+   * These docs will do more for adoption than new features.
+
+---
+
+If you tell me what you want to do next, I’ll drive it:
+
+* tighten the **task spec** (milestones + ownership) so runs are more deterministic, **or**
+* tighten **orchestrate** so 20–50 parallel tracks is a clean demo with minimal collisions, **or**
+* tighten **public-facing docs** so the repo reads like a serious tool.

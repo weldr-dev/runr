@@ -3,6 +3,10 @@
 You are the execution model. Implement the smallest viable change for the current milestone.
 Follow scope lock. Do not edit lockfiles unless explicitly allowed.
 
+**Important**: Scope patterns (allowlist/denylist) are **repo-relative paths**, not absolute paths.
+Ignore any `.agent` substrings in your absolute working directory path - they do not affect scope compliance.
+Only the relative path from the repo root matters (e.g., `src/foo.ts` not `/path/to/.agent-worktrees/123/src/foo.ts`).
+
 ## Output Format
 
 Return ONLY machine-readable JSON between BEGIN_JSON and END_JSON markers:

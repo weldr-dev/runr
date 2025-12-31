@@ -111,10 +111,15 @@ export async function runPreflight(
   );
 
   // Partition changed files into env artifacts vs semantic changes
-  // Env artifacts (node_modules, .next, etc.) are allowed noise
+  // Env artifacts (node_modules, .next, .agent, etc.) are allowed noise
+  // Built-in patterns ensure agent artifacts never trigger guard failures
+  const builtinEnvAllowlist = ['.agent/**', '.agent-worktrees/**'];
+  const effectiveEnvAllowlist = Array.from(
+    new Set([...(options.config.scope.env_allowlist ?? []), ...builtinEnvAllowlist])
+  );
   const { env_touched, semantic_changed } = partitionChangedFiles(
     repoContext.changed_files,
-    options.config.scope.env_allowlist ?? []
+    effectiveEnvAllowlist
   );
 
   const dirty_files = repoContext.changed_files;

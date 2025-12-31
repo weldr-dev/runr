@@ -39,6 +39,13 @@ Actions:
 
 ## Worktree issues
 
+### Worktree location
+Worktrees are now stored at `.agent-worktrees/<runId>/` (outside `.agent/`), not inside `.agent/worktrees/`.
+
+This prevents conflicts with denylist patterns like `.agent/**` that could cause workers to refuse operations.
+
+Override the location with `AGENT_WORKTREES_DIR` env var (absolute or relative to repo).
+
 ### "Worktree became dirty after env setup"
 This error occurs when `git status` shows untracked files after worktree creation.
 
@@ -61,6 +68,20 @@ Fix: Stagger worktree creation or clean up stale locks:
 rm .git/worktrees/*/index.lock
 git worktree prune
 ```
+
+## implement_blocked
+
+The worker (Claude/Codex) reported it cannot proceed. Check the `handoff_memo` in `state.json` or `stop.md` for details.
+
+Common causes:
+- **Task requires forbidden operations**: Task needs `npm install` but `node_modules` is in denylist
+- **Missing dependencies**: Required packages not installed in worktree
+- **Unclear requirements**: Task description is ambiguous
+
+Solutions:
+- For dependency issues: Run `npm install` in original repo before starting (worktree symlinks node_modules)
+- For scope conflicts: Adjust `denylist` patterns or use `--allow-deps` flag
+- For unclear tasks: Improve task file with specific requirements
 
 ## No events in report
 - `--no-write` disables the run store and supervisor loop.

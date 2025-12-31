@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Worktrees moved out of `.agent/`**: Worktrees now created at `.agent-worktrees/<runId>/` instead of `.agent/worktrees/<runId>/`
+  - Prevents catch-22 where denylist patterns like `.agent/**` blocked worker operations
+  - Workers no longer see `.agent` in their absolute CWD path
+  - Override location with `AGENT_WORKTREES_DIR` env var
+  - GC command updated to scan both new and legacy locations
+
+- **Auto-inject git excludes for agent artifacts**: `.agent/` and `.agent-worktrees/` now auto-added to `.git/info/exclude` at run start
+  - Fresh repos no longer need manual `.gitignore` entries for agent artifacts
+  - Prevents "dirty worktree" guard failures on first run
+
+- **Guard failure diagnostics**: Full guard failure details now printed to console (not just `guard=fail`)
+  - Shows exact reasons, scope violations, lockfile violations, dirty files
+  - Makes debugging guard failures actionable
+
+- **Built-in env_allowlist for agent artifacts**: `.agent/**` and `.agent-worktrees/**` now always treated as env noise
+  - Agent artifacts never trigger scope violations or dirty worktree errors
+  - Belt-and-suspenders with git exclude injection
+
 - **Worktree exclude injection**: Fixed `node_modules` symlinks appearing as untracked files in worktrees
   - Git only reads `.git/info/exclude` from the main repo, not worktree gitdirs
   - Now writes exclude patterns to main repo's `.git/info/exclude`
@@ -20,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixes review loops caused by reviewer expecting `npm test` but verifier only running `npm run build`
 
 ### Added
+
+- **Implementer prompt scope clarification**: Added note that scope patterns are repo-relative, not absolute paths
+  - Prevents worker confusion when CWD contains `.agent` substrings
 
 - **Task ownership enforcement (Phase-2)**: Tasks with `owns:` frontmatter now enforce ownership at IMPLEMENT time
   - Defensive normalization via shared `src/ownership/normalize.ts` module

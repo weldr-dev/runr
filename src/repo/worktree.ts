@@ -41,7 +41,7 @@ function resolveWorktreeGitDir(worktreePath: string): string {
 }
 
 /**
- * Add patterns to .git/info/exclude (worktree-local ignores).
+ * Add patterns to .git/info/exclude.
  * This prevents env artifacts like node_modules symlinks from showing as untracked.
  */
 function upsertInfoExclude(gitdir: string, patterns: string[]): void {
@@ -74,6 +74,25 @@ function upsertInfoExclude(gitdir: string, patterns: string[]): void {
   const addition = (needsNewline ? '\n' : '') + header + toAdd.map(p => `${p}\n`).join('');
 
   fs.writeFileSync(excludePath, existing + addition, 'utf8');
+}
+
+/**
+ * Ensure repository-level git excludes for agent artifacts.
+ * Call this at run start (before preflight) to prevent .agent/ and .agent-worktrees/
+ * from showing as dirty even on fresh repos without a .gitignore entry.
+ *
+ * This writes to the MAIN repo's .git/info/exclude (not tracked, no history pollution).
+ *
+ * @param repoRoot - The target repository root path
+ * @param patterns - Patterns to add (e.g., ['.agent', '.agent/', '.agent-worktrees'])
+ */
+export function ensureRepoInfoExclude(repoRoot: string, patterns: string[]): void {
+  const mainGitDir = path.join(repoRoot, '.git');
+  // Only proceed if this looks like a git repo
+  if (!fs.existsSync(mainGitDir) || !fs.statSync(mainGitDir).isDirectory()) {
+    return;
+  }
+  upsertInfoExclude(mainGitDir, patterns);
 }
 
 export interface WorktreeInfo {

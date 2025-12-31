@@ -81,22 +81,39 @@ function listRunIds(dirPath: string): string[] {
     .map(entry => entry.name);
 }
 
-function scanWorktrees(runsDir: string, worktreesDir: string): WorktreeInfo[] {
+/**
+ * Scan worktrees in all locations:
+ * - Current: .agent-worktrees/<runId>/
+ * - Legacy v1: .agent/runs/<runId>/worktree/
+ * - Legacy v2: .agent/worktrees/<runId>/ (pre-migration)
+ */
+function scanWorktrees(runsDir: string, worktreesDir: string, agentRoot: string): WorktreeInfo[] {
   const worktrees: WorktreeInfo[] = [];
   const now = new Date();
-  const runIds = new Set([...listRunIds(runsDir), ...listRunIds(worktreesDir)]);
+
+  // Legacy v2 location: .agent/worktrees/ (worktrees inside .agent before the fix)
+  const legacyWorktreesDir = path.join(agentRoot, 'worktrees');
+
+  const runIds = new Set([
+    ...listRunIds(runsDir),
+    ...listRunIds(worktreesDir),
+    ...listRunIds(legacyWorktreesDir)
+  ]);
 
   for (const runId of runIds) {
     const newPath = path.join(worktreesDir, runId);
-    const legacyPath = path.join(runsDir, runId, 'worktree');
+    const legacyV1Path = path.join(runsDir, runId, 'worktree');
+    const legacyV2Path = path.join(legacyWorktreesDir, runId);
 
     const candidates: Array<{ path: string; label: string }> = [];
     if (fs.existsSync(newPath)) {
       candidates.push({ path: newPath, label: runId });
     }
-    if (fs.existsSync(legacyPath)) {
-      const label = candidates.length > 0 ? `${runId} (legacy)` : `${runId} (legacy)`;
-      candidates.push({ path: legacyPath, label });
+    if (fs.existsSync(legacyV2Path) && legacyV2Path !== newPath) {
+      candidates.push({ path: legacyV2Path, label: `${runId} (legacy v2)` });
+    }
+    if (fs.existsSync(legacyV1Path)) {
+      candidates.push({ path: legacyV1Path, label: `${runId} (legacy v1)` });
     }
 
     for (const candidate of candidates) {
@@ -122,7 +139,7 @@ function scanWorktrees(runsDir: string, worktreesDir: string): WorktreeInfo[] {
 
 export async function gcCommand(options: GcOptions): Promise<void> {
   const paths = getAgentPaths(options.repo);
-  const worktrees = scanWorktrees(paths.runs_dir, paths.worktrees_dir);
+  const worktrees = scanWorktrees(paths.runs_dir, paths.worktrees_dir, paths.agent_root);
 
   // Calculate totals
   const totalRuns = worktrees.length;

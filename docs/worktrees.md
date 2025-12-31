@@ -6,10 +6,12 @@ Git worktrees provide isolated execution environments for agent runs, preventing
 
 When `--worktree` is enabled, the agent:
 
-1. Creates a git worktree at `.agent/worktrees/<run_id>/`
+1. Creates a git worktree at `.agent-worktrees/<run_id>/` (outside `.agent/`)
 2. Attaches it to a dedicated branch (`agent/<run_id>/<task_name>`)
 3. Symlinks `node_modules` from the original repo (if present)
 4. Executes all operations in the worktree
+
+**Note**: Worktrees are stored in `.agent-worktrees/` (a sibling of `.agent/`, not inside it). This prevents conflicts with denylist patterns like `.agent/**` that could cause workers to refuse operations or create git dirtiness issues. Override with `AGENT_WORKTREES_DIR` env var.
 
 ## Benefits
 
