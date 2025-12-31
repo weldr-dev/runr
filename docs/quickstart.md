@@ -111,7 +111,7 @@ All agent files live under `.agent/` in your project:
   runs/<run_id>/        # Run artifacts
     state.json          # Run state
     timeline.jsonl      # Event log
-    worktree/           # Isolated git worktree
+  worktrees/<run_id>/   # Isolated git worktree (if --worktree used)
 ```
 
 ## Next Steps

@@ -181,7 +181,7 @@ Context pack didn't show measurable improvement on this task (possibly too simpl
 
 ### 5.1 Disk Hygiene [COMPLETE]
 - [x] Add `gc` command to CLI: `agent-run gc [--dry-run] [--older-than <days>]`
-- [x] Delete old `runs/*/worktree` directories (never touch artifacts)
+- [x] Delete old `.agent/worktrees/*` directories (never touch artifacts)
 - [ ] Add `--prune-worktrees` flag to `run` command (clean before start) - *deferred*
 - [x] Print disk usage summary
 

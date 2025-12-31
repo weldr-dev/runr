@@ -11,6 +11,8 @@ export interface AgentPaths {
   agent_root: string;
   /** Directory for individual run artifacts */
   runs_dir: string;
+  /** Directory for worktree checkouts */
+  worktrees_dir: string;
   /** Directory for orchestration state and artifacts */
   orchestrations_dir: string;
 }
@@ -23,6 +25,7 @@ export interface AgentPaths {
  * ```
  * .agent/
  *   runs/<runId>/...
+ *   worktrees/<runId>/
  *   orchestrations/<orchId>/...
  * ```
  *
@@ -37,6 +40,7 @@ export function getAgentPaths(repoPath: string): AgentPaths {
     repo_root: repoRoot,
     agent_root: agentRoot,
     runs_dir: path.join(agentRoot, 'runs'),
+    worktrees_dir: path.join(agentRoot, 'worktrees'),
     orchestrations_dir: path.join(agentRoot, 'orchestrations')
   };
 }
@@ -47,6 +51,13 @@ export function getAgentPaths(repoPath: string): AgentPaths {
  */
 export function getRunsRoot(repoPath: string): string {
   return getAgentPaths(repoPath).runs_dir;
+}
+
+/**
+ * Get the worktrees root directory for a given repo path.
+ */
+export function getWorktreesRoot(repoPath: string): string {
+  return getAgentPaths(repoPath).worktrees_dir;
 }
 
 /**

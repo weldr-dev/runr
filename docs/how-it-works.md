@@ -125,7 +125,7 @@ The agent tracks review fingerprints. If the same `request_changes` feedback app
 With `--worktree`, each run operates in its own git worktree:
 
 ```
-.agent/runs/<run_id>/worktree/
+.agent/worktrees/<run_id>/
 ```
 
 This means:

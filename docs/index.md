@@ -8,6 +8,7 @@
 | **Config** | `.agent/agent.config.json` |
 | **Tasks** | `.agent/tasks/*.md` |
 | **Runs** | `.agent/runs/<run_id>/` |
+| **Worktrees** | `.agent/worktrees/<run_id>/` |
 | **Orchestrations** | `.agent/orchestrations/<orch_id>/` |
 
 > Some legacy docs may reference `agent.config.json` at repo root or `runs/` at repo root. The canonical public interface is `.agent/...`.

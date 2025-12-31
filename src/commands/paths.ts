@@ -27,6 +27,7 @@ export async function pathsCommand(options: PathsOptions): Promise<void> {
     console.log(`repo_root:          ${paths.repo_root}`);
     console.log(`agent_root:         ${paths.agent_root}`);
     console.log(`runs_dir:           ${paths.runs_dir}`);
+    console.log(`worktrees_dir:      ${paths.worktrees_dir}`);
     console.log(`orchestrations_dir: ${paths.orchestrations_dir}`);
   }
 

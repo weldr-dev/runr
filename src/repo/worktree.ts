@@ -89,7 +89,7 @@ export interface WorktreeInfo {
  * Create a git worktree for isolated run execution.
  *
  * @param originalRepoPath - The source repository path
- * @param worktreePath - Where to create the worktree (e.g., runs/<id>/worktree)
+ * @param worktreePath - Where to create the worktree (e.g., worktrees/<id>)
  * @param runBranch - Optional branch name to create/use
  * @returns WorktreeInfo with paths and base SHA
  */

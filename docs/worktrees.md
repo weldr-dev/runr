@@ -6,7 +6,7 @@ Git worktrees provide isolated execution environments for agent runs, preventing
 
 When `--worktree` is enabled, the agent:
 
-1. Creates a git worktree at `runs/<run_id>/worktree`
+1. Creates a git worktree at `.agent/worktrees/<run_id>/`
 2. Attaches it to a dedicated branch (`agent/<run_id>/<task_name>`)
 3. Symlinks `node_modules` from the original repo (if present)
 4. Executes all operations in the worktree
@@ -105,7 +105,7 @@ node dist/cli.js gc --older-than 0
 ```
 
 The gc command:
-- Only deletes `worktree/` directories inside run folders
+- Deletes `.agent/worktrees/<run_id>/` directories (and legacy `.agent/runs/<run_id>/worktree` if present)
 - Never touches artifacts, state, or timeline
 - Shows disk usage summary before/after
 

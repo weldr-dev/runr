@@ -197,10 +197,10 @@ agent run --task .agent/tasks/add-export.md --worktree --time 5
 cat src/greet.js  # Still the old version
 
 # The changes are in the worktree
-cat .agent/runs/*/worktree/src/greet.js  # New version
+cat .agent/worktrees/*/src/greet.js  # New version
 
 # Check the branch
-cd .agent/runs/*/worktree
+cd .agent/worktrees/*
 git log --oneline -3
 cd -
 ```
@@ -374,6 +374,9 @@ Check if it's waiting for a worker response. Workers can take a few minutes.
 ```bash
 # Delete a run's artifacts
 rm -rf .agent/runs/<run_id>
+
+# Delete the worktree (if used)
+rm -rf .agent/worktrees/<run_id>
 
 # Or clean all old runs
 agent gc --older-than 0

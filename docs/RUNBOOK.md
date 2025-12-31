@@ -113,7 +113,11 @@ agent resume <run_id> --force
 │   └── stop.md
 ├── artifacts/
 │   └── tests_*.log      # Verification logs
-└── worktree/            # (if --worktree used)
+```
+
+**Worktrees (when enabled):**
+```
+.agent/worktrees/<run_id>/
 ```
 
 ## Common Workflows
@@ -245,7 +249,7 @@ The worktree was deleted. Start a new run.
 
 ```bash
 # Check status
-cd .agent/runs/<run_id>/worktree
+cd .agent/worktrees/<run_id>
 git status
 
 # Option 1: Commit changes
@@ -258,7 +262,7 @@ git checkout -- . && git clean -fd
 #### "Cannot create worktree - already exists"
 
 ```bash
-git worktree remove --force .agent/runs/<old_run_id>/worktree
+git worktree remove --force .agent/worktrees/<old_run_id>
 git worktree prune
 ```
 

@@ -149,7 +149,8 @@ After running, your project will have:
     <run_id>/
       state.json        # Run state
       timeline.jsonl    # Event log
-      worktree/         # Git worktree (if --worktree used)
+  worktrees/
+    <run_id>/           # Git worktree (if --worktree used)
 ```
 
 ## Troubleshooting

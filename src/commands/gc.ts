@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { getRunsRoot } from '../store/runs-root.js';
+import { getAgentPaths } from '../store/runs-root.js';
 
 export interface GcOptions {
   dryRun: boolean;
@@ -8,10 +8,10 @@ export interface GcOptions {
   repo: string;
 }
 
-interface RunInfo {
+interface WorktreeInfo {
   runId: string;
-  runPath: string;
-  worktreePath: string | null;
+  label: string;
+  worktreePath: string;
   worktreeSize: number;
   worktreeModified: Date | null;
   ageDays: number | null;
@@ -69,80 +69,84 @@ function rmDir(dirPath: string): void {
 }
 
 /**
- * Scan all runs and gather worktree info
+ * Scan worktrees (current and legacy) and gather usage info
  */
-function scanRuns(runsDir: string): RunInfo[] {
-  const runs: RunInfo[] = [];
-  const now = new Date();
-
-  if (!fs.existsSync(runsDir)) {
-    return runs;
+function listRunIds(dirPath: string): string[] {
+  if (!fs.existsSync(dirPath)) {
+    return [];
   }
 
-  const entries = fs.readdirSync(runsDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+  return fs.readdirSync(dirPath, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && /^\d{14}$/.test(entry.name))
+    .map(entry => entry.name);
+}
 
-    // Skip non-run directories (run IDs are timestamps like 20251225171118)
-    if (!/^\d{14}$/.test(entry.name)) continue;
+function scanWorktrees(runsDir: string, worktreesDir: string): WorktreeInfo[] {
+  const worktrees: WorktreeInfo[] = [];
+  const now = new Date();
+  const runIds = new Set([...listRunIds(runsDir), ...listRunIds(worktreesDir)]);
 
-    const runPath = path.join(runsDir, entry.name);
-    const worktreePath = path.join(runPath, 'worktree');
+  for (const runId of runIds) {
+    const newPath = path.join(worktreesDir, runId);
+    const legacyPath = path.join(runsDir, runId, 'worktree');
 
-    let worktreeSize = 0;
-    let worktreeModified: Date | null = null;
-    let ageDays: number | null = null;
-
-    if (fs.existsSync(worktreePath)) {
-      worktreeSize = getDirSize(worktreePath);
-      worktreeModified = getDirModTime(worktreePath);
-      if (worktreeModified) {
-        ageDays = Math.floor((now.getTime() - worktreeModified.getTime()) / (1000 * 60 * 60 * 24));
-      }
+    const candidates: Array<{ path: string; label: string }> = [];
+    if (fs.existsSync(newPath)) {
+      candidates.push({ path: newPath, label: runId });
+    }
+    if (fs.existsSync(legacyPath)) {
+      const label = candidates.length > 0 ? `${runId} (legacy)` : `${runId} (legacy)`;
+      candidates.push({ path: legacyPath, label });
     }
 
-    runs.push({
-      runId: entry.name,
-      runPath,
-      worktreePath: fs.existsSync(worktreePath) ? worktreePath : null,
-      worktreeSize,
-      worktreeModified,
-      ageDays
-    });
+    for (const candidate of candidates) {
+      const worktreeSize = getDirSize(candidate.path);
+      const worktreeModified = getDirModTime(candidate.path);
+      const ageDays = worktreeModified
+        ? Math.floor((now.getTime() - worktreeModified.getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+
+      worktrees.push({
+        runId,
+        label: candidate.label,
+        worktreePath: candidate.path,
+        worktreeSize,
+        worktreeModified,
+        ageDays
+      });
+    }
   }
 
-  return runs.sort((a, b) => a.runId.localeCompare(b.runId));
+  return worktrees.sort((a, b) => a.runId.localeCompare(b.runId));
 }
 
 export async function gcCommand(options: GcOptions): Promise<void> {
-  const runsDir = getRunsRoot(options.repo);
-  const runs = scanRuns(runsDir);
+  const paths = getAgentPaths(options.repo);
+  const worktrees = scanWorktrees(paths.runs_dir, paths.worktrees_dir);
 
   // Calculate totals
-  const totalRuns = runs.length;
-  const runsWithWorktree = runs.filter(r => r.worktreePath !== null);
-  const totalWorktreeSize = runsWithWorktree.reduce((sum, r) => sum + r.worktreeSize, 0);
+  const totalRuns = worktrees.length;
+  const totalWorktreeSize = worktrees.reduce((sum, r) => sum + r.worktreeSize, 0);
 
   // Find runs eligible for cleanup
-  const eligibleForCleanup = runsWithWorktree.filter(r =>
+  const eligibleForCleanup = worktrees.filter(r =>
     r.ageDays !== null && r.ageDays >= options.olderThan
   );
   const cleanupSize = eligibleForCleanup.reduce((sum, r) => sum + r.worktreeSize, 0);
 
   console.log('=== Disk Usage Summary ===\n');
-  console.log(`Total runs: ${totalRuns}`);
-  console.log(`Runs with worktree: ${runsWithWorktree.length}`);
+  console.log(`Total worktrees: ${totalRuns}`);
   console.log(`Total worktree size: ${formatSize(totalWorktreeSize)}`);
   console.log('');
 
-  if (runsWithWorktree.length > 0) {
+  if (worktrees.length > 0) {
     console.log('=== Worktree Details ===\n');
-    console.log('| Run ID         | Age (days) | Size     |');
-    console.log('|----------------|------------|----------|');
-    for (const run of runsWithWorktree) {
+    console.log('| Worktree        | Age (days) | Size     |');
+    console.log('|-----------------|------------|----------|');
+    for (const run of worktrees) {
       const age = run.ageDays !== null ? String(run.ageDays).padStart(10) : '       N/A';
       const size = formatSize(run.worktreeSize).padStart(8);
-      console.log(`| ${run.runId} | ${age} | ${size} |`);
+      console.log(`| ${run.label} | ${age} | ${size} |`);
     }
     console.log('');
   }
@@ -157,10 +161,10 @@ export async function gcCommand(options: GcOptions): Promise<void> {
   console.log(`Total size to reclaim: ${formatSize(cleanupSize)}\n`);
 
   for (const run of eligibleForCleanup) {
-    const msg = `${options.dryRun ? '[DRY RUN] Would delete' : 'Deleting'}: ${run.runId}/worktree (${formatSize(run.worktreeSize)}, ${run.ageDays}d old)`;
+    const msg = `${options.dryRun ? '[DRY RUN] Would delete' : 'Deleting'}: ${run.label} (${formatSize(run.worktreeSize)}, ${run.ageDays}d old)`;
     console.log(msg);
 
-    if (!options.dryRun && run.worktreePath) {
+    if (!options.dryRun) {
       rmDir(run.worktreePath);
     }
   }
