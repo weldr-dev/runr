@@ -36,9 +36,11 @@ The agent framework orchestrates AI-powered coding sessions by:
 
 - **Scope Guards**: Prevent modifications outside allowed file patterns
 - **Collision Detection**: Serialize runs that would touch the same files
+- **Task Ownership**: Declare file ownership in task frontmatter for safe parallel execution
 - **Review Loop Detection**: Stop when reviewer feedback becomes repetitive
 - **Auto-Resume**: Recover from transient failures automatically
 - **Worktree Isolation**: Each run operates in its own git worktree
+- **Tiered Verification**: Fast checks on every milestone, comprehensive tests at run end
 - **Scope Presets**: Common patterns for popular frameworks (nextjs, vitest, drizzle, etc.)
 
 ## Quick Start
@@ -141,6 +143,23 @@ Add login/logout functionality to the application.
 - Unauthorized users redirected to login
 ```
 
+### Task Ownership (for parallel runs)
+
+For parallel execution, declare which files a task owns:
+
+```markdown
+---
+owns:
+  - src/auth/
+  - tests/auth/
+---
+
+# Feature: User Authentication
+...
+```
+
+See [docs/tasks-and-templates.md](docs/tasks-and-templates.md) for details.
+
 ## Stop Reasons
 
 When a run stops, check the stop reason in `state.json`:
@@ -149,6 +168,8 @@ When a run stops, check the stop reason in `state.json`:
 |--------|-------------|
 | `complete` | Task finished successfully |
 | `review_loop_detected` | Reviewer kept requesting same changes |
+| `guard_violation` | Changed files outside scope allowlist |
+| `ownership_violation` | Task modified files outside declared `owns:` paths |
 | `plan_scope_violation` | Planner proposed files outside allowlist |
 | `time_budget_exceeded` | Ran out of time |
 | `verification_failed_max_retries` | Tests/lint failed too many times |
