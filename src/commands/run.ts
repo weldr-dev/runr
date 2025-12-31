@@ -151,6 +151,50 @@ function formatPathsSummary(
   return `Paths: ${parts.join(' | ')}`;
 }
 
+/**
+ * Check for legacy worktree locations and print a warning if found.
+ * Legacy paths:
+ *   - v2: .agent/worktrees/<runId>/
+ *   - v1: .agent/runs/<runId>/worktree/
+ */
+function checkLegacyWorktrees(repoPath: string): void {
+  const legacyPaths: string[] = [];
+
+  // Legacy v2: .agent/worktrees/
+  const legacyV2 = path.join(repoPath, '.agent', 'worktrees');
+  if (fs.existsSync(legacyV2) && fs.statSync(legacyV2).isDirectory()) {
+    const entries = fs.readdirSync(legacyV2);
+    if (entries.length > 0) {
+      legacyPaths.push(legacyV2);
+    }
+  }
+
+  // Legacy v1: .agent/runs/<runId>/worktree/
+  const runsDir = path.join(repoPath, '.agent', 'runs');
+  if (fs.existsSync(runsDir) && fs.statSync(runsDir).isDirectory()) {
+    const runDirs = fs.readdirSync(runsDir);
+    for (const runId of runDirs) {
+      const worktreePath = path.join(runsDir, runId, 'worktree');
+      if (fs.existsSync(worktreePath) && fs.statSync(worktreePath).isDirectory()) {
+        legacyPaths.push(worktreePath);
+        break; // One example is enough
+      }
+    }
+  }
+
+  if (legacyPaths.length > 0) {
+    console.warn('');
+    console.warn('⚠️  Legacy worktree layout detected:');
+    for (const p of legacyPaths) {
+      console.warn(`   ${p}`);
+    }
+    console.warn('');
+    console.warn('   This version uses `.agent-worktrees/` instead.');
+    console.warn('   Run `agent gc` to clean up old worktrees, or delete them manually.');
+    console.warn('');
+  }
+}
+
 function basePathFromAllowlist(pattern: string, repoPath: string): string | null {
   const globIndex = pattern.search(/[*?[\]]/);
   const withoutGlob = globIndex === -1 ? pattern : pattern.slice(0, globIndex);
@@ -233,6 +277,11 @@ export async function runCommand(options: RunOptions): Promise<void> {
     '.agent-worktrees',
     '.agent-worktrees/',
   ]);
+
+  // Warn about legacy worktree locations (helps users clean up after upgrade)
+  if (!options.json) {
+    checkLegacyWorktrees(repoPath);
+  }
 
   // Log effective configuration and paths for transparency (skip in JSON mode)
   if (!options.json) {

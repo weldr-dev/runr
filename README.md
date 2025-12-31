@@ -2,7 +2,7 @@
 
 A reliability-first agent runner for real codebases, focused on resumability, guardrails, and measurable outcomes.
 
-> **Status**: v0.2.1 is the first public release. Early, opinionated, evolving. The project went through heavy iteration prior to this version — that history is preserved as evidence of real-world refinement, not hidden. See [CHANGELOG.md](CHANGELOG.md) for release notes.
+> **Status**: v0.2.2 is the current release. Early, opinionated, evolving. The project went through heavy iteration prior to this version — that history is preserved as evidence of real-world refinement, not hidden. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Why This Exists
 
@@ -39,7 +39,7 @@ The agent framework orchestrates AI-powered coding sessions by:
 - **Task Ownership**: Declare file ownership in task frontmatter for safe parallel execution
 - **Review Loop Detection**: Stop when reviewer feedback becomes repetitive
 - **Auto-Resume**: Recover from transient failures automatically
-- **Worktree Isolation**: Each run operates in its own git worktree
+- **Worktree Isolation**: Each run operates in its own git worktree (see [Worktrees](#worktrees))
 - **Tiered Verification**: Fast checks on every milestone, comprehensive tests at run end
 - **Scope Presets**: Common patterns for popular frameworks (nextjs, vitest, drizzle, etc.)
 
@@ -122,6 +122,25 @@ Available presets: `nextjs`, `react`, `drizzle`, `prisma`, `vitest`, `jest`, `pl
 
 See [docs/cli.md](docs/cli.md) for all commands and flags.
 
+## Worktrees
+
+When using `--worktree`, runs execute in isolated git worktrees:
+
+- **Location**: `.agent-worktrees/<run_id>/` (outside `.agent/` to avoid denylist conflicts)
+- **Override**: Set `AGENT_WORKTREES_DIR` env var for custom location
+- **Git excludes**: Runner auto-injects `.agent*` patterns into `.git/info/exclude`
+- **Cleanup**: Use `agent gc` to remove old worktrees
+
+```bash
+# Run with worktree isolation (recommended)
+agent run --task .agent/tasks/my-task.md --worktree
+
+# Clean up old worktrees
+agent gc --older-than 7
+```
+
+See [docs/worktrees.md](docs/worktrees.md) for details.
+
 ## Task Files
 
 Tasks are markdown files describing what to build:
@@ -192,6 +211,7 @@ npm run dev -- run tasks/test.md
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| v0.2.2 | 2025-12-31 | Worktree location fix, guard diagnostics, tier escalation fix |
 | v0.2.1 | 2025-12-29 | Scope presets, review digest, OSS packaging |
 | v0.2.0 | 2025-12-28 | Review loop detection, ESM fix |
 | v0.1.0 | 2025-12-27 | Initial stable release |

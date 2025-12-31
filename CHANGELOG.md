@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2025-12-31
+
+Reliability release: fixes the worktree/denylist catch-22 that caused `implement_blocked` failures.
+
 ### Fixed
 
 - **Worktrees moved out of `.agent/`**: Worktrees now created at `.agent-worktrees/<runId>/` instead of `.agent/worktrees/<runId>/`
@@ -39,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Legacy worktree warning**: Warns on startup if old worktree locations are detected
+  - Helps users clean up after upgrade
+  - Points to `agent gc` for cleanup
+
 - **Implementer prompt scope clarification**: Added note that scope patterns are repo-relative, not absolute paths
   - Prevents worker confusion when CWD contains `.agent` substrings
 
@@ -46,6 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Defensive normalization via shared `src/ownership/normalize.ts` module
   - Renames count as touching both old and new paths (conservative rule)
   - `ownership_violation` stop reason with actionable error message
+
+### Testing
+
+- **Acceptance tests for worktree fixes**: 9 tests covering auto-exclude, worktree location, and guard diagnostics
+  - Run with `npx vitest run test/acceptance/worktree-fixes.test.ts`
 
 ## [0.2.1] - 2025-12-29
 
@@ -161,7 +174,8 @@ Initial stable release with full dual-LLM orchestration and autonomy features.
 - Worktree strategy documentation
 - CLI reference
 
-[Unreleased]: https://github.com/user/agent-runner/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/user/agent-runner/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/user/agent-runner/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/user/agent-runner/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/user/agent-runner/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/user/agent-runner/releases/tag/v0.1.0
