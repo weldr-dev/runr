@@ -6,8 +6,23 @@ export function resolveConfigPath(repoPath: string, configPath?: string): string
   if (configPath) {
     return path.resolve(configPath);
   }
-  // Default: look for config in .agent/ directory
-  return path.resolve(repoPath, '.agent', 'agent.config.json');
+
+  // Check new location first: .runr/runr.config.json
+  const newConfigPath = path.resolve(repoPath, '.runr', 'runr.config.json');
+  if (fs.existsSync(newConfigPath)) {
+    return newConfigPath;
+  }
+
+  // Fall back to old location: .agent/agent.config.json
+  const oldConfigPath = path.resolve(repoPath, '.agent', 'agent.config.json');
+  if (fs.existsSync(oldConfigPath)) {
+    console.warn('\x1b[33m⚠ Deprecation: .agent/agent.config.json is deprecated.\x1b[0m');
+    console.warn('\x1b[33m  Move to: .runr/runr.config.json\x1b[0m\n');
+    return oldConfigPath;
+  }
+
+  // Default to new path (will error if not found)
+  return newConfigPath;
 }
 
 /**

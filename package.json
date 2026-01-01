@@ -1,8 +1,10 @@
 {
-  "name": "agent-runner",
-  "version": "0.2.2",
+  "name": "@weldr/runr",
+  "version": "0.3.0",
+  "description": "Phase-gated orchestration for agent tasks",
   "type": "module",
   "bin": {
+    "runr": "dist/cli.js",
     "agent": "dist/cli.js"
   },
   "scripts": {

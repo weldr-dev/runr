@@ -73,15 +73,16 @@ function copyDirRecursive(src: string, dest: string): void {
 }
 
 /**
- * Get agent paths via CLI (canonical source of truth).
+ * Get runr paths via CLI (canonical source of truth).
  */
-export async function getAgentPathsViaCLI(repoPath: string): Promise<{
+export async function getRunrPathsViaCLI(repoPath: string): Promise<{
   repo_root: string;
-  agent_root: string;
+  runr_root: string;
   runs_dir: string;
   orchestrations_dir: string;
+  using_legacy: boolean;
 } | null> {
-  const result = await runCommand('npx', ['agent', 'paths', '--json'], {
+  const result = await runCommand('npx', ['runr', 'paths', '--json'], {
     cwd: repoPath,
     timeout: 10000
   });
@@ -97,27 +98,40 @@ export async function getAgentPathsViaCLI(repoPath: string): Promise<{
   }
 }
 
+/** @deprecated Use getRunrPathsViaCLI instead */
+export const getAgentPathsViaCLI = getRunrPathsViaCLI;
+
 /**
  * Read the latest orchestration ID from a test repo.
- * Checks both new path (.agent/orchestrations/) and legacy path (.agent/runs/orchestrations/).
+ * Checks both new path (.runr/orchestrations/ or .agent/orchestrations/) and legacy path.
  */
 export function getLatestOrchestrationId(repoPath: string): string | null {
   const ids: string[] = [];
 
-  // Check new canonical path: .agent/orchestrations/
-  const newOrchDir = path.join(repoPath, '.agent', 'orchestrations');
-  if (fs.existsSync(newOrchDir)) {
-    for (const e of fs.readdirSync(newOrchDir, { withFileTypes: true })) {
+  // Check new canonical path: .runr/orchestrations/
+  const newRunrOrchDir = path.join(repoPath, '.runr', 'orchestrations');
+  if (fs.existsSync(newRunrOrchDir)) {
+    for (const e of fs.readdirSync(newRunrOrchDir, { withFileTypes: true })) {
       if (e.isDirectory() && e.name.startsWith('orch')) {
         ids.push(e.name);
       }
     }
   }
 
-  // Check legacy path: .agent/runs/orchestrations/
-  const legacyOrchDir = path.join(repoPath, '.agent', 'runs', 'orchestrations');
+  // Check legacy path: .agent/orchestrations/
+  const legacyOrchDir = path.join(repoPath, '.agent', 'orchestrations');
   if (fs.existsSync(legacyOrchDir)) {
     for (const e of fs.readdirSync(legacyOrchDir, { withFileTypes: true })) {
+      if (e.isDirectory() && e.name.startsWith('orch') && !ids.includes(e.name)) {
+        ids.push(e.name);
+      }
+    }
+  }
+
+  // Check very old legacy path: .agent/runs/orchestrations/
+  const veryOldLegacyOrchDir = path.join(repoPath, '.agent', 'runs', 'orchestrations');
+  if (fs.existsSync(veryOldLegacyOrchDir)) {
+    for (const e of fs.readdirSync(veryOldLegacyOrchDir, { withFileTypes: true })) {
       if (e.isDirectory() && e.name.startsWith('orch') && !ids.includes(e.name)) {
         ids.push(e.name);
       }
@@ -134,24 +148,34 @@ export function getLatestOrchestrationId(repoPath: string): string | null {
 
 /**
  * Read orchestration state from a test repo.
- * Checks both new and legacy paths.
+ * Checks new (.runr/) and legacy (.agent/) paths.
  */
 export function readOrchestrationState(repoPath: string, orchId: string): unknown | null {
-  // Try new canonical path first
-  const newStatePath = path.join(repoPath, '.agent', 'orchestrations', orchId, 'state.json');
-  if (fs.existsSync(newStatePath)) {
+  // Try new canonical path first: .runr/orchestrations/
+  const newRunrStatePath = path.join(repoPath, '.runr', 'orchestrations', orchId, 'state.json');
+  if (fs.existsSync(newRunrStatePath)) {
     try {
-      return JSON.parse(fs.readFileSync(newStatePath, 'utf-8'));
+      return JSON.parse(fs.readFileSync(newRunrStatePath, 'utf-8'));
     } catch {
       return null;
     }
   }
 
-  // Fall back to legacy path
-  const legacyStatePath = path.join(repoPath, '.agent', 'runs', 'orchestrations', orchId, 'state.json');
+  // Try legacy path: .agent/orchestrations/
+  const legacyStatePath = path.join(repoPath, '.agent', 'orchestrations', orchId, 'state.json');
   if (fs.existsSync(legacyStatePath)) {
     try {
       return JSON.parse(fs.readFileSync(legacyStatePath, 'utf-8'));
+    } catch {
+      return null;
+    }
+  }
+
+  // Fall back to very old legacy path: .agent/runs/orchestrations/
+  const veryOldLegacyStatePath = path.join(repoPath, '.agent', 'runs', 'orchestrations', orchId, 'state.json');
+  if (fs.existsSync(veryOldLegacyStatePath)) {
+    try {
+      return JSON.parse(fs.readFileSync(veryOldLegacyStatePath, 'utf-8'));
     } catch {
       return null;
     }

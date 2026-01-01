@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-01
+
+**Renamed to Runr.** New identity, same reliability-first mission.
+
+### Changed
+
+- **Package renamed**: `agent-runner` → `@weldr/runr`
+- **CLI renamed**: `agent` → `runr`
+- **Directory renamed**: `.agent/` → `.runr/` (old location still works with deprecation warning)
+- **Config renamed**: `agent.config.json` → `runr.config.json` (old name still works)
+- **Worktrees renamed**: `.agent-worktrees/` → `.runr-worktrees/`
+- **Env var renamed**: `AGENT_WORKTREES_DIR` → `RUNR_WORKTREES_DIR` (old var still works)
+
+### Added
+
+- **Fun CLI aliases**: `summon` (run), `resurrect` (resume), `scry` (status), `banish` (gc)
+- **Deprecation warnings**: Clear messages when using old paths/names
+- **Backwards compatibility**: Old locations and names work during transition period
+
+### Migration
+
+Both old and new paths are supported. To migrate:
+
+1. Rename `.agent/` to `.runr/`
+2. Rename `agent.config.json` to `runr.config.json`
+3. Use `runr` instead of `agent` CLI
+
 ### Fixed
 
 - **Guard violation diagnostics**: `stop.md` now includes specific files that caused the violation
@@ -181,8 +208,9 @@ Initial stable release with full dual-LLM orchestration and autonomy features.
 - Worktree strategy documentation
 - CLI reference
 
-[Unreleased]: https://github.com/vonwao/agent-runner/compare/v0.2.2...HEAD
-[0.2.2]: https://github.com/vonwao/agent-runner/compare/v0.2.1...v0.2.2
-[0.2.1]: https://github.com/vonwao/agent-runner/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/vonwao/agent-runner/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/vonwao/agent-runner/releases/tag/v0.1.0
+[Unreleased]: https://github.com/vonwao/runr/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/vonwao/runr/compare/v0.2.2...v0.3.0
+[0.2.2]: https://github.com/vonwao/runr/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/vonwao/runr/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/vonwao/runr/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/vonwao/runr/releases/tag/v0.1.0

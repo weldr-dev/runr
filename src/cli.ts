@@ -19,16 +19,22 @@ import { CollisionPolicy } from './orchestrator/types.js';
 
 const program = new Command();
 
+// Check if invoked as deprecated 'agent' command
+const invokedAs = process.argv[1]?.split('/').pop() || 'runr';
+if (invokedAs === 'agent') {
+  console.warn('\x1b[33m⚠ Deprecation: The "agent" command is deprecated. Use "runr" instead.\x1b[0m\n');
+}
+
 program
-  .name('agent')
-  .description('Dual-LLM coding orchestrator');
+  .name('runr')
+  .description('Phase-gated orchestration for agent tasks');
 
 program
   .command('run')
   .option('--repo <path>', 'Target repo path (default: current directory)', '.')
   .requiredOption('--task <path>', 'Task brief file')
   .option('--time <minutes>', 'Time budget in minutes', '120')
-  .option('--config <path>', 'Path to agent.config.json')
+  .option('--config <path>', 'Path to runr.config.json (or agent.config.json)')
   .option('--allow-deps', 'Allow lockfile changes', false)
   .option('--allow-dirty', 'Allow dirty worktree', false)
   .option('--no-branch', 'Do not checkout run branch')
@@ -72,7 +78,7 @@ program
   .command('guards-only')
   .option('--repo <path>', 'Target repo path (default: current directory)', '.')
   .requiredOption('--task <path>', 'Task brief file')
-  .option('--config <path>', 'Path to agent.config.json')
+  .option('--config <path>', 'Path to runr.config.json (or agent.config.json)')
   .option('--allow-deps', 'Allow lockfile changes', false)
   .option('--allow-dirty', 'Allow dirty worktree', false)
   .option('--no-write', 'Do not write run artifacts')
@@ -95,7 +101,7 @@ program
   .option('--time <minutes>', 'Time budget in minutes', '120')
   .option('--max-ticks <count>', 'Max supervisor ticks (default: 50)', '50')
   .option('--allow-deps', 'Allow lockfile changes', false)
-  .option('--config <path>', 'Path to agent.config.json')
+  .option('--config <path>', 'Path to runr.config.json (or agent.config.json)')
   .option('--force', 'Resume despite env fingerprint mismatch', false)
   .option('--auto-resume', 'Continue auto-resuming on transient failures', false)
   .action(async (runId: string, options) => {
@@ -183,7 +189,7 @@ program
   .command('doctor')
   .description('Check worker CLI availability and headless mode')
   .option('--repo <path>', 'Target repo path', '.')
-  .option('--config <path>', 'Path to agent.config.json')
+  .option('--config <path>', 'Path to runr.config.json (or agent.config.json)')
   .action(async (options) => {
     await doctorCommand({
       repo: options.repo,
@@ -193,7 +199,7 @@ program
 
 program
   .command('paths')
-  .description('Display canonical agent directory paths (for scripts and tooling)')
+  .description('Display canonical runr directory paths (for scripts and tooling)')
   .option('--repo <path>', 'Target repo path', '.')
   .option('--json', 'Output JSON (default: true)', true)
   .option('--no-json', 'Output human-readable table')
@@ -385,6 +391,99 @@ orchestrateCmd
       for: options.for as 'terminal' | 'stop' | 'complete',
       timeout: options.timeout ? Number.parseInt(options.timeout, 10) : undefined,
       json: options.json
+    });
+  });
+
+// ==========================================
+// Edgy aliases (same commands, different vibe)
+// ==========================================
+
+// summon → run
+program
+  .command('summon')
+  .description('Summon a worker to execute a task (alias for "run")')
+  .option('--repo <path>', 'Target repo path', '.')
+  .requiredOption('--task <path>', 'Task brief file')
+  .option('--time <minutes>', 'Time budget in minutes', '120')
+  .option('--config <path>', 'Path to runr.config.json')
+  .option('--worktree', 'Create isolated git worktree', false)
+  .option('--fast', 'Skip PLAN and REVIEW phases', false)
+  .option('--auto-resume', 'Auto-resume on transient failures', false)
+  .option('--json', 'Output JSON', false)
+  .action(async (options) => {
+    await runCommand({
+      repo: options.repo,
+      task: options.task,
+      time: Number.parseInt(options.time, 10),
+      config: options.config,
+      allowDeps: false,
+      allowDirty: false,
+      web: false,
+      dryRun: false,
+      noBranch: false,
+      noWrite: false,
+      maxTicks: 50,
+      skipDoctor: false,
+      freshTarget: false,
+      worktree: options.worktree,
+      fast: options.fast,
+      autoResume: options.autoResume,
+      forceParallel: false,
+      json: options.json
+    });
+  });
+
+// resurrect → resume
+program
+  .command('resurrect')
+  .description('Resurrect a stopped run from checkpoint (alias for "resume")')
+  .argument('<runId>', 'Run ID')
+  .option('--repo <path>', 'Target repo path', '.')
+  .option('--time <minutes>', 'Time budget in minutes', '120')
+  .option('--force', 'Resume despite env mismatch', false)
+  .action(async (runId: string, options) => {
+    await resumeCommand({
+      runId,
+      repo: options.repo,
+      time: Number.parseInt(options.time, 10),
+      maxTicks: 50,
+      allowDeps: false,
+      config: options.config,
+      force: options.force,
+      autoResume: false
+    });
+  });
+
+// scry → status
+program
+  .command('scry')
+  .description('Scry the fate of a run (alias for "status")')
+  .argument('[runId]', 'Run ID')
+  .option('--repo <path>', 'Target repo path', '.')
+  .option('--all', 'Show all runs', false)
+  .action(async (runId: string | undefined, options) => {
+    if (options.all) {
+      await statusAllCommand({ repo: options.repo });
+    } else if (runId) {
+      await statusCommand({ runId, repo: options.repo });
+    } else {
+      console.error('Error: Run ID required unless using --all');
+      process.exit(1);
+    }
+  });
+
+// banish → gc
+program
+  .command('banish')
+  .description('Banish old worktrees to the void (alias for "gc")')
+  .option('--repo <path>', 'Target repo path', '.')
+  .option('--dry-run', 'Preview without deleting', false)
+  .option('--older-than <days>', 'Only banish worktrees older than N days', '7')
+  .action(async (options) => {
+    await gcCommand({
+      repo: options.repo,
+      dryRun: options.dryRun,
+      olderThan: Number.parseInt(options.olderThan, 10)
     });
   });
 

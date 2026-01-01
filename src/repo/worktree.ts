@@ -67,9 +67,9 @@ function upsertInfoExclude(gitdir: string, patterns: string[]): void {
 
   // Build new content
   const needsNewline = existing.length > 0 && !existing.endsWith('\n');
-  const header = existing.includes('# agent-framework env ignores')
+  const header = existing.includes('# runr env ignores') || existing.includes('# agent-framework env ignores')
     ? ''
-    : '# agent-framework env ignores\n';
+    : '# runr env ignores\n';
 
   const addition = (needsNewline ? '\n' : '') + header + toAdd.map(p => `${p}\n`).join('');
 
@@ -77,14 +77,14 @@ function upsertInfoExclude(gitdir: string, patterns: string[]): void {
 }
 
 /**
- * Ensure repository-level git excludes for agent artifacts.
- * Call this at run start (before preflight) to prevent .agent/ and .agent-worktrees/
- * from showing as dirty even on fresh repos without a .gitignore entry.
+ * Ensure repository-level git excludes for runr artifacts.
+ * Call this at run start (before preflight) to prevent .runr/ and .runr-worktrees/
+ * (or legacy .agent/ and .agent-worktrees/) from showing as dirty.
  *
  * This writes to the MAIN repo's .git/info/exclude (not tracked, no history pollution).
  *
  * @param repoRoot - The target repository root path
- * @param patterns - Patterns to add (e.g., ['.agent', '.agent/', '.agent-worktrees'])
+ * @param patterns - Patterns to add (e.g., ['.runr', '.runr/', '.runr-worktrees'])
  */
 export function ensureRepoInfoExclude(repoRoot: string, patterns: string[]): void {
   const mainGitDir = path.join(repoRoot, '.git');

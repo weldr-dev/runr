@@ -1,219 +1,188 @@
-# Agent Framework
+# Runr
 
-A reliability-first agent runner for real codebases, focused on resumability, guardrails, and measurable outcomes.
+Phase-gated orchestration for agent tasks.
 
-> **Status**: v0.2.2 is the current release. Early, opinionated, evolving. The project went through heavy iteration prior to this version — that history is preserved as evidence of real-world refinement, not hidden. See [CHANGELOG.md](CHANGELOG.md) for release notes.
+> **Status**: v0.3.0 — Renamed from `agent-runner`. Early, opinionated, evolving.
 
-## Why This Exists
+## The Problem
 
-Most AI coding tools optimize for speed. This one optimizes for **reliability**.
+AI agents can write code. They can also:
+- Claim success without verification
+- Modify files they shouldn't touch
+- Get stuck in infinite loops
+- Fail in ways that are impossible to debug
 
-When runs fail (and they will), you should be able to:
-- Understand *why* (structured diagnostics)
-- Resume *where you left off* (checkpointing)
-- Trust it won't break unrelated code (scope guards)
+**Runr doesn't make agents smarter. It makes them accountable.**
 
-This is an orchestrator, not a model. It coordinates LLM workers (Claude, Codex) through a phase-based workflow with explicit state, verification gates, and collision detection.
+## What This Does
 
-## What This Is NOT
+Runr orchestrates AI workers (Claude, Codex) through a phase-based workflow with hard gates:
 
-- **Not a chatbot**: No interactive mode. Task in, code out.
-- **Not a code generator**: It orchestrates generators, doesn't replace them.
-- **Not magic**: Runs fail. The goal is *understandable, resumable* failure.
-- **Not stable API**: Internals will change. The CLI is more stable than the code.
+```
+PLAN → IMPLEMENT → VERIFY → REVIEW → CHECKPOINT → done
+         ↑___________|  (retry if needed)
+```
 
-## Overview
+Every phase has criteria. You don't advance without meeting them.
 
-The agent framework orchestrates AI-powered coding sessions by:
+## Why Phase Gates?
 
-1. **Planning**: Breaks tasks into milestones with file scopes
-2. **Implementing**: Executes code changes in an isolated worktree
-3. **Reviewing**: Validates changes meet requirements
-4. **Verifying**: Runs configured checks (tests, lint, build)
-5. **Checkpointing**: Commits progress atomically
+Most agent tools optimize for speed. Runr optimizes for **trust**.
 
-## Features
-
-- **Scope Guards**: Prevent modifications outside allowed file patterns
-- **Collision Detection**: Serialize runs that would touch the same files
-- **Task Ownership**: Declare file ownership in task frontmatter for safe parallel execution
-- **Review Loop Detection**: Stop when reviewer feedback becomes repetitive
-- **Auto-Resume**: Recover from transient failures automatically
-- **Worktree Isolation**: Each run operates in its own git worktree (see [Worktrees](#worktrees))
-- **Tiered Verification**: Fast checks on every milestone, comprehensive tests at run end
-- **Scope Presets**: Common patterns for popular frameworks (nextjs, vitest, drizzle, etc.)
+When a run fails (and it will), you get:
+- **Structured diagnostics** — exactly why it stopped
+- **Checkpoints** — resume from where it failed
+- **Scope guards** — files it couldn't touch, it didn't touch
+- **Evidence** — "done" means "proven done"
 
 ## Quick Start
 
 ```bash
-# Clone and install
-git clone https://github.com/vonwao/agent-runner.git
-cd agent-runner
-npm install
-npm run build
-npm link
+# Install
+git clone https://github.com/vonwao/runr.git
+cd runr && npm install && npm run build && npm link
 
-# Verify installation
-agent version
-agent doctor
+# Verify
+runr version
+runr doctor
 
-# Run a task in your project
-cd /path/to/your-project
-agent run --task .agent/tasks/my-task.md --worktree
+# Run a task
+cd /your/project
+runr run --task .runr/tasks/my-task.md --worktree
 ```
 
-> **Note**: Not yet published to npm. Installation is via `git clone` + `npm link` for now.
+> Not on npm yet. Coming soon as `@weldr/runr`.
 
 ## Configuration
 
-Create `.agent/agent.config.json` in your project:
+Create `.runr/runr.config.json`:
 
 ```json
 {
   "agent": { "name": "my-project", "version": "1" },
   "scope": {
     "allowlist": ["src/**", "tests/**"],
-    "denylist": ["node_modules/**", ".next/**"],
+    "denylist": ["node_modules/**"],
     "presets": ["vitest", "typescript"]
   },
   "verification": {
-    "tier0": ["npm run typecheck", "npm run lint"],
+    "tier0": ["npm run typecheck"],
     "tier1": ["npm run build"],
     "tier2": ["npm test"]
-  },
-  "phases": {
-    "plan": "claude",
-    "implement": "claude",
-    "review": "claude"
-  },
-  "resilience": {
-    "max_review_rounds": 2,
-    "auto_resume": true,
-    "max_auto_resumes": 2
   }
 }
 ```
 
 ### Scope Presets
 
-Instead of manually listing file patterns, use presets for common stacks:
+Don't write patterns by hand:
 
 ```json
 {
   "scope": {
-    "allowlist": ["src/**"],
     "presets": ["nextjs", "vitest", "drizzle", "tailwind"]
   }
 }
 ```
 
-Available presets: `nextjs`, `react`, `drizzle`, `prisma`, `vitest`, `jest`, `playwright`, `typescript`, `tailwind`, `eslint`, `env`
+Available: `nextjs`, `react`, `drizzle`, `prisma`, `vitest`, `jest`, `playwright`, `typescript`, `tailwind`, `eslint`, `env`
 
-## CLI Commands
+## CLI Reference
 
-| Command | Description |
-|---------|-------------|
-| `agent run --task <file>` | Run a task file |
-| `agent resume <run-id>` | Resume a stopped run |
-| `agent status [run-id]` | Show run status |
-| `agent report [run-id]` | Generate run report |
-| `agent doctor` | Check environment health |
-| `agent follow [run-id]` | Tail run progress |
+| Command | What it does |
+|---------|--------------|
+| `runr run --task <file>` | Start a task |
+| `runr resume <id>` | Continue from checkpoint |
+| `runr status [id]` | Show run state |
+| `runr follow [id]` | Tail run progress |
+| `runr report <id>` | Generate run report |
+| `runr gc` | Clean up old runs |
+| `runr doctor` | Check environment |
 
-See [docs/cli.md](docs/cli.md) for all commands and flags.
+### The Fun Commands
 
-## Worktrees
-
-When using `--worktree`, runs execute in isolated git worktrees:
-
-- **Location**: `.agent-worktrees/<run_id>/` (outside `.agent/` to avoid denylist conflicts)
-- **Override**: Set `AGENT_WORKTREES_DIR` env var for custom location
-- **Git excludes**: Runner auto-injects `.agent*` patterns into `.git/info/exclude`
-- **Cleanup**: Use `agent gc` to remove old worktrees
+Same functionality, different vibe:
 
 ```bash
-# Run with worktree isolation (recommended)
-agent run --task .agent/tasks/my-task.md --worktree
-
-# Clean up old worktrees
-agent gc --older-than 7
+runr summon --task task.md   # run
+runr resurrect <id>          # resume
+runr scry <id>               # status
+runr banish                  # gc
 ```
-
-See [docs/worktrees.md](docs/worktrees.md) for details.
 
 ## Task Files
 
-Tasks are markdown files describing what to build:
+Tasks are markdown files:
 
 ```markdown
-# Feature: User Authentication
+# Add user authentication
 
 ## Goal
-Add login/logout functionality to the application.
+OAuth2 login with Google.
 
 ## Requirements
-- OAuth2 integration with Google
 - Session management
 - Protected routes
+- Logout functionality
 
 ## Success Criteria
 - Users can log in with Google
-- Session persists across page refreshes
-- Unauthorized users redirected to login
+- Session persists across refreshes
 ```
-
-### Task Ownership (optional; only for no-worktree parallel)
-
-Declare `owns:` only when running multiple tasks in parallel without worktrees, or when you want strict ownership enforcement.
-Single-task runs and `--worktree` runs do not require `owns:` and behave the same without it.
-
-```markdown
----
-owns:
-  - src/auth/
-  - tests/auth/
----
-
-# Feature: User Authentication
-...
-```
-
-See [docs/tasks-and-templates.md](docs/tasks-and-templates.md) for details.
 
 ## Stop Reasons
 
-When a run stops, check the stop reason in `state.json`:
+When Runr stops, it tells you why:
 
-| Reason | Description |
-|--------|-------------|
-| `complete` | Task finished successfully |
+| Reason | What happened |
+|--------|---------------|
+| `complete` | Task finished. Ship it. |
+| `verification_failed_max_retries` | Tests failed too many times |
+| `guard_violation` | Touched files outside scope |
 | `review_loop_detected` | Reviewer kept requesting same changes |
-| `guard_violation` | Changed files outside scope allowlist |
-| `ownership_violation` | Task modified files outside declared `owns:` paths |
-| `plan_scope_violation` | Planner proposed files outside allowlist |
 | `time_budget_exceeded` | Ran out of time |
-| `verification_failed_max_retries` | Tests/lint failed too many times |
+
+Every stop produces `stop.json` + `stop.md` with diagnostics.
+
+## Philosophy
+
+**This is not magic.** Runs fail. The goal is *understandable, resumable* failure.
+
+**This is not a chatbot.** Task in, code out. No conversation.
+
+**This is not a code generator.** It orchestrates generators. Different job.
+
+**Agents lie. Logs don't.** If it can't prove it, it didn't do it.
+
+## Migrating from agent-runner
+
+If you're upgrading from `agent-runner`:
+
+| Old | New |
+|-----|-----|
+| `agent` CLI | `runr` CLI |
+| `.agent/` directory | `.runr/` directory |
+| `agent.config.json` | `runr.config.json` |
+| `.agent-worktrees/` | `.runr-worktrees/` |
+
+Both old and new locations work during the transition period. You'll see deprecation warnings for old locations.
 
 ## Development
 
 ```bash
-# Build
-npm run build
-
-# Test
-npm test
-
-# Run locally
-npm run dev -- run tasks/test.md
+npm run build    # compile
+npm test         # run tests
+npm run dev -- run --task task.md  # run from source
 ```
 
 ## Release History
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| v0.2.2 | 2025-12-31 | Worktree location fix, guard diagnostics, tier escalation fix |
-| v0.2.1 | 2025-12-29 | Scope presets, review digest, OSS packaging |
-| v0.2.0 | 2025-12-28 | Review loop detection, ESM fix |
+| v0.3.0 | 2026-01-01 | **Renamed to Runr**, new CLI, new directory structure |
+| v0.2.2 | 2025-12-31 | Worktree location fix, guard diagnostics |
+| v0.2.1 | 2025-12-29 | Scope presets, review digest |
+| v0.2.0 | 2025-12-28 | Review loop detection |
 | v0.1.0 | 2025-12-27 | Initial stable release |
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
@@ -222,14 +191,10 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
-## Support
-
-This project is actively developed but not a support channel.
-
-- **Issues**: Welcome. Responses are best-effort.
-- **PRs**: Considered, but not guaranteed to be merged.
-- **Roadmap**: No promises. The project evolves based on real usage.
-
 ## License
 
-Apache 2.0 - See [LICENSE](LICENSE) for details.
+Apache 2.0 — See [LICENSE](LICENSE)
+
+---
+
+<sub>Existence is pain, but shipping is relief.</sub>

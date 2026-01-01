@@ -1,27 +1,45 @@
 import path from 'node:path';
+import fs from 'node:fs';
 
 /**
- * Canonical agent paths structure.
- * This is the single source of truth for all agent directory locations.
+ * Canonical runr paths structure.
+ * This is the single source of truth for all runr directory locations.
  */
-export interface AgentPaths {
+export interface RunrPaths {
   /** The target repository root */
   repo_root: string;
-  /** The .agent directory root */
-  agent_root: string;
+  /** The .runr (or legacy .agent) directory root */
+  runr_root: string;
   /** Directory for individual run artifacts */
   runs_dir: string;
-  /** Directory for worktree checkouts (outside .agent/ to avoid denylist conflicts) */
+  /** Directory for worktree checkouts (outside .runr/ to avoid denylist conflicts) */
   worktrees_dir: string;
   /** Directory for orchestration state and artifacts */
   orchestrations_dir: string;
+  /** Whether using legacy .agent/ location (for deprecation warnings) */
+  using_legacy: boolean;
 }
 
+/** @deprecated Use RunrPaths instead */
+export type AgentPaths = RunrPaths;
+
+// Track if we've shown the deprecation warning this session
+let shownLegacyWarning = false;
+
 /**
- * Get all canonical agent paths for a repository.
+ * Get all canonical runr paths for a repository.
  * This is the single source of truth - import this everywhere.
  *
- * Layout:
+ * Layout (new):
+ * ```
+ * .runr/
+ *   runs/<runId>/...
+ *   orchestrations/<orchId>/...
+ * .runr-worktrees/
+ *   <runId>/
+ * ```
+ *
+ * Layout (legacy, still supported):
  * ```
  * .agent/
  *   runs/<runId>/...
@@ -30,51 +48,84 @@ export interface AgentPaths {
  *   <runId>/
  * ```
  *
- * Worktrees are stored OUTSIDE .agent/ to avoid conflicts with denylist patterns
- * like `.agent/**`. This prevents both:
+ * Worktrees are stored OUTSIDE .runr/ to avoid conflicts with denylist patterns
+ * like `.runr/**`. This prevents both:
  * 1. Git-level dirtiness (parent repo seeing worktree as untracked files)
- * 2. Worker-level confusion (absolute CWD containing `.agent/` matching denylist)
+ * 2. Worker-level confusion (absolute CWD containing `.runr/` matching denylist)
  *
- * Override worktrees location with AGENT_WORKTREES_DIR env var (absolute or relative to repo).
+ * Override worktrees location with RUNR_WORKTREES_DIR (or legacy AGENT_WORKTREES_DIR) env var.
  *
  * @param repoPath - The target repository path
- * @returns All agent paths as absolute paths
+ * @returns All runr paths as absolute paths
  */
-export function getAgentPaths(repoPath: string): AgentPaths {
+export function getRunrPaths(repoPath: string): RunrPaths {
   const repoRoot = path.resolve(repoPath);
-  const agentRoot = path.join(repoRoot, '.agent');
 
-  // Worktrees default to .agent-worktrees/ (sibling of .agent/, not inside it)
-  // This avoids absolute paths containing `.agent/` which can match denylist patterns
-  const worktreesOverride = process.env.AGENT_WORKTREES_DIR;
-  const worktreesDir = worktreesOverride
-    ? (path.isAbsolute(worktreesOverride)
-        ? worktreesOverride
-        : path.resolve(repoRoot, worktreesOverride))
-    : path.join(repoRoot, '.agent-worktrees');
+  // Check for new .runr/ directory first, fall back to legacy .agent/
+  const newRoot = path.join(repoRoot, '.runr');
+  const legacyRoot = path.join(repoRoot, '.agent');
+
+  let runrRoot: string;
+  let usingLegacy = false;
+
+  if (fs.existsSync(newRoot)) {
+    runrRoot = newRoot;
+  } else if (fs.existsSync(legacyRoot)) {
+    runrRoot = legacyRoot;
+    usingLegacy = true;
+    if (!shownLegacyWarning) {
+      console.warn('\x1b[33m⚠ Deprecation: .agent/ directory is deprecated. Rename to .runr/\x1b[0m');
+      shownLegacyWarning = true;
+    }
+  } else {
+    // Neither exists - default to new location (will be created on first run)
+    runrRoot = newRoot;
+  }
+
+  // Worktrees: check new env var first, then legacy, then default
+  const worktreesOverride = process.env.RUNR_WORKTREES_DIR || process.env.AGENT_WORKTREES_DIR;
+  let worktreesDir: string;
+
+  if (worktreesOverride) {
+    worktreesDir = path.isAbsolute(worktreesOverride)
+      ? worktreesOverride
+      : path.resolve(repoRoot, worktreesOverride);
+  } else if (usingLegacy) {
+    worktreesDir = path.join(repoRoot, '.agent-worktrees');
+  } else {
+    worktreesDir = path.join(repoRoot, '.runr-worktrees');
+  }
 
   return {
     repo_root: repoRoot,
-    agent_root: agentRoot,
-    runs_dir: path.join(agentRoot, 'runs'),
+    runr_root: runrRoot,
+    runs_dir: path.join(runrRoot, 'runs'),
     worktrees_dir: worktreesDir,
-    orchestrations_dir: path.join(agentRoot, 'orchestrations')
+    orchestrations_dir: path.join(runrRoot, 'orchestrations'),
+    using_legacy: usingLegacy
   };
 }
 
 /**
+ * @deprecated Use getRunrPaths instead
+ */
+export function getAgentPaths(repoPath: string): RunrPaths {
+  return getRunrPaths(repoPath);
+}
+
+/**
  * Get the runs root directory for a given repo path.
- * @deprecated Use getAgentPaths(repoPath).runs_dir instead
+ * @deprecated Use getRunrPaths(repoPath).runs_dir instead
  */
 export function getRunsRoot(repoPath: string): string {
-  return getAgentPaths(repoPath).runs_dir;
+  return getRunrPaths(repoPath).runs_dir;
 }
 
 /**
  * Get the worktrees root directory for a given repo path.
  */
 export function getWorktreesRoot(repoPath: string): string {
-  return getAgentPaths(repoPath).worktrees_dir;
+  return getRunrPaths(repoPath).worktrees_dir;
 }
 
 /**
@@ -85,7 +136,7 @@ export function getWorktreesRoot(repoPath: string): string {
  * @returns The absolute path to the run directory
  */
 export function getRunDir(repoPath: string, runId: string): string {
-  return path.join(getAgentPaths(repoPath).runs_dir, runId);
+  return path.join(getRunrPaths(repoPath).runs_dir, runId);
 }
 
 /**
@@ -95,7 +146,7 @@ export function getRunDir(repoPath: string, runId: string): string {
  * @returns The absolute path to the orchestrations directory
  */
 export function getOrchestrationsRoot(repoPath: string): string {
-  return getAgentPaths(repoPath).orchestrations_dir;
+  return getRunrPaths(repoPath).orchestrations_dir;
 }
 
 /**
@@ -103,5 +154,5 @@ export function getOrchestrationsRoot(repoPath: string): string {
  * Old location was nested under runs.
  */
 export function getLegacyOrchestrationsRoot(repoPath: string): string {
-  return path.join(getAgentPaths(repoPath).runs_dir, 'orchestrations');
+  return path.join(getRunrPaths(repoPath).runs_dir, 'orchestrations');
 }

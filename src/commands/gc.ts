@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { getAgentPaths } from '../store/runs-root.js';
+import { getRunrPaths } from '../store/runs-root.js';
 
 export interface GcOptions {
   dryRun: boolean;
@@ -83,16 +83,16 @@ function listRunIds(dirPath: string): string[] {
 
 /**
  * Scan worktrees in all locations:
- * - Current: .agent-worktrees/<runId>/
+ * - Current: .runr-worktrees/<runId>/ (or .agent-worktrees/ for legacy)
  * - Legacy v1: .agent/runs/<runId>/worktree/
  * - Legacy v2: .agent/worktrees/<runId>/ (pre-migration)
  */
-function scanWorktrees(runsDir: string, worktreesDir: string, agentRoot: string): WorktreeInfo[] {
+function scanWorktrees(runsDir: string, worktreesDir: string, runrRoot: string): WorktreeInfo[] {
   const worktrees: WorktreeInfo[] = [];
   const now = new Date();
 
   // Legacy v2 location: .agent/worktrees/ (worktrees inside .agent before the fix)
-  const legacyWorktreesDir = path.join(agentRoot, 'worktrees');
+  const legacyWorktreesDir = path.join(runrRoot, 'worktrees');
 
   const runIds = new Set([
     ...listRunIds(runsDir),
@@ -138,8 +138,8 @@ function scanWorktrees(runsDir: string, worktreesDir: string, agentRoot: string)
 }
 
 export async function gcCommand(options: GcOptions): Promise<void> {
-  const paths = getAgentPaths(options.repo);
-  const worktrees = scanWorktrees(paths.runs_dir, paths.worktrees_dir, paths.agent_root);
+  const paths = getRunrPaths(options.repo);
+  const worktrees = scanWorktrees(paths.runs_dir, paths.worktrees_dir, paths.runr_root);
 
   // Calculate totals
   const totalRuns = worktrees.length;
