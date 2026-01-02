@@ -5,8 +5,7 @@ set -e
 cd /Users/vonwao/dev/agent-framework
 export PS1='$ '
 
-# Alias for clean commands (use installed runr or local build)
-alias runr='node dist/cli.js'
+# Ensure runr is available (install globally first: npm install -g @weldr/runr)
 
 # Helper functions
 section() {
@@ -88,13 +87,19 @@ pause 3
 # ============================================================================
 
 section "4. Agents Know What To Do Next"
-echo "$ runr report 20260102075326 --json | jq '{next_action, stop_reason, checkpoint_sha, milestones}'"
+echo "$ runr summarize 20260102075326"
 pause 1
-runr report 20260102075326 --json | jq '{next_action, stop_reason, checkpoint_sha, milestones}'
+runr summarize 20260102075326 | head -3
+pause 2
+
+echo ""
+echo "$ cat .runr/runs/20260102075326/handoffs/stop.json | jq '{stop_reason, next_actions}'"
+pause 1
+cat .runr/runs/20260102075326/handoffs/stop.json | jq '{stop_reason, next_actions}'
 pause 3
 
 echo ""
-echo "→ next_action: \"resume\" — agents read one field, no guessing"
+echo "→ Runr writes a stop handoff with the next action"
 pause 2
 
 # ============================================================================
@@ -116,8 +121,14 @@ pause 2
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "  Install: npm install -g @weldr/runr"
-echo "  Docs: github.com/anthropics/agent-framework → RUNR_OPERATOR.md"
+echo "  Try it now:"
+echo ""
+echo "    npm install -g @weldr/runr"
+echo "    cd your-project"
+echo "    runr init"
+echo "    runr run --task .runr/tasks/your-task.md --worktree"
+echo ""
+echo "  Repo + docs: github.com/anthropics/agent-framework"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""

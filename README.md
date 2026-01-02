@@ -1,45 +1,38 @@
 # Runr
 
-Phase-gated orchestration for agent tasks.
+**Stop losing 30 minutes when the agent derails.**
 
-> **Status**: v0.3.0 — Renamed from `agent-runner`. Early, opinionated, evolving.
+![Failure Recovery](demo/failure-checkpoint.gif)
 
-## The Problem
+*When verification fails after 3 checkpoints, progress isn't lost — Runr saves verified work as git commits.*
 
-AI agents can write code. They can also:
-- Claim success without verification
-- Touch files they shouldn't
-- Loop forever
-- Fail in ways that are hard to explain
+## Quickstart
 
-Runr doesn't make agents smarter. It makes them accountable.
+```bash
+npm install -g @weldr/runr
+runr init
+runr run --task .runr/tasks/your-task.md --worktree
+```
 
-## What It Does
+![Next Action](demo/next-action.gif)
 
-Runr orchestrates AI workers (Claude, Codex) through a phase-based workflow with hard gates:
+*Runr writes a stop handoff so agents know exactly what to do next — no guessing, no hallucinating.*
+
+## How It Works
+
+Runr orchestrates AI workers through phase gates with checkpoints:
 
 ```
 PLAN → IMPLEMENT → VERIFY → REVIEW → CHECKPOINT → done
-         ↑___________|  (retry if needed)
+         ↑___________|  (retry if verification fails)
 ```
 
-Every phase has criteria. You don't move forward without meeting them.
+- **Phase gates** — Agent can't skip verification or claim false success
+- **Checkpoints** — Verified milestones saved as git commits
+- **Stop handoffs** — Structured diagnostics with next actions
+- **Scope guards** — Files outside scope are protected
 
-## Why Phase Gates?
-
-Most agent tools optimize for speed. Runr optimizes for trust.
-
-When a run fails (and it will), you get:
-- **Structured diagnostics** — exactly why it stopped
-- **Checkpoints** — resume from where it failed
-- **Scope guards** — files it couldn't touch, it didn't touch
-- **Evidence** — "done" means "proven done"
-
-## Demo
-
-![Runr Checkpoint Demo](https://i.imgur.com/XVFpTUZ.gif)
-
-*Checkpoints are real git commits created after each verified milestone. If a later milestone fails, resume from the last checkpoint without redoing completed work.*
+> **Status**: v0.3.0 — Renamed from `agent-runner`. Early, opinionated, evolving.
 
 ## Meta-Agent Quickstart (Recommended)
 

@@ -6,12 +6,19 @@ Deterministic demo scripts for asciinema recording and export.
 
 ## Quick Start
 
+### 0. Prerequisites
+
+```bash
+# Install runr globally (required for demo script)
+npm install -g @weldr/runr
+
+# Install asciinema if needed
+brew install asciinema
+```
+
 ### 1. Record the demo
 
 ```bash
-# Install asciinema if needed
-brew install asciinema
-
 # Record (this runs the script and captures everything)
 cd /Users/vonwao/dev/agent-framework
 asciinema rec demo/day5.cast -c "bash demo/day5.sh"

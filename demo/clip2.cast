@@ -1,0 +1,12 @@
+{"version":3,"term":{"cols":80,"rows":24,"type":"xterm-256color"},"timestamp":1767390423,"command":"bash demo/clip2.sh","env":{"SHELL":"/bin/zsh"}}
+[0.015, "o", "\u001b[3J\u001b[H\u001b[2J"]
+[0.000, "o", "\r\n"]
+[0.000, "o", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n  Agents Know What To Do Next\r\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\r\n\r\n"]
+[1.007, "o", "$ runr summarize 20260102075326\r\n"]
+[1.129, "o", "Summary written to /Users/vonwao/dev/agent-framework/.runr/runs/20260102075326/summary.json\r\n"]
+[0.000, "o", "Diagnosis written to /Users/vonwao/dev/agent-framework/.runr/runs/20260102075326/handoffs/stop.json and stop.md\r\n  Primary: verification_failure (95%)\r\n"]
+[2.009, "o", "\r\n$ cat .runr/runs/20260102075326/handoffs/stop.json | jq '{stop_reason, next_actions}'\r\n"]
+[1.015, "o", "\u001b[1;39m{\r\n  \u001b[0m\u001b[1;34m\"stop_reason\"\u001b[0m\u001b[1;39m: \u001b[0m\u001b[0;32m\"verification_failed_max_retries\"\u001b[0m\u001b[1;39m,\r\n  \u001b[0m\u001b[1;34m\"next_actions\"\u001b[0m\u001b[1;39m: \u001b[0m\u001b[1;39m[\r\n    \u001b[1;39m{\r\n      \u001b[0m\u001b[1;34m\"title\"\u001b[0m\u001b[1;39m: \u001b[0m\u001b[0;32m\"View verification logs\"\u001b[0m\u001b[1;39m,\r\n      \u001b[0m\u001b[1;34m\"command\"\u001b[0m\u001b[1;39m: \u001b[0m\u001b[0;32m\"cat runs/20260102075326/artifacts/tests_tier0.log 2>/dev/null || cat runs/20260102075326/artifacts/verify.log\"\u001b[0m\u001b[1;39m,\r\n      \u001b[0m\u001b[1;34m\"why\"\u001b[0m\u001b[1;39m: \u001b[0m\u001b[0;32m\"See full error output from failing tests/lint\"\u001b[0m\u001b[1;39m\r\n    \u001b[1;39m}\u001b[0m\u001b[1;39m,\r\n    \u001b[1;39m{\r\n      \u001b[0m\u001b[1;34m\"title\"\u001b[0m\u001b[1;39m: \u001b[0m\u001b[0;32m\"Resume to retry verification\"\u001b[0m\u001b[1;39m,\r\n      \u001b[0m\u001b[1;34m\"command\"\u001b[0m\u001b[1;39m: \u001b[0m\u001b[0;32m\"node dist/cli.js resume 20260102075326\"\u001b[0m\u001b[1;39m,\r\n"]
+[0.000, "o", "      \u001b[0m\u001b[1;34m\"why\"\u001b[0m\u001b[1;39m: \u001b[0m\u001b[0;32m\"Will re-run: \"\u001b[0m\u001b[1;39m\r\n    \u001b[1;39m}\u001b[0m\u001b[1;39m\r\n  \u001b[1;39m]\u001b[0m\u001b[1;39m\r\n\u001b[1;39m}\u001b[0m\r\n"]
+[3.022, "o", "\r\n→ Runr writes a stop handoff with the next action\r\n"]
+[2.015, "x", "0"]
