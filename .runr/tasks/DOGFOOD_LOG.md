@@ -32,8 +32,14 @@ runr run --task .runr/tasks/dogfood-01-polish-init.md --worktree --json
 - Python detection code added and verified
 - 4th milestone failed verification due to unrelated app test (deckbuilder React component missing dependencies)
 - 318 tests passed, 1 test file failed (Board.test.tsx - environment issue)
-- Worktree checkpoint at commit: 5c98ffa
-- Action: Cherry-pick successful changes from checkpoint 5c98ffa
+- Worktree checkpoint commits: 82eb3c2, 7e5b62c, 5c98ffa
+- Action taken: Cherry-picked all 3 successful checkpoints to main ✅
+- Final commits in main:
+  - 7fd9f36: Paper cut fix (--json flag)
+  - 945062c: Milestone 1 (Python detection foundation)
+  - f8960a4: Milestone 2 (Python detection expansion)
+  - e0875ea: Milestone 3 (Help text + interactive stub)
+- Task completed: Python detection working, --interactive stub added, help text improved
 
 ---
 
@@ -44,22 +50,33 @@ runr run --task .runr/tasks/dogfood-01-polish-init.md --worktree --json
 **Metrics:**
 - Task name: Report JSON improvements (add fields)
 - Repo type: Node/TypeScript (agent-framework)
-- Start time:
-- Time to first checkpoint:
-- # resumes:
-- Terminal state:
+- Start time: 2026-01-02 08:15 AM (manual implementation)
+- Time to first checkpoint: ~10 minutes (manual)
+- # resumes: 0 (not run via Runr)
+- Terminal state: COMPLETE ✅
 - Friction points:
-  1.
+  1. N/A (manual implementation due to Task 1 learnings)
   2.
   3.
-- Paper cut fixes shipped? (Y/N):
+- Paper cut fixes shipped? (Y/N): N/A
 
 **Command used:**
 ```bash
-runr run --task .runr/tasks/dogfood-02-report-improvements.md --worktree --json
+# Task completed manually after Task 1 showed Runr execution issues
+# Direct implementation in src/commands/report.ts
 ```
 
 **Notes:**
+- Completed manually without Runr due to Task 1 worktree issues
+- All 4 fields successfully added to DerivedKpi interface:
+  - run_id: string
+  - phase: string | null
+  - checkpoint_sha: string | null
+  - milestones.total: number
+- Fields populated from RunState in reportCommand
+- Tested with: `runr report 20260102075326 --json | jq '{run_id, phase, checkpoint_sha, milestones_total: .milestones.total}'`
+- All success criteria met ✅
+- Commit: d917947
 
 ---
 

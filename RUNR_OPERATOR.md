@@ -43,6 +43,29 @@ PLAN → IMPLEMENT → VERIFY → REVIEW → CHECKPOINT → (next milestone)
 
 ## Command Reference
 
+### 0. Initialize Configuration (First Time Setup)
+
+```bash
+runr init
+```
+
+**What it does:**
+- Auto-detects verification commands from package.json (or pyproject.toml for Python)
+- Detects project presets from dependencies (typescript, vitest, pytest, etc.)
+- Creates `.runr/runr.config.json` with intelligent defaults
+- Creates example task files in `.runr/tasks/`
+
+**Flags:**
+- `--print`: Preview generated config without writing files
+- `--force`: Overwrite existing config
+- `--interactive`: Launch setup wizard (stub - shows coming soon message)
+
+**Use when:**
+- First time setting up Runr in a project
+- Want to regenerate config after major dependency changes
+
+---
+
 ### 1. Start a Run
 
 ```bash
@@ -125,7 +148,46 @@ runr resume <run_id>
 
 ---
 
-### 4. Monitor Progress (Optional)
+### 4. Watch with Auto-Resume (Autopilot Mode)
+
+```bash
+runr watch <run_id> --auto-resume
+```
+
+**What it does:**
+- Polls run status every 5 seconds
+- Automatically resumes on transient failures (verification failures, timeouts, stalls)
+- Never auto-resumes on guard violations or scope violations (safety-first)
+- Cooldown period (10s) between resume attempts
+- Stops after max attempts (default: 3)
+
+**Flags:**
+- `--auto-resume`: Enable automatic resume on failures
+- `--max-attempts <N>`: Maximum auto-resume attempts (default: 3)
+- `--json`: Output JSON event stream
+
+**Resumable stop reasons:**
+- `verification_failed_max_retries`
+- `stalled_timeout`
+- `max_ticks_reached`
+- `time_budget_exceeded`
+- `implement_blocked`
+
+**Non-resumable (surfaces to user):**
+- `guard_violation`
+- `plan_scope_violation`
+- `ownership_violation`
+- `review_loop_detected`
+- `parallel_file_collision`
+
+**Use when:**
+- Want hands-off execution with auto-retry
+- Running long tasks that might hit transient failures
+- Building CI/CD automation around Runr
+
+---
+
+### 5. Monitor Progress (Optional)
 
 ```bash
 # Tail live updates
@@ -147,24 +209,74 @@ runr wait <run_id> --for terminal --json
 
 ---
 
-### 5. Get Final Report
+### 6. Get Final Report
 
 ```bash
+# Human-readable report
 runr report <run_id> --kpi-only
+
+# Machine-readable JSON (includes next_action)
+runr report <run_id> --json
 ```
 
 **What it does:**
 - Shows KPIs (duration, phase timings, verification attempts)
 - Shows stop reason and diagnostics
 - Shows which milestones completed
+- **With --json**: Includes `next_action` and `suggested_command` for decision-making
+
+**JSON output example:**
+```json
+{
+  "version": 1,
+  "run_id": "20260102075326",
+  "phase": "STOPPED",
+  "checkpoint_sha": "5c98ffa8828132be857644af3d5e7105be08bf6b",
+  "total_duration_ms": 844383,
+  "started_at": "2026-01-02T07:53:35.022Z",
+  "ended_at": "2026-01-02T08:07:39.405Z",
+  "phases": {
+    "PLAN": { "duration_ms": 34574, "count": 1 },
+    "IMPLEMENT": { "duration_ms": 745861, "count": 7 },
+    "VERIFY": { "duration_ms": 41705, "count": 7 },
+    "REVIEW": { "duration_ms": 22024, "count": 3 },
+    "CHECKPOINT": { "duration_ms": 192, "count": 3 }
+  },
+  "verify": {
+    "attempts": 11,
+    "retries": 0,
+    "total_duration_ms": 41562
+  },
+  "milestones": {
+    "completed": 3,
+    "total": 4
+  },
+  "outcome": "stopped",
+  "stop_reason": "verification_failed_max_retries",
+  "next_action": "resume",
+  "suggested_command": "runr resume <run_id>"
+}
+```
+
+**Key fields for agents:**
+- `run_id`: Run identifier
+- `phase`: Current phase (STOPPED, PLAN, IMPLEMENT, etc.)
+- `checkpoint_sha`: Git commit SHA of last successful checkpoint
+- `milestones.total`: Total milestones in plan
+- `milestones.completed`: How many checkpoints created
+- `outcome`: `complete`, `stopped`, `running`, or `unknown`
+- `stop_reason`: Why it stopped (null if running/complete)
+- `next_action`: What to do next - `none`, `resume`, `fix_config`, `resolve_scope_violation`, `resolve_branch_mismatch`, `inspect_logs`
+- `suggested_command`: Pre-filled command to execute
 
 **Use for:**
 - Summarizing results to user
 - Debugging why a run failed
+- **Automated decision-making**: Use `next_action` to determine what to do without guessing
 
 ---
 
-### 6. Health Check
+### 7. Health Check
 
 ```bash
 runr doctor
@@ -270,6 +382,137 @@ runr doctor
 
 ---
 
+## Failure Recovery Examples
+
+Real-world scenarios showing how to recover from common failures using `runr report --json` and automation.
+
+### Scenario 1: Verification Failed → Resume Workflow
+
+**Situation:** Tests fail during VERIFY phase, but the fix is straightforward.
+
+**Steps:**
+```bash
+# 1. Check what happened
+runr report <run_id> --json | jq '{next_action, stop_reason, milestones}'
+```
+
+**Output:**
+```json
+{
+  "next_action": "resume",
+  "stop_reason": "verification_failed_max_retries",
+  "milestones": {
+    "completed": 2,
+    "total": 4
+  }
+}
+```
+
+**Action:**
+```bash
+# 2. next_action says "resume", so resume
+runr resume <run_id>
+
+# 3. If you want hands-off retry, use watch with auto-resume
+runr watch <run_id> --auto-resume --max-attempts 3
+```
+
+**When to use:**
+- `next_action` is `resume`
+- Failures are likely transient (flaky tests, timing issues)
+- You want Runr to retry automatically
+
+---
+
+### Scenario 2: Guard Violation → Diagnose and Fix
+
+**Situation:** Run stopped because it tried to modify files outside the allowed scope.
+
+**Steps:**
+```bash
+# 1. Check the violation details
+runr report <run_id> --json | jq '{next_action, stop_reason, suggested_command}'
+```
+
+**Output:**
+```json
+{
+  "next_action": "resolve_scope_violation",
+  "stop_reason": "guard_violation",
+  "suggested_command": "# Review .runr/runr.config.json scope settings"
+}
+```
+
+**Action:**
+```bash
+# 2. Check which files were blocked (from state.json or follow output)
+runr report <run_id> | grep -A 5 "guard_violation"
+
+# 3. Two options:
+#    a) If files SHOULD be allowed: Update .runr/runr.config.json allowlist
+#    b) If task is too broad: Break into smaller tasks
+
+# Example: Allow package.json changes
+# Edit .runr/runr.config.json:
+{
+  "scope": {
+    "allowlist": ["src/**", "tests/**", "package.json"]
+  }
+}
+
+# 4. Re-run from scratch (guard violations are NOT resumable)
+runr run --task <path> --worktree --json
+```
+
+**When to use:**
+- `next_action` is `resolve_scope_violation`
+- Task legitimately needs to touch files outside current allowlist
+- Need to broaden scope or use `--allow-deps` flag
+
+---
+
+### Scenario 3: Stuck Run → Use watch --auto-resume
+
+**Situation:** Long-running task might hit transient failures (network issues, rate limits, stalls).
+
+**Steps:**
+```bash
+# 1. Start run
+runr run --task .runr/tasks/big-refactor.md --worktree --json
+# Capture run_id: 20260102120000
+
+# 2. Start watch with auto-resume (instead of manual monitoring)
+runr watch 20260102120000 --auto-resume --max-attempts 5
+```
+
+**What happens:**
+- Runr polls status every 5 seconds
+- On `verification_failed_max_retries`: auto-resumes after 10s cooldown
+- On `stalled_timeout`: auto-resumes
+- On `guard_violation`: stops and surfaces to you (no auto-resume)
+- After 5 resume attempts: gives up and reports failure
+
+**Watch output (JSON mode):**
+```bash
+runr watch <run_id> --auto-resume --json
+```
+
+**Event stream:**
+```json
+{"event": "watching", "phase": "IMPLEMENT", "elapsed_s": 45}
+{"event": "failed", "stop_reason": "verification_failed_max_retries"}
+{"event": "resumed", "attempt": 1}
+{"event": "watching", "phase": "VERIFY", "elapsed_s": 12}
+{"event": "succeeded", "milestones_completed": 3}
+```
+
+**When to use:**
+- Running CI/CD automation
+- Hands-off execution for long tasks
+- Want automatic retry on transient failures without manual intervention
+
+---
+
 ## Interpreting Failures
 
 ### Verification Failures
@@ -359,7 +602,7 @@ Add dark mode and other improvements as needed.
 
 ## Configuration (.runr/runr.config.json)
 
-Users may already have this. If not, suggest creating it:
+Users may already have this. If not, use `runr init` to auto-generate it, or create it manually:
 
 ```json
 {
@@ -491,26 +734,15 @@ Should I:
 # Install Runr
 npm install -g @weldr/runr
 
+# Initialize in your project (auto-detects config)
+cd /your/project
+runr init
+
 # Verify environment
 runr doctor
-
-# Create minimal config (if needed)
-mkdir -p .runr/tasks
-cat > .runr/runr.config.json << 'EOF'
-{
-  "agent": { "name": "my-project", "version": "1" },
-  "scope": {
-    "presets": ["typescript", "vitest"]
-  },
-  "verification": {
-    "tier0": ["npm run typecheck"],
-    "tier1": ["npm test"]
-  }
-}
-EOF
 ```
 
-Then paste task files into `.runr/tasks/` and tell the agent to run them.
+This creates `.runr/runr.config.json` with auto-detected verification commands and example task files in `.runr/tasks/`.
 
 ---
 
