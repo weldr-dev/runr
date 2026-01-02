@@ -25,6 +25,9 @@ export interface PhaseKpi {
 
 export interface DerivedKpi {
   version: 1;
+  run_id: string;
+  phase: string | null;
+  checkpoint_sha: string | null;
   total_duration_ms: number | null;
   unattributed_ms: number | null;
   started_at: string | null;
@@ -41,6 +44,7 @@ export interface DerivedKpi {
   };
   milestones: {
     completed: number;
+    total: number;
   };
   // Reliability metrics (Sprint 2)
   reliability: {
@@ -77,6 +81,9 @@ export async function reportCommand(options: ReportOptions): Promise<void> {
   const timelinePath = path.join(runDir, 'timeline.jsonl');
   const defaultKpi: DerivedKpi = {
     version: 1,
+    run_id: options.runId,
+    phase: state.phase || null,
+    checkpoint_sha: state.checkpoint_commit_sha || null,
     total_duration_ms: null,
     unattributed_ms: null,
     started_at: null,
@@ -84,7 +91,7 @@ export async function reportCommand(options: ReportOptions): Promise<void> {
     phases: {},
     workers: { claude: 'unknown', codex: 'unknown' },
     verify: { attempts: 0, retries: 0, total_duration_ms: 0 },
-    milestones: { completed: 0 },
+    milestones: { completed: 0, total: state.milestones?.length || 0 },
     reliability: {
       infra_retries: 0,
       fallback_used: false,
@@ -100,6 +107,12 @@ export async function reportCommand(options: ReportOptions): Promise<void> {
   const scan = fs.existsSync(timelinePath)
     ? await scanTimeline(timelinePath, options.tail)
     : { tailEvents: [], kpi: defaultKpi };
+
+  // Merge run-specific fields into KPI (these aren't in timeline events)
+  scan.kpi.run_id = options.runId;
+  scan.kpi.phase = state.phase || null;
+  scan.kpi.checkpoint_sha = state.checkpoint_commit_sha || null;
+  scan.kpi.milestones.total = state.milestones?.length || 0;
 
   const flags = readFlags(scan.runStarted);
   const contextPackArtifact = readContextPackArtifact(runDir);
@@ -454,6 +467,9 @@ export function computeKpiFromEvents(events: Array<Record<string, unknown>>): De
 
   return {
     version: 1,
+    run_id: '', // Will be filled by reportCommand
+    phase: null, // Will be filled by reportCommand
+    checkpoint_sha: null, // Will be filled by reportCommand
     total_duration_ms: totalDurationMs,
     unattributed_ms: unattributedMs,
     started_at: startedAt,
@@ -469,7 +485,8 @@ export function computeKpiFromEvents(events: Array<Record<string, unknown>>): De
       total_duration_ms: verifyDurationMs
     },
     milestones: {
-      completed: milestonesCompleted
+      completed: milestonesCompleted,
+      total: 0 // Will be filled by reportCommand
     },
     reliability: {
       infra_retries: infraRetries,
