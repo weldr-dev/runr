@@ -182,7 +182,7 @@ function detectFromPackageJson(repoPath: string): DetectionResult | null {
 /**
  * Generate default config when auto-detection fails
  */
-function generateDefaultConfig(repoPath: string): DetectionResult {
+function generateDefaultConfig(repoPath: string): DetectionResult & { reason?: string } {
   const hasSrc = fs.existsSync(path.join(repoPath, 'src'));
   const hasTests = fs.existsSync(path.join(repoPath, 'tests')) ||
                    fs.existsSync(path.join(repoPath, 'test'));
@@ -194,6 +194,22 @@ function generateDefaultConfig(repoPath: string): DetectionResult {
     presets.push('typescript');
   }
 
+  // Determine why we couldn't detect verification
+  let reason = 'no-package-json';
+  const packageJsonPath = path.join(repoPath, 'package.json');
+  if (fs.existsSync(packageJsonPath)) {
+    try {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      if (packageJson.scripts && Object.keys(packageJson.scripts).length > 0) {
+        reason = 'no-matching-scripts';
+      } else {
+        reason = 'empty-scripts';
+      }
+    } catch {
+      reason = 'invalid-package-json';
+    }
+  }
+
   return {
     verification: {
       tier0: [],
@@ -201,7 +217,8 @@ function generateDefaultConfig(repoPath: string): DetectionResult {
       tier2: []
     },
     presets,
-    source: 'none'
+    source: 'none',
+    reason
   };
 }
 
@@ -415,13 +432,48 @@ export async function initCommand(options: InitOptions): Promise<void> {
     }
     console.log('');
   } else {
-    console.log('⚠️  No verification commands detected');
-    console.log('Edit .runr/runr.config.json to add verification commands\n');
-    console.log('Tip: Run `runr init --interactive` for guided setup\n');
+    // No verification detected - provide detailed guidance
+    console.log('⚠️  No verification commands detected\n');
+
+    // Explain why based on the reason
+    const reason = (detection as any).reason;
+    if (reason === 'no-package-json') {
+      console.log('No package.json found in this repository.');
+      console.log('For JavaScript/TypeScript projects, add a package.json with npm scripts.');
+    } else if (reason === 'empty-scripts') {
+      console.log('Found package.json but it has no scripts defined.');
+      console.log('Add verification scripts like "test", "build", "lint", or "typecheck".');
+    } else if (reason === 'no-matching-scripts') {
+      console.log('Found package.json with scripts, but none match common verification patterns.');
+      console.log('Expected scripts: test, build, lint, typecheck, tsc, eslint, jest, vitest.');
+    } else if (reason === 'invalid-package-json') {
+      console.log('Found package.json but could not parse it (invalid JSON).');
+    }
+
+    console.log('');
+    console.log('📝 Next steps:');
+    console.log('');
+    console.log('Option 1: Manual configuration');
+    console.log(`  • Edit: ${configPath}`);
+    console.log('  • Add verification commands to tier0/tier1/tier2 arrays');
+    console.log('  • Example tier0: ["npm run lint", "npm run typecheck"]');
+    console.log('  • Example tier1: ["npm run build"]');
+    console.log('  • Example tier2: ["npm run test"]');
+    console.log('');
+    console.log('Option 2: Interactive setup');
+    console.log('  • Run: runr init --interactive --force');
+    console.log('  • Follow prompts to configure verification');
+    console.log('');
   }
 
-  console.log('Next steps:');
-  console.log('  1. Review/edit .runr/runr.config.json');
-  console.log('  2. Create a task file in .runr/tasks/');
-  console.log('  3. Run: runr run --task .runr/tasks/your-task.md --worktree');
+  if (detection.source !== 'none') {
+    console.log('Next steps:');
+    console.log('  1. Review/edit .runr/runr.config.json');
+    console.log('  2. Create a task file in .runr/tasks/');
+    console.log('  3. Run: runr run --task .runr/tasks/your-task.md --worktree');
+  } else {
+    console.log('After configuring verification:');
+    console.log('  1. Create a task file in .runr/tasks/');
+    console.log('  2. Run: runr run --task .runr/tasks/your-task.md --worktree');
+  }
 }
