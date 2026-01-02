@@ -15,6 +15,7 @@ import { orchestrateCommand, resumeOrchestrationCommand, waitOrchestrationComman
 import { pathsCommand } from './commands/paths.js';
 import { metricsCommand } from './commands/metrics.js';
 import { versionCommand } from './commands/version.js';
+import { initCommand } from './commands/init.js';
 import { CollisionPolicy } from './orchestrator/types.js';
 
 const program = new Command();
@@ -28,6 +29,22 @@ if (invokedAs === 'agent') {
 program
   .name('runr')
   .description('Phase-gated orchestration for agent tasks');
+
+program
+  .command('init')
+  .description('Initialize Runr configuration for a repository')
+  .option('--repo <path>', 'Target repo path (default: current directory)', '.')
+  .option('--interactive', 'Interactive setup (prompt for verification commands)', false)
+  .option('--print', 'Print config without writing files', false)
+  .option('--force', 'Overwrite existing config', false)
+  .action(async (options) => {
+    await initCommand({
+      repo: options.repo,
+      interactive: options.interactive,
+      print: options.print,
+      force: options.force
+    });
+  });
 
 program
   .command('run')
