@@ -182,7 +182,7 @@ runr banish                  # gc
 
 ## Case Files
 
-Every run automatically generates a **journal.md** case file in `runs/<run_id>/journal.md` containing:
+Every run automatically generates a **journal.md** case file in `.runr/runs/<run_id>/journal.md` containing:
 
 - **Run metadata** (timestamps, duration, stop reason)
 - **Task details** (goal, requirements, success criteria)
@@ -202,21 +202,34 @@ runr journal
 # Generate journal for specific run
 runr journal <run_id>
 
-# Add a timestamped note to run
+# Force regeneration even if up to date
+runr journal <run_id> --force
+
+# Add a timestamped note to latest run
 runr note "Debugging OAuth token refresh issue"
 
-# Open journal in $EDITOR
+# Add note to specific run
+runr note "Fixed token refresh" --run-id <run_id>
+
+# Open journal in $EDITOR (defaults to latest run)
 runr open
+runr open <run_id>
 ```
+
+**Note**: If `<run_id>` is omitted, all commands default to the most recent run in the repository.
 
 ### Auto-Generation
 
-Journals are automatically generated when runs complete. You can also:
-- Regenerate with `runr journal <run_id> --force`
-- View raw data in `runs/<run_id>/journal.json`
-- Add notes during or after runs
+Journals are automatically generated when runs complete (stop or finish). You can also:
+- Manually regenerate with `runr journal <run_id> --force`
+- Add timestamped notes during or after runs with `runr note` (stored in `.runr/runs/<run_id>/notes.jsonl`)
+- Open in your editor with `runr open` (uses `$EDITOR` or `vim`)
 
 **Use case**: Share run context with collaborators, document debugging sessions, track experiment results.
+
+**Files generated:**
+- `journal.md` - Human-readable case file
+- `notes.jsonl` - Timestamped notes (one JSON object per line)
 
 ## Task Files
 
