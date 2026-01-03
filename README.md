@@ -163,6 +163,9 @@ Available: `nextjs`, `react`, `drizzle`, `prisma`, `vitest`, `jest`, `playwright
 | `runr status [id]` | Show run state |
 | `runr follow [id]` | Tail run progress |
 | `runr report <id>` | Generate run report (includes next_action) |
+| `runr journal [id]` | Generate and display case file |
+| `runr note <message>` | Add timestamped note to run |
+| `runr open [id]` | Open journal in $EDITOR |
 | `runr gc` | Clean up old runs |
 | `runr doctor` | Check environment |
 
@@ -176,6 +179,44 @@ runr resurrect <id>          # resume
 runr scry <id>               # status
 runr banish                  # gc
 ```
+
+## Case Files
+
+Every run automatically generates a **journal.md** case file in `runs/<run_id>/journal.md` containing:
+
+- **Run metadata** (timestamps, duration, stop reason)
+- **Task details** (goal, requirements, success criteria)
+- **Milestone progress** (attempted, verified, checkpoints)
+- **Verification history** (test attempts, pass/fail counts)
+- **Code changes** (files changed, diff stats, top files)
+- **Error excerpts** (last failure with redacted secrets)
+- **Next action** (suggested command to continue)
+- **Notes** (timestamped annotations)
+
+### Commands
+
+```bash
+# Generate and display journal for latest run
+runr journal
+
+# Generate journal for specific run
+runr journal <run_id>
+
+# Add a timestamped note to run
+runr note "Debugging OAuth token refresh issue"
+
+# Open journal in $EDITOR
+runr open
+```
+
+### Auto-Generation
+
+Journals are automatically generated when runs complete. You can also:
+- Regenerate with `runr journal <run_id> --force`
+- View raw data in `runs/<run_id>/journal.json`
+- Add notes during or after runs
+
+**Use case**: Share run context with collaborators, document debugging sessions, track experiment results.
 
 ## Task Files
 

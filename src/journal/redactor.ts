@@ -5,6 +5,9 @@
  * Not perfect, but catches the obvious patterns.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+
 const MAX_EXCERPT_LINES = 60;
 const MAX_EXCERPT_BYTES = 5 * 1024; // 5KB
 
@@ -55,9 +58,6 @@ export function redactSecrets(text: string): RedactionResult {
  * Get error excerpt from log file with capping (lines + bytes)
  */
 export function getErrorExcerpt(logPath: string): string {
-  const fs = require('node:fs');
-  const path = require('node:path');
-
   if (!fs.existsSync(logPath)) {
     return `[Log file not found: ${path.basename(logPath)}]`;
   }

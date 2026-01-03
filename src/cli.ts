@@ -18,6 +18,7 @@ import { metricsCommand } from './commands/metrics.js';
 import { versionCommand } from './commands/version.js';
 import { initCommand } from './commands/init.js';
 import { watchCommand } from './commands/watch.js';
+import { journalCommand, noteCommand, openCommand } from './commands/journal.js';
 import { CollisionPolicy } from './orchestrator/types.js';
 
 const program = new Command();
@@ -543,6 +544,49 @@ program
       repo: options.repo,
       dryRun: options.dryRun,
       olderThan: Number.parseInt(options.olderThan, 10)
+    });
+  });
+
+// journal - Generate case file from run
+program
+  .command('journal')
+  .description('Generate and display journal.md for a run')
+  .argument('[runId]', 'Run ID (defaults to latest)')
+  .option('--repo <path>', 'Target repo path', '.')
+  .option('--output <file>', 'Output file path (defaults to runs/<id>/journal.md)')
+  .option('--force', 'Force regeneration even if up to date', false)
+  .action(async (runId: string | undefined, options) => {
+    await journalCommand({
+      repo: options.repo,
+      runId,
+      output: options.output,
+      force: options.force
+    });
+  });
+
+// note - Add timestamped note to run
+program
+  .command('note <message>')
+  .description('Add a timestamped note to a run')
+  .option('--repo <path>', 'Target repo path', '.')
+  .option('--run-id <id>', 'Run ID (defaults to latest)')
+  .action(async (message: string, options) => {
+    await noteCommand(message, {
+      repo: options.repo,
+      runId: options.runId
+    });
+  });
+
+// open - Open journal.md in editor
+program
+  .command('open')
+  .description('Open journal.md in $EDITOR')
+  .argument('[runId]', 'Run ID (defaults to latest)')
+  .option('--repo <path>', 'Target repo path', '.')
+  .action(async (runId: string | undefined, options) => {
+    await openCommand({
+      repo: options.repo,
+      runId
     });
   });
 

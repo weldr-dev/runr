@@ -28,6 +28,8 @@ import { checkLockfiles, checkScope, partitionChangedFiles } from './scope-guard
 import { commandsForTier, selectTiersWithReasons } from './verification-policy.js';
 import { runVerification } from '../verification/engine.js';
 import { stopRun, updatePhase, prepareForResume } from './state-machine.js';
+import { buildJournal } from '../journal/builder.js';
+import { renderJournal } from '../journal/renderer.js';
 import {
   getActiveRuns,
   checkFileCollisions,
@@ -391,6 +393,29 @@ function buildStructuredStopMemo(params: StopMemoParams): string {
 }
 
 /**
+ * Auto-write journal.md when run completes
+ */
+async function writeJournalOnRunComplete(
+  runId: string,
+  repoPath: string
+): Promise<void> {
+  try {
+    const journal = await buildJournal(runId, repoPath);
+    const markdown = renderJournal(journal);
+
+    // Get runs root and construct journal path
+    const { getRunsRoot } = await import('../store/runs-root.js');
+    const runDir = path.join(getRunsRoot(repoPath), runId);
+    const journalPath = path.join(runDir, 'journal.md');
+
+    fs.writeFileSync(journalPath, markdown, 'utf-8');
+    console.log(`\n✓ Case file generated: runs/${runId}/journal.md`);
+  } catch (err) {
+    throw new Error(`Failed to generate journal: ${(err as Error).message}`);
+  }
+}
+
+/**
  * Main supervisor entry point with auto-resume support.
  *
  * Wraps runSupervisorOnce with a while loop that automatically resumes
@@ -737,6 +762,17 @@ async function runSupervisorOnce(options: SupervisorOptions): Promise<void> {
     }
   } finally {
     clearInterval(watchdog);
+
+    // Auto-write journal.md when run reaches terminal state
+    try {
+      const finalState = options.runStore.readState();
+      if (finalState.phase === 'STOPPED') {
+        await writeJournalOnRunComplete(finalState.run_id, options.repoPath);
+      }
+    } catch (err) {
+      // Never crash on journal generation failure
+      console.warn(`Warning: Failed to generate journal: ${(err as Error).message}`);
+    }
   }
 }
 
