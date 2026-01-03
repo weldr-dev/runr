@@ -55,7 +55,35 @@ export async function listChangedFiles(gitRoot: string): Promise<string[]> {
   }
 
   // Deduplicate: renames or multiple status entries can reference same path
-  return [...new Set(files)];
+  const uniqueFiles = [...new Set(files)];
+
+  // Filter out gitignored files to prevent tool pollution from triggering guard violations
+  // This prevents .tmp/, .cache/, build outputs, etc. from stopping runs
+  if (uniqueFiles.length === 0) {
+    return [];
+  }
+
+  try {
+    const { execa } = await import('execa');
+    const checkIgnoreResult = await execa('git', ['check-ignore', '--stdin'], {
+      cwd: gitRoot,
+      input: uniqueFiles.join('\n'),
+      reject: false  // Don't throw on exit code 1 (no files ignored)
+    });
+
+    // git check-ignore outputs one line per ignored file (only ignored files)
+    const ignoredFiles = new Set(
+      checkIgnoreResult.stdout
+        .split('\n')
+        .filter(line => line.trim().length > 0)
+    );
+
+    // Return only files that are NOT ignored
+    return uniqueFiles.filter(file => !ignoredFiles.has(file));
+  } catch (err) {
+    // If check-ignore fails, return all files (safer to be strict)
+    return uniqueFiles;
+  }
 }
 
 export function getTouchedPackages(changedFiles: string[]): string[] {
