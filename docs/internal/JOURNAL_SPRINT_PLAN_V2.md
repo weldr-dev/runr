@@ -1,0 +1,676 @@
+# Run Journal Feature - Sprint Plan v2 (CORRECTED)
+
+**Status**: ✅ APPROVED - Grounded in reality, all critical issues fixed
+
+**Based on**: Actual run directory audit + user feedback
+
+---
+
+## Critical Fixes Applied
+
+1. ✅ **Milestone completion semantics fixed** - separate fields for attempted/verified/checkpoints
+2. ✅ **Verification summary fields renamed** - attempts_total/passed/failed
+3. ✅ **File paths audited** - all sources verified against actual run directory
+4. ✅ **Checkpoint extraction grounded** - git log only, no checkpoints in state.json
+5. ✅ **Warnings array added** to schema
+6. ✅ **Auto-write hook condition fixed** - uses `phase === 'STOPPED'`
+7. ✅ **Notes invalidation improved** - mtime comparison
+8. ✅ **Example fixed** - consistent milestone counts
+9. ✅ **Redaction made realistic** - no over-promises
+10. ✅ **Resume context** - confirmed no resume events in current runs (v1 = null)
+
+---
+
+## Schema v1.0 (FINAL)
+
+### journal.json
+
+```typescript
+interface JournalJson {
+  // Meta
+  schema_version: "1.0";
+  generated_by: string;        // "runr@0.4.0"
+  generated_at: string;         // ISO timestamp
+
+  // Identity
+  run_id: string;
+  repo_root: string;
+  base_sha: string | null;
+  head_sha: string | null;
+  task: {
+    path: string | null;
+    sha256: string | null;
+    title: string | null;       // Parsed from first H1
+    goal: string | null;         // Parsed from "## Goal" section
+  };
+
+  // Status
+  status: {
+    phase: string;               // From state.json (e.g., "STOPPED")
+    terminal_state: "complete" | "stopped" | "running" | "unknown";
+    stop_reason: string | null;
+    timestamps: {
+      started_at: string | null;
+      ended_at: string | null;
+    };
+  };
+
+  // Milestones/Checkpoints (FIXED SEMANTICS)
+  milestones: {
+    attempted: number;           // milestone_index + 1 from state.json
+    total: number;               // state.milestones.length
+    verified: number;            // Always 0 if stopped mid-run
+  };
+  checkpoints: {
+    created: number;             // Count from git log
+    list: Array<{
+      milestone_index: number;   // Parsed from commit message
+      title: string;             // From plan.md or default
+      sha: string;
+      created_at: string;        // ISO timestamp from git
+    }>;
+    last_sha: string | null;
+  };
+
+  // Verification
+  verification: {
+    summary: {
+      attempts_total: number;    // Count all verification events
+      attempts_passed: number;   // Count ok: true
+      attempts_failed: number;   // Count ok: false
+      total_duration_seconds: number;
+    };
+    last_failure: {
+      command: string;
+      exit_code: number;
+      error_excerpt: string;      // Last 60 lines, redacted
+      log_path: string;           // Relative to run dir
+    } | null;
+  };
+
+  // Changes
+  changes: {
+    base_sha: string | null;     // Redundant but explicit
+    head_sha: string | null;
+    files_changed: number | null;
+    insertions: number | null;
+    deletions: number | null;
+    top_files: Array<{           // Top 10 by total line changes
+      path: string;
+      insertions: number;
+      deletions: number;
+    }> | null;
+    diff_stat: string | null;    // `git diff --stat` output
+  };
+
+  // Next Action
+  next_action: {
+    title: string;
+    command: string;
+    why: string;
+  } | null;
+
+  // Notes metadata
+  notes: {
+    count: number;
+    path: string;                // Always "notes.jsonl"
+  };
+
+  // Resume context (v1: always null, reserved for future)
+  resumed_from: {
+    run_id: string;
+    checkpoint_sha: string;
+  } | null;
+
+  // Warnings (ADDED)
+  warnings: string[];
+}
+```
+
+---
+
+## Data Extraction (VERIFIED AGAINST ACTUAL FILES)
+
+### Run Identity
+
+| Field | Source | Fallback |
+|-------|--------|----------|
+| `run_id` | Argument | - |
+| `repo_root` | `config.snapshot.json → _worktree.original_repo_path` | `process.cwd()` |
+| `base_sha` | `config.snapshot.json → _worktree.base_sha` | null + warn |
+| `head_sha` | `git rev-parse <run_branch>` OR last checkpoint SHA | null + warn |
+| `task.path` | `artifacts/task.meta.json → task_path` | null + warn |
+| `task.sha256` | Hash `artifacts/task.md` | null + warn |
+| `task.title` | Parse `artifacts/task.md` first `# ` line | null |
+| `task.goal` | Parse `artifacts/task.md` `## Goal` section | null |
+
+**Extraction order**:
+1. Read `config.snapshot.json`
+2. Read `artifacts/task.meta.json`
+3. Read and hash `artifacts/task.md`
+4. Parse markdown for title/goal
+
+### Status
+
+| Field | Source | Fallback |
+|-------|--------|----------|
+| `phase` | `state.json → phase` | "unknown" |
+| `terminal_state` | `summary.json → outcome` OR derive from phase | "unknown" |
+| `stop_reason` | `state.json → stop_reason` | null |
+| `timestamps.started_at` | `timeline.jsonl` first `run_started` → timestamp | null |
+| `timestamps.ended_at` | `timeline.jsonl` last `stop` → timestamp | null |
+
+**Note**: `summary.json` is generated by `runr summarize`, may not exist for old runs. Prefer `state.json` as primary source.
+
+### Milestones/Checkpoints (FIXED)
+
+| Field | Source | Extraction |
+|-------|--------|------------|
+| `milestones.attempted` | `state.json → milestone_index + 1` | 0-indexed, so add 1 |
+| `milestones.total` | `state.json → milestones.length` | Count array |
+| `milestones.verified` | Always 0 for stopped runs | 0 for v1 |
+| `checkpoints.created` | Count from git log | See below |
+| `checkpoints.list` | `git log --format='%H\|%at\|%s' <base_sha>..<run_branch>` | Parse |
+| `checkpoints.last_sha` | Last checkpoint in list | null if none |
+
+**Checkpoint extraction** (from git log):
+```bash
+git log --format='%H|%at|%s' <base_sha>..<run_branch> \
+  | grep 'chore(agent): checkpoint milestone' \
+  | parse with regex
+```
+
+**Regex**: `^([a-f0-9]+)\|(\d+)\|chore\(agent\): checkpoint milestone (\d+)$`
+
+**Fallback**: If git command fails or pattern doesn't match → `checkpoints.created = 0`, `list = []`, warn.
+
+### Verification (RENAMED FIELDS)
+
+**Source**: `timeline.jsonl` events where `type === "verification"`
+
+**Event structure**:
+```json
+{
+  "type": "verification",
+  "payload": {
+    "tier": "tier1",
+    "ok": false,
+    "commands": ["npm test"],
+    "command_results": [{
+      "command": "npm test",
+      "exit_code": 1,
+      "output": "..."
+    }],
+    "duration_ms": 11164
+  },
+  "timestamp": "2026-01-02T08:09:24.734Z"
+}
+```
+
+| Field | Extraction |
+|-------|------------|
+| `attempts_total` | Count all events |
+| `attempts_passed` | Count where `payload.ok === true` |
+| `attempts_failed` | Count where `payload.ok === false` |
+| `total_duration_seconds` | Sum `payload.duration_ms` / 1000 |
+| `last_failure.command` | Last failed event → `payload.commands[0]` |
+| `last_failure.exit_code` | Last failed event → `payload.command_results[0].exit_code` |
+| `last_failure.error_excerpt` | Last failed event → `payload.command_results[0].output` → last 60 lines → redact |
+| `last_failure.log_path` | `artifacts/tests_<tier>.log` |
+
+**Fallback**: If no verification events → all fields null except `attempts_total: 0`.
+
+### Changes
+
+**Source**: Git commands using stored SHAs from `config.snapshot.json`
+
+**Commands**:
+```bash
+git diff --numstat <base_sha>..<head_sha>
+git diff --stat <base_sha>..<head_sha>
+```
+
+**CRITICAL**: Always use stored SHAs, NEVER `git rev-parse HEAD`.
+
+| Field | Extraction |
+|-------|------------|
+| `base_sha` | From `config.snapshot.json` (redundant but explicit) |
+| `head_sha` | From checkpoint or git command |
+| `files_changed` | Count lines in --numstat |
+| `insertions` | Sum column 1 in --numstat |
+| `deletions` | Sum column 2 in --numstat |
+| `top_files` | Sort by (ins + del), take top 10 |
+| `diff_stat` | Direct --stat output |
+
+**Fallback**: If git commands fail → all null + warn.
+
+### Next Action
+
+**Source**: `handoffs/stop.json` (if exists)
+
+**Extraction**:
+```typescript
+if (fs.existsSync(path.join(runDir, 'handoffs/stop.json'))) {
+  const stopData = JSON.parse(fs.readFileSync(...));
+  return stopData.next_actions[0];  // { title, command, why }
+} else {
+  // Derive from stop_reason
+  if (stop_reason === 'verification_failed_max_retries') {
+    return {
+      title: 'View verification logs',
+      command: `cat runs/${runId}/artifacts/tests_tier*.log`,
+      why: 'See full error output from failing tests'
+    };
+  }
+  return null;
+}
+```
+
+**Note**: `stop.json` is generated by `runr summarize`, may not exist for old runs.
+
+### Notes
+
+**Source**: `notes.jsonl` (may not exist yet, we're creating it)
+
+```typescript
+const notesPath = path.join(runDir, 'notes.jsonl');
+const count = fs.existsSync(notesPath) ? fs.readFileSync(notesPath, 'utf-8').split('\n').filter(l => l.trim()).length : 0;
+
+return {
+  count,
+  path: 'notes.jsonl'
+};
+```
+
+### Resume Context
+
+**For v1**: Always null.
+
+**Future**: Check timeline for `resumed_from` event (doesn't exist in current runs).
+
+```typescript
+return null;  // v1
+```
+
+---
+
+## Corrected Example
+
+```markdown
+# Run Journal: Dogfood Task 01: Polish Init Command
+
+**Run ID**: `20260102075326`
+**Status**: stopped (verification_failed_max_retries)
+**Duration**: 950 seconds
+**Started**: 2026-01-02T07:53:35.022Z
+**Ended**: 2026-01-02T08:09:24.734Z
+
+---
+
+## Task
+
+**File**: `.runr/tasks/dogfood-01-polish-init.md`
+**SHA256**: `<computed>`
+
+### Goal
+
+Improve `runr init` detection and UX based on real-world usage patterns.
+
+---
+
+## Status
+
+- **Phase**: STOPPED
+- **Outcome**: stopped
+- **Stop Reason**: verification_failed_max_retries
+- **Milestones Attempted**: 4 (indices 0-3)
+- **Milestones Verified**: 0
+- **Checkpoints Created**: 3
+
+---
+
+## Checkpoints
+
+| Milestone | SHA | Created At |
+|-----------|-----|------------|
+| 1 | `82eb3c2` | 2026-01-02T07:54:52Z |
+| 2 | `7e5b62c` | 2026-01-02T07:56:18Z |
+| 3 | `5c98ffa` | 2026-01-02T07:57:41Z |
+
+**Last Checkpoint**: `5c98ffa`
+
+---
+
+## Verification
+
+**Summary**:
+- Total Attempts: 13
+- Passed: 0
+- Failed: 13
+- Duration: 54s
+
+**Last Failure**:
+```
+Command: npm test
+Exit Code: 1
+
+Error: Cannot find package 'react/jsx-dev-runtime' imported from '.../.runr-worktrees/20260102075326/apps/deckbuilder/src/components/Board.test.tsx'
+
+[REDACTED - last 60 lines]
+```
+
+Full log: `artifacts/tests_tier1.log`
+
+---
+
+## Changes
+
+**Summary**:
+- Files Changed: 15
+- Insertions: +487
+- Deletions: -23
+
+**Top Changed Files**:
+| File | +/- |
+|------|-----|
+| `tests/commands/init.test.ts` | +312 -0 |
+| `src/commands/init.ts` | +145 -18 |
+
+**Diff Stat**:
+```
+tests/commands/init.test.ts | 312 ++++++++++++
+src/commands/init.ts         | 163 +++++--
+...
+```
+
+---
+
+## Next Action
+
+**Recommended**: View verification logs
+
+```bash
+cat runs/20260102075326/artifacts/tests_tier0.log 2>/dev/null || cat runs/20260102075326/artifacts/verify.log
+```
+
+**Why**: See full error output from failing tests
+
+---
+
+## Notes
+
+No notes recorded.
+
+Add a note: `runr note 20260102075326 "Your note here"`
+
+---
+
+*Journal generated by runr@0.4.0 at 2026-01-02T22:00:00Z*
+*Schema version: 1.0*
+```
+
+**Note the fix**: "Milestones Attempted: 4" matches state.json's milestone_index (0-indexed), and "Checkpoints Created: 3" matches the git log count. **CONSISTENT.**
+
+---
+
+## Implementation (CORRECTED)
+
+### Phase 1: Core Builder (Morning, 3h)
+
+**Files**:
+- `src/journal/types.ts` - TypeScript interfaces (final schema above)
+- `src/journal/builder.ts` - buildJournal() function
+- `src/journal/redactor.ts` - redactSecrets() function
+- `tests/journal/builder.test.ts` - Unit tests
+
+**Builder implementation**:
+
+```typescript
+export async function buildJournal(runId: string, repo: string): Promise<JournalJson> {
+  const warnings: string[] = [];
+  const runDir = path.join(getRunsRoot(repo), runId);
+
+  // Extract all sections (each wrapped in try-catch)
+  const identity = await extractIdentity(runDir, warnings);
+  const status = await extractStatus(runDir, warnings);
+  const milestones = await extractMilestones(runDir, warnings);
+  const checkpoints = await extractCheckpoints(runDir, identity.base_sha, warnings);
+  const verification = await extractVerification(runDir, warnings);
+  const changes = await extractChanges(runDir, identity.base_sha, checkpoints.last_sha, warnings);
+  const nextAction = await extractNextAction(runDir, status.stop_reason, warnings);
+  const notes = await extractNotes(runDir);
+
+  return {
+    schema_version: "1.0",
+    generated_by: `runr@${getVersion()}`,
+    generated_at: new Date().toISOString(),
+    run_id: runId,
+    repo_root: identity.repo_root,
+    base_sha: identity.base_sha,
+    head_sha: checkpoints.last_sha || identity.base_sha,
+    task: identity.task,
+    status,
+    milestones,
+    checkpoints,
+    verification,
+    changes,
+    next_action: nextAction,
+    notes,
+    resumed_from: null,  // v1
+    warnings
+  };
+}
+```
+
+**Each extract function**:
+- Wrapped in try-catch
+- On error: set fields to null, append to warnings
+- Return partial data, never crash
+
+### Phase 2: Markdown Renderer (Midday, 2h)
+
+**Files**:
+- `src/journal/renderer.ts`
+- `tests/journal/renderer.test.ts`
+
+**Implementation**:
+
+```typescript
+export function renderJournalMd(journal: JournalJson, notes: Note[]): string {
+  // Use template from example above
+  // Handle null fields gracefully (show "N/A" or omit section)
+  // Compile notes chronologically
+  // Return markdown string
+}
+```
+
+### Phase 3: CLI Commands (Afternoon, 2-3h)
+
+**Commands to implement**:
+1. `runr journal <run_id>` - print journal.md
+2. `runr note <run_id> "text"` - append to notes.jsonl
+3. `runr open <run_id>` - print paths
+
+**Auto-write hook** (in supervisor.ts):
+
+```typescript
+// After writing state.json
+runStore.writeState(state);
+
+// Auto-write journal if terminal
+if (state.phase === 'STOPPED') {  // ← CONFIRMED from code audit
+  try {
+    const journal = await buildJournal(runId, repoPath);
+    await writeJournalAtomic(path.join(runDir, 'journal.json'), journal);
+
+    const notes = await readNotes(path.join(runDir, 'notes.jsonl'));
+    const md = renderJournalMd(journal, notes);
+    await writeFileAtomic(path.join(runDir, 'journal.md'), md);
+  } catch (err) {
+    console.warn(`Warning: Failed to generate journal: ${err}`);
+  }
+}
+```
+
+**Notes invalidation** (improved):
+
+```typescript
+function shouldRegenerate(journalMdPath: string, stateJsonPath: string, notesPath: string): boolean {
+  if (!fs.existsSync(journalMdPath)) return true;
+
+  const journalMtime = fs.statSync(journalMdPath).mtimeMs;
+
+  // Regen if state.json is newer
+  if (fs.existsSync(stateJsonPath) && fs.statSync(stateJsonPath).mtimeMs > journalMtime) {
+    return true;
+  }
+
+  // Regen if notes.jsonl is newer
+  if (fs.existsSync(notesPath) && fs.statSync(notesPath).mtimeMs > journalMtime) {
+    return true;
+  }
+
+  return false;
+}
+```
+
+### Phase 4: Redaction (Realistic)
+
+```typescript
+function redactSecrets(text: string): { redacted: string; had_redactions: boolean } {
+  let redacted = text;
+  let had_redactions = false;
+
+  // AWS keys
+  if (/AKIA[0-9A-Z]{16}/.test(redacted)) {
+    redacted = redacted.replace(/AKIA[0-9A-Z]{16}/g, '[REDACTED_AWS_KEY]');
+    had_redactions = true;
+  }
+
+  // Env var patterns (KEY=value, TOKEN=value, etc.)
+  if (/\b(API_KEY|SECRET|ACCESS_TOKEN|PRIVATE_KEY|PASSWORD)=["']?[^\s"']+/i.test(redacted)) {
+    redacted = redacted.replace(/\b(API_KEY|SECRET|ACCESS_TOKEN|PRIVATE_KEY|PASSWORD)=["']?[^\s"']+/gi, '$1=[REDACTED]');
+    had_redactions = true;
+  }
+
+  // Bearer tokens
+  if (/Bearer\s+[A-Za-z0-9\-._~+/]+=*/.test(redacted)) {
+    redacted = redacted.replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]');
+    had_redactions = true;
+  }
+
+  // PEM blocks
+  if (/-----BEGIN [A-Z ]+-----/.test(redacted)) {
+    redacted = redacted.replace(/-----BEGIN [A-Z ]+-----[\s\S]+?-----END [A-Z ]+-----/g, '[REDACTED_PEM_BLOCK]');
+    had_redactions = true;
+  }
+
+  return { redacted, had_redactions };
+}
+```
+
+**In builder**:
+```typescript
+const { redacted, had_redactions } = redactSecrets(errorExcerpt);
+const footer = had_redactions ? '\n\n[Redaction applied - sensitive data removed]' : '';
+error_excerpt = redacted + footer;
+```
+
+---
+
+## Test Plan (COMPLETE)
+
+### Unit Tests
+
+1. **builder.test.ts**:
+   - ✅ Builds complete journal from full run (use 20260102075326 snapshot)
+   - ✅ Handles missing timeline.jsonl → warnings
+   - ✅ Handles missing config.snapshot.json → warnings
+   - ✅ Handles git command failures (mock exec) → null + warnings
+   - ✅ Redacts secrets in error excerpts
+   - ✅ Deterministic output (same run → same journal)
+   - ✅ Milestone semantics correct (attempted=4, verified=0, checkpoints=3)
+
+2. **renderer.test.ts**:
+   - ✅ Renders full journal.md
+   - ✅ Handles null sections gracefully
+   - ✅ Valid markdown (no broken tables)
+   - ✅ Notes appear chronologically
+
+3. **redactor.test.ts**:
+   - ✅ Redacts AWS keys
+   - ✅ Redacts env var patterns
+   - ✅ Redacts Bearer tokens
+   - ✅ Redacts PEM blocks
+   - ✅ Returns had_redactions flag
+   - ✅ Doesn't over-redact (false positives)
+
+4. **journal.test.ts** (command):
+   - ✅ Generates on first call
+   - ✅ Reuses cached if fresh
+   - ✅ Regenerates if state.json newer
+   - ✅ Regenerates if notes.jsonl newer
+   - ✅ `--write` forces regen
+   - ✅ `--json` outputs JSON
+
+5. **note.test.ts** (command):
+   - ✅ Appends to notes.jsonl
+   - ✅ Creates if doesn't exist
+   - ✅ Multiple notes preserve order
+   - ✅ Triggers journal.md mtime update
+
+6. **open.test.ts** (command):
+   - ✅ Prints paths
+   - ✅ Includes worktree if exists
+   - ✅ Includes last checkpoint SHA
+
+### Integration Tests
+
+7. **journal-integration.test.ts**:
+   - ✅ Run completes → journal exists + valid
+   - ✅ Run stops → journal includes next_action
+   - ✅ Notes added → appear in journal
+   - ✅ Auto-write on STOPPED phase
+
+### Manual Checklist
+
+- [ ] `runr journal 20260102075326` produces readable markdown
+- [ ] Milestone counts consistent (attempted=4, checkpoints=3, verified=0)
+- [ ] `runr note 20260102075326 "test"` works
+- [ ] `runr journal 20260102075326` shows note
+- [ ] `runr open 20260102075326` prints paths
+- [ ] Redaction works on real error logs
+- [ ] Run on non-git repo → partial journal + warnings
+
+---
+
+## Definition of Done
+
+✅ All unit tests pass
+✅ All integration tests pass
+✅ Manual checklist complete
+✅ Example journal.md consistent
+✅ README updated
+✅ No regressions
+✅ Published to npm as v0.4.0
+
+---
+
+## Changes from v1 Plan
+
+1. **Milestone semantics clarified**: separate attempted/verified/checkpoints
+2. **Verification fields renamed**: attempts_total/passed/failed (not failed + total)
+3. **File paths verified**: all sources exist in actual run directory
+4. **Checkpoints extraction**: confirmed no metadata, only git log
+5. **Auto-write condition**: confirmed `phase === 'STOPPED'`
+6. **Warnings array**: added to schema
+7. **Notes invalidation**: mtime-based, not deletion
+8. **Redaction**: realistic, returns flag, adds footer
+9. **Resume context**: confirmed null for v1 (no events in timeline)
+10. **Example**: fixed to be internally consistent
+
+---
+
+**Status**: ✅ READY FOR IMPLEMENTATION
+
+**User approval**: Reply "start Phase 1" to begin.
