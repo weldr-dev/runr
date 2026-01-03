@@ -139,17 +139,22 @@ program
 
 program
   .command('status')
-  .argument('[runId]', 'Run ID (omit with --all to show all runs)')
+  .argument('[runId]', 'Run ID (defaults to latest)')
   .option('--repo <path>', 'Target repo path (default: current directory)', '.')
   .option('--all', 'Show status of all runs', false)
   .action(async (runId: string | undefined, options) => {
     if (options.all) {
       await statusAllCommand({ repo: options.repo });
-    } else if (runId) {
-      await statusCommand({ runId, repo: options.repo });
     } else {
-      console.error('Error: Run ID required unless using --all');
-      process.exit(1);
+      const { findLatestRunId } = await import('./store/run-utils.js');
+      const resolvedRunId = runId || findLatestRunId(options.repo);
+
+      if (!resolvedRunId) {
+        console.error('Error: No runs found. Specify --run-id or create a run first.');
+        process.exit(1);
+      }
+
+      await statusCommand({ runId: resolvedRunId, repo: options.repo });
     }
   });
 
