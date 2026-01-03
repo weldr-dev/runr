@@ -79,7 +79,8 @@ A task is done only when:
 - you provide:
   - a brief summary (3–6 bullets),
   - the key diff highlights (files changed),
-  - and the verification evidence (or report excerpt).
+  - the verification evidence (or report excerpt),
+  - and the run_id + journal path for context (`.runr/runs/<RUN_ID>/journal.md`).
 
 FAILSAFE BEHAVIOR
 - If commands or outputs are ambiguous, pause and read `runr report` again.
@@ -96,3 +97,6 @@ COMMAND PALETTE (do not invent other subcommands)
 - runr report <RUN_ID> [--json]
 - runr resume <RUN_ID>
 - runr watch <RUN_ID> --auto-resume --max-attempts <N>
+- runr journal [<RUN_ID>]          # view auto-generated case file
+- runr note <message> [--run-id]   # add timestamped note to run
+- runr open [<RUN_ID>]             # open journal in $EDITOR (or print path)

@@ -291,6 +291,38 @@ runr doctor
 
 ---
 
+### 8. Work with Case Files (Journals)
+
+Every run writes a **journal.md** case file when it completes or stops. Use it for context recovery and debugging without spelunking logs.
+
+```bash
+runr journal                    # latest run
+runr journal <run_id>           # specific run
+runr journal <run_id> --force   # regenerate
+
+runr note "Tried X; failed because Y"        # note on latest run
+runr note "Fixed API timeout" --run-id <id>  # note on specific run
+
+runr open [run_id]              # open (or print path if non-interactive)
+```
+
+**What's inside:**
+- Metadata (timestamps, duration, stop reason)
+- Milestones + checkpoints
+- Verification summary + last failure excerpt (secrets redacted)
+- Change summary (diff stats)
+- Next action suggestion
+- Notes (append-only)
+
+**Files:**
+- `.runr/runs/<run_id>/journal.md`
+- `.runr/runs/<run_id>/journal.json`
+- `.runr/runs/<run_id>/notes.jsonl`
+
+**Best practice:** Always read the journal before `runr resume` on an old run. If you're unsure what happened: `runr journal <run_id>` is the source of truth.
+
+---
+
 ## Typical Workflow
 
 ### Starting a Run
