@@ -126,6 +126,7 @@ program
   .option('--auto-resume', 'Continue auto-resuming on transient failures', false)
   .option('--auto-stash', 'Automatically stash uncommitted changes before resume', false)
   .option('--plan', 'Print resume plan and exit without resuming', false)
+  .option('--json', 'Output resume plan as JSON (implies --plan)', false)
   .action(async (runId: string, options) => {
     await resumeCommand({
       runId,
@@ -137,7 +138,8 @@ program
       force: options.force,
       autoResume: options.autoResume,
       autoStash: options.autoStash,
-      plan: options.plan
+      plan: options.plan,
+      json: options.json
     });
   });
 

@@ -22,6 +22,7 @@ export interface ResumeOptions {
   autoResume: boolean;
   autoStash?: boolean;
   plan?: boolean;
+  json?: boolean;
 }
 
 /**
@@ -77,6 +78,7 @@ interface ResumePlan {
   lastCheckpointMilestoneIndex: number; // -1 if none
   resumeFromMilestoneIndex: number;     // usually last+1
   remainingMilestones: number;
+  checkpointSource: 'git_log_run_specific' | 'git_log_legacy' | 'none';
   delta: {
     diffstat?: string;
     lockfilesChanged: boolean;
@@ -150,6 +152,7 @@ async function buildResumePlan(options: {
   // Try run-specific pattern first, then fallback to legacy
   let checkpointSha: string | null = null;
   let lastCheckpointMilestoneIndex = -1;
+  let checkpointSource: 'git_log_run_specific' | 'git_log_legacy' | 'none' = 'none';
 
   // First: try new format with run_id
   try {
@@ -175,6 +178,7 @@ async function buildResumePlan(options: {
       const match = commitMessage.match(/milestone (\d+)/);
       if (match) {
         lastCheckpointMilestoneIndex = parseInt(match[1], 10);
+        checkpointSource = 'git_log_run_specific';
       }
     }
   } catch {
@@ -205,6 +209,7 @@ async function buildResumePlan(options: {
         const match = commitMessage.match(/checkpoint milestone (\d+)/);
         if (match) {
           lastCheckpointMilestoneIndex = parseInt(match[1], 10);
+          checkpointSource = 'git_log_legacy';
         }
       }
     } catch {
@@ -244,6 +249,7 @@ async function buildResumePlan(options: {
     lastCheckpointMilestoneIndex,
     resumeFromMilestoneIndex,
     remainingMilestones,
+    checkpointSource,
     delta: {
       diffstat,
       lockfilesChanged,
@@ -321,6 +327,111 @@ async function assertCleanWorkingTree(
 }
 
 /**
+ * Get working tree status (non-throwing version for plan mode).
+ */
+async function getWorkingTreeStatus(repoPath: string): Promise<{
+  clean: boolean;
+  dirtyPaths: string[];
+  dirtyCount: number;
+}> {
+  try {
+    const statusResult = await git(['status', '--porcelain'], repoPath);
+    const dirtyFiles = statusResult.stdout.trim().split('\n').filter(f => f.trim());
+
+    return {
+      clean: dirtyFiles.length === 0,
+      dirtyPaths: dirtyFiles.slice(0, 10), // Sample up to 10
+      dirtyCount: dirtyFiles.length
+    };
+  } catch {
+    // Git command failed, assume clean
+    return {
+      clean: true,
+      dirtyPaths: [],
+      dirtyCount: 0
+    };
+  }
+}
+
+/**
+ * Resume plan JSON schema (v1).
+ */
+interface ResumePlanJson {
+  schema_version: number;
+  run_id: string;
+  repo_path: string;
+  effective_repo_path: string;
+  checkpoint: {
+    sha: string | null;
+    milestone_index: number;
+    source: 'git_log_run_specific' | 'git_log_legacy' | 'none';
+  };
+  resume: {
+    from_milestone_index: number;
+    phase: string;
+    remaining_milestones: number;
+  };
+  repo_state: {
+    working_tree_clean: boolean;
+    dirty_paths_sample: string[];
+    dirty_count: number;
+  };
+  delta: {
+    diffstat?: string;
+    lockfiles_changed: boolean;
+    ignored_noise_count: number;
+    ignored_noise_sample: string[];
+  };
+  warnings: string[];
+}
+
+/**
+ * Format resume plan as JSON.
+ */
+async function formatResumePlanJson(
+  plan: ResumePlan,
+  state: RunState,
+  effectiveRepoPath: string,
+  checkpointSource: 'git_log_run_specific' | 'git_log_legacy' | 'none'
+): Promise<ResumePlanJson> {
+  const repoStatus = await getWorkingTreeStatus(effectiveRepoPath);
+  const warnings: string[] = [];
+
+  if (!plan.delta.diffstat && plan.checkpointSha) {
+    warnings.push('Could not compute diffstat');
+  }
+
+  return {
+    schema_version: 1,
+    run_id: plan.runId,
+    repo_path: state.repo_path,
+    effective_repo_path: effectiveRepoPath,
+    checkpoint: {
+      sha: plan.checkpointSha,
+      milestone_index: plan.lastCheckpointMilestoneIndex,
+      source: checkpointSource
+    },
+    resume: {
+      from_milestone_index: plan.resumeFromMilestoneIndex,
+      phase: 'IMPLEMENT', // Resume always goes to IMPLEMENT
+      remaining_milestones: plan.remainingMilestones
+    },
+    repo_state: {
+      working_tree_clean: repoStatus.clean,
+      dirty_paths_sample: repoStatus.dirtyPaths,
+      dirty_count: repoStatus.dirtyCount
+    },
+    delta: {
+      diffstat: plan.delta.diffstat,
+      lockfiles_changed: plan.delta.lockfilesChanged,
+      ignored_noise_count: plan.delta.ignoredNoiseCount,
+      ignored_noise_sample: plan.delta.ignoredNoiseSample
+    },
+    warnings
+  };
+}
+
+/**
  * Format resume plan for display.
  */
 function formatResumePlan(plan: ResumePlan): string {
@@ -344,18 +455,42 @@ function formatResumePlan(plan: ResumePlan): string {
 }
 
 export async function resumeCommand(options: ResumeOptions): Promise<void> {
-  // Log effective configuration for transparency
-  console.log(formatResumeConfig(options));
+  // Early flag validation
+  // --json implies --plan
+  if (options.json) {
+    options.plan = true;
+  }
+
+  // --auto-stash is incompatible with --plan (plan is read-only)
+  if (options.autoStash && options.plan) {
+    console.error('Error: --auto-stash cannot be used with --plan (plan mode is read-only)');
+    process.exitCode = 1;
+    return;
+  }
+
+  // Log effective configuration for transparency (skip in JSON mode)
+  if (!options.json) {
+    console.log(formatResumeConfig(options));
+  }
 
   const runStore = RunStore.init(options.runId, options.repo);
   let state: RunState;
   try {
     state = runStore.readState();
   } catch {
-    throw new Error(`Run state not found for ${options.runId}`);
+    if (options.json) {
+      console.error(JSON.stringify({
+        error: 'run_not_found',
+        message: `Run state not found for ${options.runId}`
+      }, null, 2));
+    } else {
+      throw new Error(`Run state not found for ${options.runId}`);
+    }
+    process.exitCode = 1;
+    return;
   }
 
-  const { config: configSnapshot, worktree: worktreeInfo } = readConfigSnapshot(runStore.path);
+  const { config: configSnapshot, worktree: worktreeInfo} = readConfigSnapshot(runStore.path);
   const config =
     configSnapshot ??
     loadConfig(resolveConfigPath(state.repo_path, options.config));
@@ -431,10 +566,14 @@ export async function resumeCommand(options: ResumeOptions): Promise<void> {
   }
 
   // INSERTION 1: Dirty tree check (REFUSE policy)
-  const stashInfo = await assertCleanWorkingTree(effectiveRepoPath, {
-    autoStash: options.autoStash,
-    runId: options.runId
-  });
+  // Skip in plan mode - plan is read-only
+  let stashInfo: StashInfo | null = null;
+  if (!options.plan) {
+    stashInfo = await assertCleanWorkingTree(effectiveRepoPath, {
+      autoStash: options.autoStash,
+      runId: options.runId
+    });
+  }
 
   // INSERTION 2: Build and print resume plan
   const plan = await buildResumePlan({
@@ -443,12 +582,25 @@ export async function resumeCommand(options: ResumeOptions): Promise<void> {
     runStore,
     config
   });
-  console.log(formatResumePlan(plan));
 
-  // If --plan mode, exit after printing plan
+  // If --plan mode, output plan and exit
   if (options.plan) {
+    if (options.json) {
+      const planJson = await formatResumePlanJson(
+        plan,
+        state,
+        effectiveRepoPath,
+        plan.checkpointSource
+      );
+      console.log(JSON.stringify(planJson, null, 2));
+    } else {
+      console.log(formatResumePlan(plan));
+    }
     return;
   }
+
+  // Not in plan mode - print plan in text format
+  console.log(formatResumePlan(plan));
 
   // Use shared helper to prepare state for resume
   const updated = prepareForResume(state, { resumeToken: options.runId });
