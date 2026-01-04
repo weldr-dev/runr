@@ -1,12 +1,15 @@
 import { execa } from 'execa';
 import path from 'node:path';
-import { loadConfig, resolveConfigPath } from '../config/load.js';
 import { WorkerConfig, AgentConfig } from '../config/schema.js';
 
 export interface DoctorOptions {
-  config?: string;
   repo?: string;
+  config?: string;
 }
+
+// ==========================================
+// Worker health checks (used by run command)
+// ==========================================
 
 export interface WorkerCheck {
   name: string;
@@ -14,13 +17,6 @@ export interface WorkerCheck {
   version: string | null;
   headless: boolean;
   error: string | null;
-}
-
-export interface DoctorResult {
-  configPath: string;
-  repoPath: string;
-  checks: WorkerCheck[];
-  allPassed: boolean;
 }
 
 async function checkWorker(
@@ -88,6 +84,9 @@ async function checkWorker(
   return result;
 }
 
+/**
+ * Run worker health checks (used by run command)
+ */
 export async function runDoctorChecks(config: AgentConfig, repoPath: string): Promise<WorkerCheck[]> {
   const checks: WorkerCheck[] = [];
   for (const [name, workerConfig] of Object.entries(config.workers)) {
@@ -97,64 +96,56 @@ export async function runDoctorChecks(config: AgentConfig, repoPath: string): Pr
   return checks;
 }
 
+// ==========================================
+// Repository diagnostics (user-facing command)
+// ==========================================
+
+/**
+ * Check if the given path is inside a git repository
+ */
+async function checkGitRepository(repoPath: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const result = await execa('git', ['rev-parse', '--git-dir'], {
+      cwd: repoPath,
+      reject: false
+    });
+
+    if (result.exitCode === 0) {
+      return { ok: true };
+    } else {
+      return { ok: false, error: 'not a git repository' };
+    }
+  } catch (err) {
+    return { ok: false, error: `Git check failed: ${(err as Error).message}` };
+  }
+}
+
+/**
+ * Run diagnostic checks on the repository
+ */
 export async function doctorCommand(options: DoctorOptions): Promise<void> {
   const repoPath = path.resolve(options.repo || '.');
-  const configPath = resolveConfigPath(repoPath, options.config);
 
-  console.log('Doctor Check');
-  console.log('============\n');
+  console.log('Runr Doctor');
+  console.log('===========\n');
 
-  let config;
-  try {
-    config = loadConfig(configPath);
-    console.log(`Config: ${configPath}`);
-    console.log(`Repo: ${repoPath}\n`);
-  } catch (err) {
-    console.log(`Config: FAIL - ${(err as Error).message}`);
-    process.exitCode = 1;
-    return;
+  let hasErrors = false;
+
+  // Check 1: Git repository
+  const gitCheck = await checkGitRepository(repoPath);
+  if (gitCheck.ok) {
+    console.log('Git repository: OK');
+  } else {
+    console.log(`Git repository: FAIL - ${gitCheck.error}`);
+    hasErrors = true;
   }
 
-  const checks = await runDoctorChecks(config, repoPath);
-
-  console.log('Workers\n-------');
-
-  for (const check of checks) {
-
-    const status = check.error ? 'FAIL' : 'PASS';
-    const version = check.version || 'unknown';
-    const headless = check.headless ? 'headless OK' : 'headless FAIL';
-
-    console.log(`${check.name}: ${status}`);
-    console.log(`  bin: ${check.bin}`);
-    console.log(`  version: ${version}`);
-    console.log(`  ${headless}`);
-    if (check.error) {
-      console.log(`  error: ${check.error}`);
-    }
-    console.log('');
-  }
-
-  // Show phase configuration
-  console.log('Phases\n------');
-  console.log(`  plan: ${config.phases.plan}`);
-  console.log(`  implement: ${config.phases.implement}`);
-  console.log(`  review: ${config.phases.review}`);
-  console.log('');
-
-  // Check that configured phase workers are available
-  const phaseWorkers = new Set([config.phases.plan, config.phases.implement, config.phases.review]);
-  const failedWorkers = checks.filter((c) => c.error).map((c) => c.name);
-  const usedButFailed = [...phaseWorkers].filter((w) => failedWorkers.includes(w));
-
-  const failed = checks.filter((c) => c.error);
-  if (failed.length > 0) {
-    console.log(`\nResult: ${failed.length} worker(s) failed`);
-    if (usedButFailed.length > 0) {
-      console.log(`Warning: Phase(s) configured to use failed worker(s): ${usedButFailed.join(', ')}`);
-    }
+  // Exit with appropriate code
+  if (hasErrors) {
+    console.log('\nResult: Some checks failed');
     process.exitCode = 1;
   } else {
-    console.log('\nResult: All workers OK');
+    console.log('\nResult: All checks passed');
+    process.exitCode = 0;
   }
 }
