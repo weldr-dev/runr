@@ -1,0 +1,43 @@
+{
+  "goal": "Implement runr doctor command for diagnostics",
+  "milestones": [
+    {
+      "title": "Milestone 1: Basic doctor command with git check",
+      "task": "Create src/commands/doctor.ts with basic git repository verification. Check if CWD is a git repository, print clear success/failure message, return appropriate exit code. Wire command to CLI in src/cli.ts."
+    },
+    {
+      "title": "Milestone 2: Working tree status check",
+      "task": "Extend doctor command to check for uncommitted changes and show ignored noise summary. Report clean vs dirty working tree, show count of uncommitted files if dirty, show ignored noise summary like status command does."
+    },
+    {
+      "title": "Milestone 3: Version and config checks",
+      "task": "Add version reporting and config file detection. Show runr version from package.json, detect runr.config.json or agent.config.json if present, validate config schema if present."
+    },
+    {
+      "title": "Milestone 4: Write access check",
+      "task": "Verify write permissions to .runr/ directory. Check if .runr/ exists, test write access by creating/removing a temp file, report clear error if write fails, show runs directory status."
+    },
+    {
+      "title": "Milestone 5: Worktree sanity check",
+      "task": "If worktree mode was used, verify worktree is still valid. Detect if any runs used worktree mode, check if worktree paths still exist, report orphaned worktrees, suggest cleanup if needed."
+    },
+    {
+      "title": "Milestone 6: Comprehensive tests",
+      "task": "Write unit tests for all doctor checks in src/commands/__tests__/doctor.test.ts. Test git repo detection, working tree status, version/config detection, .runr/ write access, worktree validation. All tests must pass."
+    }
+  ],
+  "scope": {
+    "allowlist": [
+      "src/commands/doctor.ts",
+      "src/commands/__tests__/doctor.test.ts",
+      "src/cli.ts",
+      "package.json"
+    ]
+  },
+  "verification": {
+    "commands": [
+      "npm run build",
+      "pnpm test"
+    ]
+  }
+}
