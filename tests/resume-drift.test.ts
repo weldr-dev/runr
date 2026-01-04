@@ -107,10 +107,10 @@ describe('Resume Drift Detection', () => {
     git(`git commit -m "chore(runr): checkpoint ${runId} milestone 0"`, repoPath);
 
     // Import buildResumePlan to test the logic
-    const { buildResumePlan } = await import('../src/commands/resume.js');
+    const { _buildResumePlan } = await import('../src/commands/resume.js');
 
     // Build resume plan - should detect checkpoint and resume from milestone 1
-    const plan = await buildResumePlan({
+    const plan = await _buildResumePlan({
       state: initialState,
       repoPath,
       runStore,
@@ -189,9 +189,9 @@ describe('Resume Drift Detection', () => {
       git(`git commit -m "chore(runr): checkpoint ${runId} milestone ${i}"`, repoPath);
     }
 
-    const { buildResumePlan } = await import('../src/commands/resume.js');
+    const { _buildResumePlan } = await import('../src/commands/resume.js');
 
-    const plan = await buildResumePlan({
+    const plan = await _buildResumePlan({
       state: initialState,
       repoPath,
       runStore,
@@ -268,9 +268,9 @@ describe('Resume Drift Detection', () => {
     git('git add .', repoPath);
     git(`git commit -m "chore(runr): checkpoint ${runId} milestone 0"`, repoPath);
 
-    const { buildResumePlan } = await import('../src/commands/resume.js');
+    const { _buildResumePlan } = await import('../src/commands/resume.js');
 
-    const plan = await buildResumePlan({
+    const plan = await _buildResumePlan({
       state: initialState,
       repoPath,
       runStore,

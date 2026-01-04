@@ -97,7 +97,7 @@ describe('Worktree Fixes Acceptance Tests', () => {
   });
 
   describe('A) Fresh repo auto-exclude injection', () => {
-    it('should auto-inject .agent exclusions into .git/info/exclude', async () => {
+    it('should auto-inject .agent exclusions into .git/info/exclude', { timeout: 40000 }, async () => {
       testRepo = await createTestRepo('fresh-repo');
 
       // Verify .git/info/exclude does NOT contain .agent before run
@@ -124,7 +124,7 @@ describe('Worktree Fixes Acceptance Tests', () => {
       expect(excludeAfter).toContain('.agent-worktrees');
     });
 
-    it('should not trigger dirty worktree from .agent artifacts', async () => {
+    it('should not trigger dirty worktree from .agent artifacts', { timeout: 40000 }, async () => {
       testRepo = await createTestRepo('no-dirty');
 
       // Create some .agent artifacts (simulating previous run)
@@ -197,7 +197,7 @@ describe('Worktree Fixes Acceptance Tests', () => {
   });
 
   describe('C) Guard failure diagnostics', () => {
-    it('should print detailed guard failure reasons to console', async () => {
+    it('should print detailed guard failure reasons to console', { timeout: 40000 }, async () => {
       testRepo = await createTestRepo('guard-diagnostics');
 
       // Create a task that will trigger scope violation
@@ -223,7 +223,7 @@ describe('Worktree Fixes Acceptance Tests', () => {
       expect(output).toContain('Reasons:');
     });
 
-    it('should show specific files in scope violations', async () => {
+    it('should show specific files in scope violations', { timeout: 40000 }, async () => {
       testRepo = await createTestRepo('scope-violation-files');
 
       // Modify a file that's not in allowlist

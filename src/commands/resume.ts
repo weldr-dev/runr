@@ -139,8 +139,9 @@ function getIgnoredChangesSummary(
 
 /**
  * Build resume plan by discovering last checkpoint and computing deltas.
+ * @internal - Exported for testing only, not part of public API
  */
-export async function buildResumePlan(options: {
+export async function _buildResumePlan(options: {
   state: RunState;
   repoPath: string;
   runStore: RunStore;
@@ -156,12 +157,13 @@ export async function buildResumePlan(options: {
 
   // First: try new format with run_id
   try {
-    const runSpecificPattern = `^chore(runr): checkpoint ${state.run_id} milestone `;
+    const runSpecificPrefix = `chore(runr): checkpoint ${state.run_id} milestone `;
     const result = await git(
       [
         'log',
         '-z',
-        '--grep', runSpecificPattern,
+        '--grep', runSpecificPrefix,
+        '--fixed-strings',
         '-n', '1',
         '--pretty=format:%H%x00%s'
       ],
@@ -188,11 +190,13 @@ export async function buildResumePlan(options: {
   // Fallback: try legacy format (without run_id)
   if (checkpointSha === null) {
     try {
+      const legacyPrefix = 'chore(agent): checkpoint milestone ';
       const result = await git(
         [
           'log',
           '-z',
-          '--grep', '^chore(agent): checkpoint milestone ',
+          '--grep', legacyPrefix,
+          '--fixed-strings',
           '-n', '1',
           '--pretty=format:%H%x00%s'
         ],
@@ -576,7 +580,7 @@ export async function resumeCommand(options: ResumeOptions): Promise<void> {
   }
 
   // INSERTION 2: Build and print resume plan
-  const plan = await buildResumePlan({
+  const plan = await _buildResumePlan({
     state,
     repoPath: effectiveRepoPath,
     runStore,
@@ -638,12 +642,11 @@ export async function resumeCommand(options: ResumeOptions): Promise<void> {
 
     // User-facing message
     if (reason === 'already_checkpointed') {
-      console.log(`✓ Skipping already-checkpointed milestone ${previousMilestoneIndex} (resuming from ${plan.resumeFromMilestoneIndex})`);
+      console.log(`✓ Checkpoint found at milestone ${plan.lastCheckpointMilestoneIndex}. Resuming from milestone ${plan.resumeFromMilestoneIndex}.`);
     } else {
-      console.warn(
-        `⚠ State drift detected: state was at milestone ${previousMilestoneIndex}, ` +
-        `but checkpoint indicates milestone ${plan.resumeFromMilestoneIndex}. Corrected.`
-      );
+      console.warn('Resume warning:');
+      console.warn(`  State milestone_index=${previousMilestoneIndex} but last checkpoint is milestone ${plan.lastCheckpointMilestoneIndex}.`);
+      console.warn(`  Resuming from milestone ${plan.resumeFromMilestoneIndex} (checkpoint is ground truth).`);
     }
   }
 
