@@ -140,7 +140,7 @@ function getIgnoredChangesSummary(
 /**
  * Build resume plan by discovering last checkpoint and computing deltas.
  */
-async function buildResumePlan(options: {
+export async function buildResumePlan(options: {
   state: RunState;
   repoPath: string;
   runStore: RunStore;
@@ -156,7 +156,7 @@ async function buildResumePlan(options: {
 
   // First: try new format with run_id
   try {
-    const runSpecificPattern = `^chore\\(runr\\): checkpoint ${state.run_id} milestone `;
+    const runSpecificPattern = `^chore(runr): checkpoint ${state.run_id} milestone `;
     const result = await git(
       [
         'log',
@@ -192,7 +192,7 @@ async function buildResumePlan(options: {
         [
           'log',
           '-z',
-          '--grep', '^chore\\(agent\\): checkpoint milestone ',
+          '--grep', '^chore(agent): checkpoint milestone ',
           '-n', '1',
           '--pretty=format:%H%x00%s'
         ],
@@ -606,8 +606,46 @@ export async function resumeCommand(options: ResumeOptions): Promise<void> {
   const updated = prepareForResume(state, { resumeToken: options.runId });
 
   // Override milestone_index and phase from plan (fixes FINALIZE bug)
+  const previousMilestoneIndex = state.milestone_index;
   updated.milestone_index = plan.resumeFromMilestoneIndex;
   updated.phase = plan.resumeFromMilestoneIndex >= state.milestones.length ? 'FINALIZE' : 'IMPLEMENT';
+
+  // Detect milestone index drift
+  if (previousMilestoneIndex !== plan.resumeFromMilestoneIndex) {
+    // Determine drift reason
+    let reason: 'already_checkpointed' | 'state_behind_checkpoint' | 'state_ahead_of_checkpoint';
+    if (previousMilestoneIndex <= plan.lastCheckpointMilestoneIndex) {
+      reason = 'already_checkpointed';
+    } else if (previousMilestoneIndex < plan.resumeFromMilestoneIndex) {
+      reason = 'state_behind_checkpoint';
+    } else {
+      reason = 'state_ahead_of_checkpoint';
+    }
+
+    // Emit correction event
+    runStore.appendEvent({
+      type: 'milestone_index_corrected',
+      source: 'resume',
+      payload: {
+        previous: previousMilestoneIndex,
+        corrected_to: plan.resumeFromMilestoneIndex,
+        last_checkpoint_milestone_index: plan.lastCheckpointMilestoneIndex,
+        checkpoint_sha: plan.checkpointSha ?? null,
+        checkpoint_source: plan.checkpointSource,
+        reason
+      }
+    });
+
+    // User-facing message
+    if (reason === 'already_checkpointed') {
+      console.log(`✓ Skipping already-checkpointed milestone ${previousMilestoneIndex} (resuming from ${plan.resumeFromMilestoneIndex})`);
+    } else {
+      console.warn(
+        `⚠ State drift detected: state was at milestone ${previousMilestoneIndex}, ` +
+        `but checkpoint indicates milestone ${plan.resumeFromMilestoneIndex}. Corrected.`
+      );
+    }
+  }
 
   runStore.writeState(updated);
 
