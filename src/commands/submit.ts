@@ -3,7 +3,7 @@ import path from 'node:path';
 import { RunStore } from '../store/run-store.js';
 import { RunState } from '../types/schemas.js';
 import { loadConfig, resolveConfigPath } from '../config/load.js';
-import { AgentConfig } from '../config/schema.js';
+import { AgentConfig, WorkflowConfig } from '../config/schema.js';
 
 export interface SubmitOptions {
   repo: string;
@@ -14,16 +14,6 @@ export interface SubmitOptions {
   config?: string;
 }
 
-/**
- * Workflow config (will be added to schema.ts in M0).
- * This is a placeholder for the skeleton - M0 will add to actual schema.
- */
-interface WorkflowConfig {
-  integration_branch: string;
-  require_clean_tree: boolean;
-  require_verification: boolean;
-  submit_strategy: 'cherry-pick';
-}
 
 type ValidationReason =
   | 'no_checkpoint'
@@ -133,12 +123,12 @@ export async function submitCommand(options: SubmitOptions): Promise<void> {
     return;
   }
 
-  // Load config (will include workflow config after M0)
+  // Load config with workflow settings
   const config = loadConfig(resolveConfigPath(options.repo, options.config));
 
-  // TODO: After M0, get workflow config from config.workflow
-  // For now, use safe defaults
-  const workflow: WorkflowConfig = {
+  // Get workflow config (use safe defaults if not configured)
+  const workflow: WorkflowConfig = config.workflow ?? {
+    profile: 'solo',
     integration_branch: 'dev',
     require_clean_tree: true,
     require_verification: true,

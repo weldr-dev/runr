@@ -19,6 +19,8 @@ import { versionCommand } from './commands/version.js';
 import { initCommand } from './commands/init.js';
 import { watchCommand } from './commands/watch.js';
 import { journalCommand, noteCommand, openCommand } from './commands/journal.js';
+import { bundleCommand } from './commands/bundle.js';
+import { submitCommand } from './commands/submit.js';
 import { CollisionPolicy } from './orchestrator/types.js';
 
 const program = new Command();
@@ -600,6 +602,42 @@ program
     await openCommand({
       repo: options.repo,
       runId
+    });
+  });
+
+// bundle - Generate evidence packet
+program
+  .command('bundle')
+  .description('Generate deterministic evidence packet for a run')
+  .argument('<runId>', 'Run ID to bundle')
+  .option('--repo <path>', 'Target repo path', '.')
+  .option('--output <path>', 'Output file path (default: stdout)')
+  .action(async (runId: string, options) => {
+    await bundleCommand({
+      repo: options.repo,
+      runId,
+      output: options.output
+    });
+  });
+
+// submit - Submit verified checkpoint
+program
+  .command('submit')
+  .description('Submit verified checkpoint to integration branch')
+  .argument('<runId>', 'Run ID to submit')
+  .option('--repo <path>', 'Target repo path', '.')
+  .option('--to <branch>', 'Target branch (default: from workflow config)')
+  .option('--dry-run', 'Preview without making changes', false)
+  .option('--push', 'Push to origin after cherry-pick', false)
+  .option('--config <path>', 'Path to runr.config.json')
+  .action(async (runId: string, options) => {
+    await submitCommand({
+      repo: options.repo,
+      runId,
+      to: options.to,
+      dryRun: options.dryRun,
+      push: options.push,
+      config: options.config
     });
   });
 
