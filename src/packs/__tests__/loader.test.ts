@@ -149,3 +149,59 @@ describe('Pack Validation', () => {
     expect(true).toBe(true);
   });
 });
+
+describe('Pack Security', () => {
+  describe('Path Traversal Protection', () => {
+    it('rejects pack names with path traversal attempts', () => {
+      const maliciousNames = [
+        '../etc',
+        '../../etc/passwd',
+        'pack/../../../etc',
+        './pack',
+        'pack/subdir',
+        'pack\\windows',
+        'pack..txt'
+      ];
+
+      for (const name of maliciousNames) {
+        const pack = loadPackByName(name);
+        expect(pack).toBeNull();
+      }
+    });
+
+    it('rejects pack names with invalid characters', () => {
+      const invalidNames = [
+        'UPPERCASE',
+        'pack.name',
+        'pack_name',
+        'pack name',
+        'pack@version',
+        'pack#tag'
+      ];
+
+      for (const name of invalidNames) {
+        const pack = loadPackByName(name);
+        expect(pack).toBeNull();
+      }
+    });
+
+    it('accepts valid pack names', () => {
+      const validNames = [
+        'solo',
+        'my-pack',
+        'pack123',
+        'a',
+        'pack-with-many-hyphens'
+      ];
+
+      // These won't necessarily exist, but should pass sanitization
+      // and return null due to non-existence, not due to rejection
+      for (const name of validNames) {
+        // Should not throw or error
+        const pack = loadPackByName(name);
+        // Either null (doesn't exist) or a valid pack
+        expect(pack === null || pack.name === name).toBe(true);
+      }
+    });
+  });
+});

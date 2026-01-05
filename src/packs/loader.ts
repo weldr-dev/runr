@@ -224,11 +224,43 @@ export function loadAllPacks(): LoadedPack[] {
 }
 
 /**
+ * Sanitize pack name to prevent directory traversal
+ */
+function sanitizePackName(name: string): string | null {
+  // Only allow lowercase letters, numbers, and hyphens
+  // No dots, slashes, or other special characters
+  if (!name.match(/^[a-z][a-z0-9-]*$/)) {
+    return null;
+  }
+
+  // Additional check: ensure the sanitized name doesn't try to escape
+  const normalized = path.normalize(name);
+  if (normalized !== name || normalized.includes('..') || normalized.includes('/')) {
+    return null;
+  }
+
+  return name;
+}
+
+/**
  * Load a specific pack by name
  */
 export function loadPackByName(name: string): LoadedPack | null {
+  // Sanitize pack name to prevent directory traversal
+  const sanitizedName = sanitizePackName(name);
+  if (!sanitizedName) {
+    return null;
+  }
+
   const packsDir = getPacksDir();
-  const packDir = path.join(packsDir, name);
+  const packDir = path.join(packsDir, sanitizedName);
+
+  // Verify the resolved path is actually within packsDir (defense in depth)
+  const resolvedPackDir = path.resolve(packDir);
+  const resolvedPacksDir = path.resolve(packsDir);
+  if (!resolvedPackDir.startsWith(resolvedPacksDir + path.sep)) {
+    return null;
+  }
 
   if (!fs.existsSync(packDir)) {
     return null;

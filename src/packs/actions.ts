@@ -131,6 +131,19 @@ async function createFileIfMissing(
     }
 
     const templatePath = path.join(context.packDir, templateRelPath);
+
+    // Security: Verify template path is within pack directory (prevent directory traversal)
+    const resolvedTemplatePath = path.resolve(templatePath);
+    const resolvedPackDir = path.resolve(context.packDir);
+    if (!resolvedTemplatePath.startsWith(resolvedPackDir + path.sep)) {
+      return {
+        action,
+        executed: false,
+        message: `Template path escapes pack directory: ${templateRelPath}`,
+        error: 'Invalid template path'
+      };
+    }
+
     if (!fs.existsSync(templatePath)) {
       return {
         action,

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Runr Pack Manifest",
-  "description": "Schema for Runr pack manifests (v1)",
+  "description": "DOCUMENTATION ONLY - This schema describes the pack manifest structure but is NOT enforced via JSON Schema validation. Actual validation is implemented in src/packs/loader.ts. This file provides editor autocomplete and human reference.",
   "type": "object",
   "required": ["pack_version", "name", "display_name", "description"],
   "properties": {

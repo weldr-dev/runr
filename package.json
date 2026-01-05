@@ -11,6 +11,8 @@
     "dist/",
     "!dist/**/__tests__/",
     "!dist/**/*.test.js",
+    "packs/",
+    "!packs/_schema/",
     "templates/prompts/",
     "README.md",
     "LICENSE",
