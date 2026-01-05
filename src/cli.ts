@@ -65,8 +65,9 @@ program
 program
   .command('packs')
   .description('List available workflow packs')
-  .action(async () => {
-    await packsCommand();
+  .option('--verbose', 'Show pack loading path')
+  .action(async (options) => {
+    await packsCommand({ verbose: options.verbose });
   });
 
 program

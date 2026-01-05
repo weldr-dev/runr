@@ -68,6 +68,33 @@ npx runr packs
 npx runr init --pack solo --dry-run
 ```
 
+### Global Install Verification
+
+Verified 2026-01-05 with runr v0.4.0:
+
+```bash
+# Create tarball
+npm pack
+# → weldr-runr-0.4.0.tgz
+
+# Install globally
+npm install -g weldr-runr-0.4.0.tgz
+# → installed to ~/.local/state/fnm_multishells/.../bin/runr
+
+# Verify packs command works
+runr packs
+# → Available workflow packs:
+# →   solo
+# →     Fast local workflow with verified checkpoints...
+# →   trunk
+# →     Commit directly to main with verification...
+```
+
+If this fails in the future, check:
+- package.json "files" field includes "packs/"
+- Path resolution in loader.ts uses import.meta.url correctly
+- Binary links created correctly (run `which runr`)
+
 ### Check Tarball Contents
 
 Verify packs are included:

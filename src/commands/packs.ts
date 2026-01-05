@@ -1,10 +1,18 @@
-import { loadAllPacks } from '../packs/loader.js';
+import { loadAllPacks, getPacksDirectory } from '../packs/loader.js';
+
+interface PacksCommandOptions {
+  verbose?: boolean;
+}
 
 /**
  * List available packs
  */
-export async function packsCommand(): Promise<void> {
+export async function packsCommand(options: PacksCommandOptions = {}): Promise<void> {
   const packs = loadAllPacks();
+
+  if (options.verbose) {
+    console.log(`Loading packs from: ${getPacksDirectory()}\n`);
+  }
 
   if (packs.length === 0) {
     console.log('No packs found.');

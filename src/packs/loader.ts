@@ -70,6 +70,13 @@ function getPacksDir(): string {
 }
 
 /**
+ * Get the packs directory path (public API for debugging)
+ */
+export function getPacksDirectory(): string {
+  return getPacksDir();
+}
+
+/**
  * Validate a pack manifest
  */
 function validatePackManifest(manifest: any, packDir: string): PackValidation {
