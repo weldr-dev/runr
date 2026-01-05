@@ -2,14 +2,22 @@
 
 **Sprint Goal:** Make Runr the reliability railroad tracks - opinionated about trust, flexible about style
 
-**Duration:** TBD
+**Duration:** 1-2 weeks
 **Status:** Planning
 
-**Quick Status:**
-- 📋 Workflow profiles (solo/PR/trunk modes)
-- 📋 `runr bundle` command (evidence packet generator)
-- 📋 `runr submit` command (safe merge to integration branch)
-- 📋 Timeline integration + config schema
+**v1 Scope (Ship This):**
+- 📋 Workflow config (minimal: 5 fields)
+- 📋 Profiles as presets (just default mapping)
+- 📋 `runr bundle <run_id>` (deterministic markdown)
+- 📋 `runr submit <run_id> --to <branch>` (cherry-pick only)
+- 📋 Timeline events + validation
+
+**v2 Scope (Explicitly Deferred):**
+- Bundle templates
+- Bundle JSON output
+- Merge/fast-forward submit strategies
+- Protected branches list
+- PR API integration
 
 ---
 
@@ -72,87 +80,93 @@ Instead: **support multiple workflow profiles**.
 
 ### 1. Workflow Profiles (Configuration)
 
-**Leverage:** High | **Risk:** Low | **Effort:** Small
+**Leverage:** High | **Risk:** Low | **Effort:** Tiny
 
 **Problem:** Teams have different integration styles. Force one → reject.
 
-**Solution:** Named workflow profiles with sensible defaults.
+**Solution:** Named profiles that set sensible defaults. That's it.
 
-**Profiles:**
+**v1 Config Schema (5 fields only):**
 
-#### Profile: `solo` (default)
-- Target: dev branch (or main if no dev)
-- Submit: cherry-pick checkpoint commit
-- Evidence: required (verification must pass)
-- PR: none (use `runr bundle` for review packets)
+```typescript
+interface WorkflowConfig {
+  // Workflow profile: solo, pr, trunk
+  profile: 'solo' | 'pr' | 'trunk';
 
-**Config:**
-```yaml
-workflow:
-  profile: solo
-  integration_branch: dev
-  release_branch: main
-  submit_strategy: cherry-pick
+  // Target branch for integration
+  integration_branch: string;
+
+  // Submit strategy (v1: always cherry-pick)
+  submit_strategy: 'cherry-pick';
+
+  // Require clean working tree before submit
+  require_clean_tree: boolean;
+
+  // Require verification evidence before submit
+  require_verification: boolean;
+}
 ```
 
-#### Profile: `pr`
-- Target: GitHub/GitLab PRs
-- Submit: generates PR body from bundle
-- Evidence: required
-- PR: required human approval
+**Profile Presets (Just Default Mapping):**
 
-**Config:**
-```yaml
-workflow:
-  profile: pr
-  integration_branch: main
-  submit_strategy: pr
-  pr_body_template: .runr/pr-template.md
+| Profile | integration_branch | require_verification | require_clean_tree |
+|---------|-------------------|---------------------|-------------------|
+| `solo`  | `dev`             | `true`              | `true`            |
+| `pr`    | `main`            | `false`*            | `true`            |
+| `trunk` | `main`            | `true`              | `true`            |
+
+*PR profile allows unverified submit because PR has other gates (human approval)
+
+**Config Example:**
+```json
+{
+  "workflow": {
+    "profile": "solo",
+    "integration_branch": "dev",
+    "submit_strategy": "cherry-pick",
+    "require_clean_tree": true,
+    "require_verification": true
+  }
+}
 ```
 
-#### Profile: `trunk`
-- Target: main directly
-- Submit: cherry-pick or fast-forward
-- Evidence: required + strict checks
-- PR: none (high trust mode)
-
-**Config:**
-```yaml
-workflow:
-  profile: trunk
-  integration_branch: main
-  submit_strategy: fast-forward
-  require_clean_tree: true
-```
+**What PR Profile Does in v1:**
+- Sets defaults (main branch, verification optional)
+- Bundle output is PR-ready markdown
+- **No actual PR automation** (that's v2)
 
 **Success Criteria:**
-- Profile selection via CLI (`runr init --workflow solo`) or config
-- Profiles affect behavior of `submit` and `bundle`
-- Clear docs explaining each profile's assumptions
+- Profile selection via `runr init --workflow solo` writes config
+- Profiles are just preset defaults (no behavior magic)
+- User can override any field in config
+- Submit command respects config validation rules
 
 ---
 
 ### 2. `runr bundle` Command
 
-**Leverage:** High | **Risk:** Low | **Effort:** Medium
+**Leverage:** High | **Risk:** Low | **Effort:** Small
 
 **Problem:** Runs have all PR-like data, but scattered across files. Need one packet.
 
-**Solution:** Generate human-readable evidence packet from run artifacts.
+**Solution:** Generate deterministic markdown evidence packet. No templating, no heuristics.
 
 **Command:**
 ```bash
-runr bundle <run_id> [--output bundle.md]
+runr bundle <run_id>                    # stdout
+runr bundle <run_id> --output bundle.md # file
 ```
 
-**Generates:**
+**Output Format (Fixed, Deterministic):**
 ```markdown
-# Run 20260105020229: Fix Chess Rules
+# Run 20260105020229
 
-## Intent
-Implement complete chess rules including special moves.
+**Created:** 2026-01-05T02:02:39Z
+**Repo:** /Users/vonwao/dev/agent-framework/.runr-worktrees/20260105020229
+**Checkpoint:** 0fdd53d (or "none")
+**Status:** STOPPED (verification_failed_max_retries)
 
-## Milestones (3/6 completed)
+## Milestones (3/6)
 - [x] M0: Core data structures + piece movement
 - [x] M1: Move validation + path checking
 - [x] M2: Check detection
@@ -162,46 +176,58 @@ Implement complete chess rules including special moves.
 
 ## Verification Evidence
 **Tier:** tier0
-**Commands:** `npm run build`
-**Result:** ✓ Build passed
+**Commands:** npm run build
+**Result:** ✓ PASSED
 
-**Last Checkpoint:** `0fdd53d`
-**Files Changed:** 8 files (+922 lines)
+## Changes (since checkpoint base)
+8 files changed, 922 insertions(+), 0 deletions(-)
 
-## Key Changes
-- dogfood/chess-game/src/logic/checkDetection.ts (+234)
-- dogfood/chess-game/src/logic/moveValidation.ts (+278)
-- dogfood/chess-game/src/logic/pathChecking.ts (+54)
+ dogfood/chess-game/src/logic/checkDetection.ts | 234 ++++++
+ dogfood/chess-game/src/logic/moveValidation.ts | 278 ++++++
+ dogfood/chess-game/src/logic/pathChecking.ts   |  54 ++
+ dogfood/chess-game/src/logic/pieceMovement.ts  | 236 ++++++
+ dogfood/chess-game/src/types.ts                |  53 ++
+ dogfood/chess-game/package.json                |  17 +
+ dogfood/chess-game/tsconfig.json               |  20 +
+ dogfood/chess-game/package-lock.json           |  30 +
 
-## Timeline Events
-- checkpoint_complete (3x)
-- verification_passed (3x)
-- phase_transition: IMPLEMENT → REVIEW → CHECKPOINT
+## Timeline Event Summary
+- checkpoint_complete: 3
+- verification_passed: 3
+- phase_transition: 10
 
-## Review Notes
-See: .runr/runs/20260105020229/review_digest.md
-
-## Run Artifacts
-- Timeline: `.runr/runs/20260105020229/timeline.jsonl`
-- Journal: `.runr/runs/20260105020229/journal.md`
-- State: `.runr/runs/20260105020229/state.json`
+## Artifacts
+- Timeline: .runr/runs/20260105020229/timeline.jsonl
+- Journal: .runr/runs/20260105020229/journal.md
+- State: .runr/runs/20260105020229/state.json
+- Review: .runr/runs/20260105020229/review_digest.md
 
 ---
 🤖 Generated with Runr
-Run ID: 20260105020229
 ```
 
-**Implementation Notes:**
-- Read from `state.json`, `timeline.jsonl`, `review_digest.md`
-- Compute diffstat from checkpoint SHA
-- Include tier/commands from `last_verification_evidence`
-- Template is customizable (`.runr/bundle-template.md`)
+**What Bundle Includes (v1):**
+- run_id + repo path + created_at (from state.json)
+- checkpoint SHA (or "none")
+- milestone checklist (from state.milestones)
+- verification evidence summary (from last_verification_evidence)
+- diffstat (via `git show --stat <checkpoint_sha>`)
+- timeline event counts (aggregate by type)
+- artifact pointers (paths only)
+
+**What Bundle Does NOT Include (v1):**
+- Custom templates (deferred to v2)
+- JSON output (deferred to v2)
+- Full timeline dump (just counts)
+- Git diff content (too verbose)
+- "Key files" heuristics (too magical)
 
 **Success Criteria:**
-- `runr bundle <run_id>` generates complete evidence packet
-- Works for both completed and stopped runs
-- Output is human-readable and copy-pastable
-- Can be piped to stdout or written to file
+- `runr bundle <run_id>` outputs deterministic markdown
+- Takes <2 seconds
+- Works for completed, stopped, and in-progress runs
+- Output is copy-pastable to Slack/GitHub/email
+- If checkpoint missing, shows "none" and warns
 
 ---
 
@@ -211,32 +237,39 @@ Run ID: 20260105020229
 
 **Problem:** Manual cherry-pick is error-prone. Need safe "merge button."
 
-**Solution:** Automated verified-checkpoint-to-integration workflow.
+**Solution:** Automated verified-checkpoint-to-integration. Cherry-pick only (v1).
 
 **Command:**
 ```bash
-runr submit <run_id> [--to dev] [--strategy cherry-pick|merge|fast-forward]
+runr submit <run_id> --to <branch>  # execute
+runr submit <run_id> --to <branch> --dry-run  # preview
+runr submit <run_id> --to <branch> --push     # execute + push
 ```
 
 **Workflow:**
-1. **Validate run state**
-   - Run must have checkpoint commit
-   - Last phase must be CHECKPOINT or FINALIZE
-   - Working tree must be clean
+1. **Validate run state** (fail fast with single actionable error)
+   - Run has checkpoint SHA
+   - Checkpoint SHA exists locally (git object present)
+   - Verification evidence exists (if `require_verification: true`)
+   - Working tree clean (if `require_clean_tree: true`)
 
 2. **Validate target branch**
-   - Target branch exists
-   - Target branch is not protected (configurable)
-   - No uncommitted changes on target
+   - Target branch exists locally
+   - Target branch working tree clean
+   - Current repo matches run repo (not in different worktree)
 
-3. **Execute submit strategy**
-   - `cherry-pick`: Apply checkpoint commit to target
-   - `merge`: Merge run branch into target
-   - `fast-forward`: Fast-forward target to checkpoint
+3. **Execute cherry-pick**
+   - Checkout target branch
+   - Cherry-pick checkpoint SHA
+   - If conflicts: abort + report error (manual resolution required)
 
-4. **Record submission**
-   - Append `run_submitted` event to timeline
-   - Write submission metadata (target branch, SHA, timestamp)
+4. **Record submission** (only if cherry-pick succeeds)
+   - Append `run_submitted` event to run timeline
+   - Include: run_id, checkpoint_sha, target_branch, timestamp
+
+5. **Optional push** (if `--push` flag)
+   - Push target branch to remote
+   - Record `run_pushed` event
 
 **Events:**
 ```typescript
@@ -248,7 +281,7 @@ runr submit <run_id> [--to dev] [--strategy cherry-pick|merge|fast-forward]
     run_id: string,
     checkpoint_sha: string,
     target_branch: string,
-    strategy: 'cherry-pick' | 'merge' | 'fast-forward',
+    strategy: 'cherry-pick', // always in v1
     submitted_at: string
   }
 }
@@ -259,107 +292,70 @@ runr submit <run_id> [--to dev] [--strategy cherry-pick|merge|fast-forward]
   source: 'submit',
   payload: {
     run_id: string,
-    reason: 'no_checkpoint' | 'dirty_tree' | 'target_diverged' | 'run_not_complete',
-    details: string
+    reason: 'no_checkpoint' | 'dirty_tree' | 'no_verification' | 'checkpoint_missing' | 'wrong_repo',
+    details: string // single actionable error message
   }
 }
-```
 
-**Safety Checks:**
-- Refuse if run has `stop_reason` (not completed cleanly)
-- Refuse if working tree is dirty
-- Refuse if checkpoint SHA not reachable from current branch
-- Warn if target branch has diverged from checkpoint ancestor
-
-**Success Criteria:**
-- `runr submit <run_id>` safely merges verified checkpoint
-- All validation failures have clear error messages
-- Timeline records submission provenance
-- Works with all three workflow profiles
-
----
-
-### 4. Workflow Configuration Schema
-
-**Leverage:** Medium | **Risk:** Low | **Effort:** Small
-
-**Problem:** New workflow concepts need config representation.
-
-**Solution:** Extend `.runr/runr.config.json` with workflow section.
-
-**Schema:**
-```typescript
-interface WorkflowConfig {
-  // Workflow profile: solo, pr, trunk
-  profile: 'solo' | 'pr' | 'trunk';
-
-  // Target branch for integration
-  integration_branch: string; // default: 'dev' (solo), 'main' (pr/trunk)
-
-  // Release branch (optional)
-  release_branch?: string; // default: 'main'
-
-  // Submit strategy
-  submit_strategy: 'cherry-pick' | 'merge' | 'fast-forward'; // default: 'cherry-pick'
-
-  // Bundle template path (optional)
-  bundle_template?: string; // default: built-in template
-
-  // Submit safety checks
-  require_clean_tree?: boolean; // default: true
-  require_verification?: boolean; // default: true
-  allow_submit_with_stop_reason?: boolean; // default: false
-
-  // Protected branches (cannot submit to)
-  protected_branches?: string[]; // default: []
-}
-```
-
-**Config Example (solo mode):**
-```json
+// Cherry-pick conflict
 {
-  "workflow": {
-    "profile": "solo",
-    "integration_branch": "dev",
-    "release_branch": "main",
-    "submit_strategy": "cherry-pick",
-    "require_clean_tree": true,
-    "require_verification": true
+  type: 'submit_conflict',
+  source: 'submit',
+  payload: {
+    run_id: string,
+    checkpoint_sha: string,
+    target_branch: string,
+    conflicted_files: string[]
   }
 }
 ```
 
+**--dry-run Behavior:**
+- Runs all validations
+- Prints what would happen
+- Exits 0 if would succeed, 1 if would fail
+- Does NOT execute cherry-pick
+- Does NOT write events
+
 **Success Criteria:**
-- Schema validates in `load.ts`
-- Defaults are sensible for each profile
-- `runr init --workflow <profile>` writes appropriate config
+- `runr submit <run_id> --to dev` cherry-picks verified checkpoint
+- `--dry-run` shows exactly what will happen
+- Validation failures have single, actionable error
+- Timeline records submission provenance
+- Cherry-pick conflicts are detected and aborted cleanly
+- `--push` is opt-in (never auto-pushes)
 
 ---
 
-## Implementation Order
+## Implementation Order (1-2 Weeks)
 
-**Week 1:**
-1. Workflow config schema + validation
-2. `runr bundle` command (MVP: just markdown generation)
+**Pass 1: MVP (Week 1)**
+1. Workflow config schema (5 fields only)
+2. Profile presets as default mapping (tiny, do inline with #1)
+3. `runr bundle <run_id>` (deterministic markdown to stdout)
+4. `runr submit <run_id> --to <branch>` (cherry-pick only, no push)
+5. Submit validation + timeline events
 
-**Week 2:**
-3. `runr submit` command (start with cherry-pick only)
-4. Submit validation + timeline events
-
-**Week 3:**
-5. Profile support (solo/pr/trunk presets)
-6. Bundle template customization
+**Pass 2: Polish (Days 8-10)**
+6. `--dry-run` flag for submit
+7. `--push` flag for submit
+8. `--output` flag for bundle
+9. Error messages polish + testing
 
 ---
 
-## Non-Goals (Explicitly Out of Scope)
+## Non-Goals (Explicitly Out of Scope for v1)
 
-- **GitHub/GitLab API integration** - defer to later sprint
-- **PR comment posting** - can add later if needed
-- **Multi-target submit** (submit to dev AND main) - wait for use case
-- **Approval workflow** (require N reviews) - too opinionated for v1
-- **Merge conflict resolution** - manual for now
-- **Rebase support** - cherry-pick is safer
+**Deferred to v2:**
+- Bundle templates (custom formatting)
+- Bundle JSON output (stable schema required first)
+- Merge/fast-forward submit strategies (cherry-pick is safest)
+- Protected branches list (can refuse main manually for now)
+- PR API integration (GitHub/GitLab automation)
+- Approval workflow (require N reviews)
+- Multi-target submit (cascade to multiple branches)
+- Merge conflict resolution (manual for now)
+- Auto-push by default (always opt-in)
 
 ---
 
@@ -442,21 +438,25 @@ After this sprint, consider:
 
 ---
 
-## Open Questions
+## Decisions (Closed Questions)
 
 1. **Should `submit` auto-push to remote?**
-   - Pro: Completes the workflow
-   - Con: Unexpected for some users
-   - Decision: Make it opt-in via `--push` flag
+   - ✅ No. Make it opt-in via `--push` flag.
+   - Rationale: Never surprise users with remote operations.
 
 2. **Bundle format: Markdown only or also JSON?**
-   - Decision: Markdown for humans, add `--json` flag for tooling
+   - ✅ Markdown only in v1. JSON deferred to v2.
+   - Rationale: JSON becomes a forever-API. Don't commit to stable schemas casually.
 
 3. **What if checkpoint is on a different branch?**
-   - Decision: Error with clear message (must be reachable from current branch)
+   - ✅ Cherry-pick doesn't require "reachable," just that SHA exists locally.
+   - Validation: "checkpoint SHA exists locally and cherry-pick succeeds."
 
 4. **Should bundle include git diff?**
-   - Decision: No (too verbose), just diffstat + file list
+   - ✅ No. Just diffstat + file list.
+   - Rationale: Full diff is too verbose for review packet.
 
 5. **Allow submit without verification evidence?**
-   - Decision: No for solo/trunk, yes for PR mode (since PR has other gates)
+   - ✅ In `pr` profile: `require_verification=false` is OK (PR has other gates).
+   - ✅ Bundle must clearly show "UNVERIFIED" at top if no evidence.
+   - ✅ In `solo`/`trunk`: verification required by default.
