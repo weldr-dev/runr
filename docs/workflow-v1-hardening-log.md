@@ -1,80 +1,108 @@
 # Workflow v1 Hardening Log
 
-**Status:** Active dogfooding (started 2026-01-05)
-**Goal:** Collect real-world friction points from 10+ uses of bundle + submit
-**Action threshold:** Fix only what shows up repeatedly or breaks invariants
+**Status:** Dogfooding (started 2026-01-05)
+**Goal:** Capture repeat friction from real `bundle` + `submit` usage (target: 10+ submits)
+**Rule:** Fix only what repeats **or** breaks invariants.
 
 ---
 
-## How to Use This Log
+## One-minute rule (how to log)
+Log an entry only if it:
+- cost you **>2 minutes**, or
+- you hit it **twice**, or
+- it breaks an invariant.
 
-When you hit friction using `runr bundle` or `runr submit`:
-
-1. Add entry below with: command, what happened, expected, proposed fix
-2. No debates, just signal
-3. After ~10 uses, review for patterns
-4. Fix top 3 pain points only
+If not, ignore it.
 
 ---
 
-## Log Entries
-
-### Entry Template
-
+## Entry (copy/paste)
 ```
-Date: YYYY-MM-DD
-Command: runr <command> <args>
-What happened: [actual behavior]
-Expected: [what you wanted]
-Proposed fix: [1 sentence]
-Priority: [P0 invariant break | P1 blocks workflow | P2 annoying | P3 nice-to-have]
+Date:
+Repo:
+Run ID:
+Command:
+Observed:
+Expected:
+Root cause guess (optional):
+Fix idea (1 sentence):
+Priority: P0 invariant | P1 blocks | P2 slows | P3 polish
+
+Evidence (optional):
+- bundle diff? (yes/no)
+- error snippet:
+- timeline event(s):
 ```
 
 ---
 
-## Collected Entries
+## Invariants (P0 = stop and fix immediately)
 
-<!-- Add entries below as you encounter friction -->
+### P0-1 Determinism (bundle)
+**Rule:** Same run_id → identical markdown output.
+**Quick check:** `runr bundle <id> > /tmp/a && runr bundle <id> > /tmp/b && diff /tmp/a /tmp/b`
 
----
+### P0-2 Dry-run safety (submit)
+**Rule:** `submit --dry-run` changes **nothing**:
+- no branch change
+- no file changes
+- no new timeline events
 
-## Must-Not-Break Invariants
+**Quick check:** capture `git branch --show-current`, `git status --porcelain`, and `wc -l timeline.jsonl` before/after.
 
-These are checked on every use. If any break, stop and fix immediately:
+### P0-3 Recovery (submit)
+**Rule:** submit restores starting branch even on error/conflict.
+**Quick check:** run a forced failure and confirm branch restored.
 
-### 1. Determinism
-**Rule:** `bundle` output must be identical for same run_id
-**Test:** Run `runr bundle <run_id>` twice, diff the output
-**Status:** ✅ Verified in tests (bundle.test.ts)
-
-### 2. Safety
-**Rule:** `submit --dry-run` leaves repo completely untouched
-**Test:** Check branch, SHA, timeline.jsonl before/after dry-run
-**Status:** ✅ Verified in tests (submit.test.ts)
-**Implementation:** Dry-run exits at line 202 before any events or git ops
-
-### 3. Recovery
-**Rule:** `submit` always restores starting branch, even on failure
-**Test:** Run submit with conflict/error, verify branch restored
-**Status:** ✅ Verified in tests (submit.test.ts)
-**Implementation:** `finally` block at lines 281-290 with best-effort restore
+**Note on scope:** Validation failures may append to the run timeline (that's fine), but must never mutate git state.
 
 ---
 
-## Patterns Observed
+## Dogfood Protocol (for each submit)
 
-<!-- After ~10 uses, summarize patterns here -->
+Force this checklist for next 10 uses:
+
+1. `runr bundle <run_id> > /tmp/bundle.md`
+2. `runr submit <run_id> --to dev --dry-run`
+3. `git status && git branch --show-current` (spot check invariants)
+4. Real submit: `runr submit <run_id> --to dev` (or `--push` if you want Runr to own integration)
+5. Log friction if it meets one-minute rule
+
+**If any invariant breaks even once:** stop dogfooding, fix immediately, add regression test.
 
 ---
 
-## Fixes Applied
+## Release Gate
 
-<!-- Track fixes that came from this log -->
+Ship v1 when:
+
+- ✅ 10 submits succeeded
+- ✅ At least 1 conflict case happened and recovered cleanly
+- ✅ At least 1 "dirty_tree" and 1 "target_branch_missing" got hit in real life and error was good enough
+- ✅ No P0 invariant breaks
 
 ---
 
-## Notes
+## Entries (append below)
 
-- Validation failures write `submit_validation_failed` event but never touch git state
-- All validations complete before any git operations (lines 138-192 in submit.ts)
-- Branch restoration uses best-effort (catches errors, never hides real failure)
+### 2026-__-__
+Repo:
+Run ID:
+Command:
+Observed:
+Expected:
+Fix idea:
+Priority:
+Evidence:
+
+---
+
+## Patterns (fill after 10 uses)
+- P0:
+- P1:
+- P2:
+
+---
+
+## Fixes applied
+- YYYY-MM-DD: <short fix> (ref: entry date)

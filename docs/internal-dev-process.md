@@ -65,20 +65,26 @@ git push origin dev
 # (happens automatically in worktree)
 
 # 2. Review bundle
-runr bundle <run_id>
-# or save to file for detailed review
-runr bundle <run_id> --output /tmp/review.md
+runr bundle <run_id> --output /tmp/bundle.md
 
 # 3. Preview integration
 runr submit <run_id> --to dev --dry-run
 
-# 4. If plan looks clean, integrate
-runr submit <run_id> --to dev
+# 4. Spot check invariants
+git status && git branch --show-current
 
-# 5. Optional: push if ready
+# 5. If plan looks clean, integrate
+runr submit <run_id> --to dev
+# or if you want Runr to own the push:
+# runr submit <run_id> --to dev --push
+
+# 6. Push (if Runr didn't handle it)
 git push origin dev
-# or: runr submit <run_id> --to dev --push
 ```
+
+**Push strategy (pick one per team):**
+- **Runr owns integration:** `runr submit <run_id> --to dev --push` (atomic)
+- **Git owns push:** `runr submit <run_id> --to dev` + manual `git push` (separate concerns)
 
 **When to use:**
 - Agent completed a task with verification
@@ -313,6 +319,11 @@ Every significant action writes a timeline event to `.runr/runs/<run_id>/timelin
 - `run_submitted` - Checkpoint integrated to branch
 - `submit_conflict` - Cherry-pick conflict detected
 - `submit_validation_failed` - Submit blocked by validation
+
+**Event scope:**
+- Validation failures write `submit_validation_failed` event to timeline
+- Validation never mutates git state (no branch changes, no commits)
+- Dry-run never writes any events (exits before timeline append)
 
 **Why this matters:**
 - Full provenance chain for every change
