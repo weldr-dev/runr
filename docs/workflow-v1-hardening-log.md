@@ -6,6 +6,19 @@
 
 ---
 
+## Dogfood Progress
+
+**Submits:** `0/10` ⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜
+
+**Gate Cases:**
+- dirty_tree: ⬜ (not yet hit)
+- target_branch_missing: ⬜ (not yet hit)
+- conflict recovery: ⬜ (not yet tested)
+
+**Run:** `./scripts/test-gate-cases.sh` to check off all three at once.
+
+---
+
 ## One-minute rule (how to log)
 Log an entry only if it:
 - cost you **>2 minutes**, or

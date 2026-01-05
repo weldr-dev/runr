@@ -8,9 +8,10 @@
 
 This project uses the **solo** workflow:
 
-- Work on `dev` branch (or feature branches)
+- **All work lands on `dev`** (or feature branches)
 - Runr creates verified checkpoints with full test evidence
-- Submit verified changes to `main` via cherry-pick
+- Submit verified changes to `main` via: **bundle → dry-run → submit → (git push)**
+- **Use wrappers, not manual steps**
 
 **Key principle**: Only trustable, verified changes land on `main`.
 
@@ -32,16 +33,22 @@ This creates a checkpoint with full verification evidence.
 
 ### Submit verified changes to main
 
+**Preferred (uses wrapper for safety):**
 ```bash
-runr submit <checkpoint-id>
+./scripts/dogfood-submit.sh <checkpoint-id> --to main
 ```
 
-This cherry-picks the verified checkpoint to `main` (requires clean tree + verification evidence).
+**Manual (escape hatch only):**
+```bash
+runr submit <checkpoint-id> --to main
+```
+
+Both cherry-pick the verified checkpoint to `main` (requires clean tree + verification evidence).
 
 ### View bundle/evidence
 
 ```bash
-runr bundle <checkpoint-id>
+runr bundle <checkpoint-id> --output /tmp/bundle-<checkpoint-id>.md
 ```
 
 Shows the complete change bundle with verification results.
@@ -53,6 +60,29 @@ Shows the complete change bundle with verification results.
 3. **Keep changes focused**: Smaller checkpoints are easier to review and submit
 4. **Trust verification**: If verification passes, the change is trustable
 5. **Document decisions**: Update this file or task files with important context
+
+## When You MUST Dogfood (Objective Triggers)
+
+Use the dogfood wrapper for any change touching:
+
+- `src/commands/*` (any command implementation)
+- Git state mutations (submit/resume/checkpoint/doctor)
+- `.runr/` layout, config, or schema changes
+- Timeline events (any code writing to timeline.jsonl)
+
+**This is how we ship. No exceptions unless you're explicitly doing a spike.**
+
+## Do / Don't
+
+**DO:**
+- `./scripts/test-gate-cases.sh` once per week (or before tagging)
+- `./scripts/dogfood-submit.sh <run_id> --to dev` for every verified run
+- Log friction if it costs >2 minutes OR happens twice (see `docs/workflow-v1-hardening-log.md`)
+
+**DON'T:**
+- Use `--push` during week 1 dogfooding (Git owns push - Option B locked)
+- Ship without hitting the release gate checklist
+- Skip the wrapper and run `runr submit` manually (use escape hatch sparingly)
 
 ## Project Structure
 

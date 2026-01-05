@@ -7,6 +7,9 @@ This project uses Runr with Claude Code for agent tasks.
 1. Ensure Claude Code is installed and configured
 2. Create tasks in `.runr/tasks/`
 3. Run: `runr run --task .runr/tasks/your-task.md --worktree`
+4. Submit: `./scripts/dogfood-submit.sh <run_id> --to {{integration_branch}}`
+
+**Runr-native workflow is the happy path.** Manual cherry-pick is the escape hatch only.
 
 ## How Runr Works with Claude
 
@@ -26,6 +29,58 @@ See `.runr/runr.config.json` for:
 - Phase assignments
 - Verification tiers
 - Scope and file patterns
+
+## Determinism & Safety Are Sacred (Non-Negotiables)
+
+These invariants are enforced by wrappers:
+
+**P0-1 Determinism (bundle):**
+- Same run_id → identical markdown output
+- Quick check: `runr bundle <id> > /tmp/a && runr bundle <id> > /tmp/b && diff /tmp/a /tmp/b`
+
+**P0-2 Dry-run safety (submit):**
+- `submit --dry-run` changes **nothing**: no branch change, no file changes, no new timeline events
+- Quick check: capture branch + status + timeline lines before/after
+
+**P0-3 Recovery (submit):**
+- Submit always restores starting branch, even on failure
+- Quick check: run forced failure, confirm branch restored
+
+**If anything violates P0 → stop and add regression test immediately.**
+
+## Concrete Commands (Copy-Paste)
+
+**Bundle evidence:**
+```bash
+runr bundle <run_id> --output /tmp/bundle-<run_id>.md
+```
+
+**Dogfood submit:**
+```bash
+./scripts/dogfood-submit.sh <run_id> --to {{integration_branch}}
+```
+
+**Gate case testing:**
+```bash
+./scripts/test-gate-cases.sh
+```
+
+## What To Do When Things Go Wrong
+
+**Submit conflict:**
+- Expect: `submit_conflict` event written + clean tree + branch restored
+- Check: timeline.jsonl for conflicted files list
+- Resolve: manual cherry-pick or rebase checkpoint
+
+**Validation fails:**
+- Expect: `submit_validation_failed` event written, **no git mutations**
+- Check: error message for specific validation reason (dirty_tree, verification_missing, etc.)
+- Resolve: fix validation issue, retry submit
+
+**Any P0 violation:**
+- Stop immediately
+- Add regression test to `tests/commands/submit.test.ts` or `bundle.test.ts`
+- Report in `docs/workflow-v1-hardening-log.md`
 
 ## Tips for Claude
 
