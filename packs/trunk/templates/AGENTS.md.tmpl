@@ -8,12 +8,12 @@
 
 This project uses **trunk-based development**:
 
-- All work happens on `main` branch (or short-lived feature branches)
-- Runr creates verified checkpoints with full test evidence
-- Submit verified changes to `main` via: **bundle → dry-run → submit → (git push)**
-- **Use wrappers for safety, not manual steps**
+- All work happens on `main` branch
+- Runr creates checkpoints as you work
+- **Verification is the gate**: Only verified checkpoints are "publishable"
+- `runr submit` in trunk mode is a **verification check + audit event** (not a branch operation)
 
-**Key principle**: Main is always green. Only verified changes land.
+**Key principle**: Main is always green. Checkpoints are your safety net.
 
 ## Verification Requirements
 
@@ -31,19 +31,26 @@ runr run --task .runr/tasks/my-task.md --worktree
 
 This creates a checkpoint with full verification evidence.
 
-### Submit verified changes to main
+### Mark checkpoint as publishable
 
-**Preferred (uses wrapper for safety):**
-```bash
-./scripts/dogfood-submit.sh <checkpoint-id> --to main
-```
+In trunk mode, you're already on `main`. Submit verifies you have a clean checkpoint:
 
-**Manual (escape hatch only):**
 ```bash
 runr submit <checkpoint-id> --to main
 ```
 
-Both apply the verified checkpoint to `main` (requires clean tree + verification evidence).
+This verifies:
+- Checkpoint exists and is verified
+- You're on the correct branch (main)
+- Tree is clean
+
+**Note:** In trunk mode, submit is mostly a **no-op audit event**. The real gate is verification.
+
+**What actually matters:** Only push verified checkpoints upstream:
+```bash
+# After verifying checkpoint is good
+git push origin main
+```
 
 ### View bundle/evidence
 

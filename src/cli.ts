@@ -40,7 +40,7 @@ program
   .command('init')
   .description('Initialize Runr configuration for a repository')
   .option('--repo <path>', 'Path to repository (defaults to current directory)', '.')
-  .option('--pack <name>', 'Workflow pack: solo (dev→main), trunk (main only) - run "runr packs" to list')
+  .option('--pack <name>', 'Workflow pack: solo (dev→main), pr (feature→main), trunk (main only) - run "runr packs" to list')
   .option('--about <description>', 'Project description for documentation templates')
   .option('--with-claude', 'Create CLAUDE.md guide for Claude Code integration', false)
   .option('--dry-run', 'Preview what would be created without making changes', false)

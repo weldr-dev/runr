@@ -1,16 +1,16 @@
 {
   "pack_version": 1,
-  "name": "trunk",
-  "display_name": "Trunk-Based Development (main only)",
-  "description": "Work directly on main with verified checkpoints. Submit is a verification gate, not a branch operation.",
+  "name": "pr",
+  "display_name": "Pull Request Workflow (feature → main via PR)",
+  "description": "Feature branch workflow with verified checkpoints, reviewable proof packets, and optional PR integration.",
   "defaults": {
-    "profile": "trunk",
+    "profile": "pr",
     "integration_branch": "main",
     "release_branch": "main",
     "submit_strategy": "cherry-pick",
     "require_clean_tree": true,
     "require_verification": true,
-    "protected_branches": []
+    "protected_branches": ["main"]
   },
   "templates": {
     "AGENTS.md": "templates/AGENTS.md.tmpl",

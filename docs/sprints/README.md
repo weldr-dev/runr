@@ -30,7 +30,7 @@ This directory contains sprint plans and detailed specifications for Runr develo
 - ✅ Pack system core (loader, renderer, actions)
 - ✅ Security hardening (path sanitization, traversal protection)
 - ✅ CLI integration (`runr packs`, `runr init --pack`)
-- ✅ Two initial packs (solo, trunk)
+- ✅ Three initial packs (solo, pr, trunk)
 - ✅ Comprehensive testing (47 tests across 4 suites)
 - ✅ Constraint enforcement (mechanical CI guards)
 

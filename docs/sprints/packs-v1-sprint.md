@@ -9,7 +9,7 @@
 - ✅ Pack system core (loader, renderer, actions)
 - ✅ Security hardening (path sanitization, traversal protection)
 - ✅ CLI integration (`runr packs`, `runr init --pack`)
-- ✅ Two initial packs (solo, trunk)
+- ✅ Three initial packs (solo, pr, trunk)
 - ✅ Comprehensive testing (47 tests across 4 suites)
 - ✅ Constraint enforcement (mechanical CI guards)
 - ✅ Documentation (README, SECURITY, PACKAGING, CONSTRAINTS)
@@ -211,9 +211,9 @@ runr init --pack trunk
 
 ---
 
-### 4. Initial Packs (solo, trunk)
+### 4. Initial Packs (solo, pr, trunk)
 
-**Leverage:** High | **Risk:** Low | **Effort:** Small (~200 LOC + templates)
+**Leverage:** High | **Risk:** Low | **Effort:** Small (~300 LOC + templates)
 
 **Pack: solo (dev → main, no PR)**
 
@@ -258,10 +258,38 @@ runr init --pack trunk
 }
 ```
 
+**Pack: pr (feature → main via PR)**
+
+```json
+{
+  "name": "pr",
+  "display_name": "Pull Request Workflow (feature → main via PR)",
+  "description": "Feature branch workflow with verified checkpoints, reviewable proof packets, and optional PR integration.",
+  "defaults": {
+    "profile": "pr",
+    "integration_branch": "main",
+    "release_branch": "main",
+    "submit_strategy": "cherry-pick",
+    "require_verification": true,
+    "require_clean_tree": true,
+    "protected_branches": ["main"]
+  }
+}
+```
+
+**Purpose:**
+- **Most broadly useful** - PRs are default mental model for reviewable changes
+- Even solo devs use PRs as personal safety/review ritual
+- Maps cleanly to "proof packet" idea
+- Supports team collaboration
+
 **Pack: trunk (main only)**
 
 ```json
 {
+  "name": "trunk",
+  "display_name": "Trunk-Based Development (main only)",
+  "description": "Work directly on main with verified checkpoints. Submit is a verification gate, not a branch operation.",
   "defaults": {
     "profile": "trunk",
     "integration_branch": "main",
@@ -275,9 +303,15 @@ runr init --pack trunk
 ```
 
 **Purpose:**
-- Prove pack system isn't solo-hardcoded
-- Support different branching strategies
-- Template for future packs (pr, feature-branch, etc)
+- High-automation teams (trunk-based development)
+- Minimal branching ceremony
+- **Honest about submit:** Verification is the gate, submit is audit event
+- Niche but valid workflow
+
+**Why three packs:**
+- Prove pack system isn't hardcoded
+- Support different branching strategies (solo, PR, trunk)
+- Lead with solo + pr (most useful for adoption)
 
 ---
 
@@ -449,6 +483,12 @@ src/commands/
 packs/
 ├── solo/
 │   ├── pack.json          # Solo pack manifest
+│   └── templates/
+│       ├── AGENTS.md.tmpl
+│       ├── CLAUDE.md.tmpl
+│       └── bundle.md.tmpl
+├── pr/
+│   ├── pack.json          # PR pack manifest
 │   └── templates/
 │       ├── AGENTS.md.tmpl
 │       ├── CLAUDE.md.tmpl

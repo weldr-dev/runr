@@ -43,9 +43,28 @@ Pack names and template paths are sanitized to prevent directory traversal attac
 
 ## Available Packs
 
-### solo
+### solo (recommended for solo developers)
 Fast local workflow with verified checkpoints, cherry-pick submit, and minimal docs.
+- **Workflow:** dev → main (branch isolation)
 - Integration branch: `dev`
 - Release branch: `main`
 - Requires verification: Yes
 - Requires clean tree: Yes
+
+### pr (recommended for teams or reviewable changes)
+Feature branch workflow with verified checkpoints, reviewable proof packets, and optional PR integration.
+- **Workflow:** feature → main (via pull requests)
+- Integration branch: `main`
+- Release branch: `main`
+- Requires verification: Yes
+- Requires clean tree: Yes
+- **Key feature:** `runr bundle` creates proof packets for PR descriptions
+
+### trunk (for high-automation teams)
+Work directly on main with verified checkpoints. Submit is a verification gate, not a branch operation.
+- **Workflow:** main only (trunk-based development)
+- Integration branch: `main`
+- Release branch: `main`
+- Requires verification: Yes
+- Requires clean tree: Yes
+- **Note:** Submit is mostly a no-op audit event; verification is the real gate

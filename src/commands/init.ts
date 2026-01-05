@@ -574,6 +574,9 @@ export async function initCommand(options: InitOptions): Promise<void> {
     } else {
       console.log('✓ .runr/ already in .gitignore');
     }
+    console.log('');
+    console.log('💡 Tip: runr init --pack solo --dry-run to preview workflow scaffolding');
+    console.log('');
   }
 
   // Write config

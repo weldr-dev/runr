@@ -1,0 +1,101 @@
+# Claude Code Integration
+
+This project uses Runr with Claude Code for agent tasks.
+
+## Quick Start
+
+1. Create feature branch: `git checkout -b feature/your-feature`
+2. Create task: `.runr/tasks/your-task.md`
+3. Run: `runr run --task .runr/tasks/your-task.md --worktree`
+4. Bundle: `runr bundle <run_id>`
+5. Create PR: `gh pr create --title "..." --body-file .runr/runs/<run_id>/bundle.md`
+
+**PR workflow is the happy path.** Proof packets make reviews faster.
+
+## How Runr Works with Claude
+
+Runr orchestrates Claude through a phase-gated workflow:
+
+1. **Plan**: Claude reads the task and plans implementation
+2. **Implement**: Worker executes the plan, making changes
+3. **Review**: Claude reviews changes against requirements
+4. **Verify**: Runr runs verification commands
+5. **Checkpoint**: If verified, create checkpoint with evidence
+
+## Configuration
+
+See `.runr/runr.config.json` for:
+
+- Worker configuration (Claude/Codex)
+- Phase assignments
+- Verification tiers
+- Scope and file patterns
+
+## Determinism & Safety Are Sacred (Non-Negotiables)
+
+These invariants are enforced by wrappers:
+
+**P0-1 Determinism (bundle):**
+- Same run_id → identical markdown output
+- Quick check: `runr bundle <id> > /tmp/a && runr bundle <id> > /tmp/b && diff /tmp/a /tmp/b`
+
+**P0-2 Dry-run safety (submit):**
+- `submit --dry-run` changes **nothing**: no branch change, no file changes, no new timeline events
+- Quick check: capture branch + status + timeline lines before/after
+
+**P0-3 Recovery (submit):**
+- Submit always restores starting branch, even on failure
+- Quick check: run forced failure, confirm branch restored
+
+**If anything violates P0 → stop and add regression test immediately.**
+
+## Concrete Commands (Copy-Paste)
+
+**Bundle proof packet:**
+```bash
+runr bundle <run_id> --output .runr/runs/<run_id>/bundle.md
+```
+
+**Create PR with proof packet:**
+```bash
+# Push feature branch
+git push -u origin feature/your-feature
+
+# Create PR with bundle as description
+gh pr create --title "Feature: X" --body-file .runr/runs/<run_id>/bundle.md
+```
+
+## What To Do When Things Go Wrong
+
+**PR conflicts:**
+- Expect: Merge conflicts when PR is merged
+- Check: GitHub PR conflict UI
+- Resolve: Rebase feature branch on main, force push
+
+**Validation fails:**
+- Expect: Can't create verified checkpoint
+- Check: Runr output for specific validation reason
+- Resolve: Fix issues, re-run verification
+
+**Any P0 violation:**
+- Stop immediately
+- Add regression test to prevent recurrence
+- Escalate to project maintainers
+
+## Tips for Claude
+
+- Always verify incrementally during implementation
+- If verification fails, fix issues before review
+- Keep changes focused on task requirements
+- Use verification results to guide decisions
+
+## Workflow: PR
+
+This project uses the **PR** pack:
+
+- Integration branch: `{{integration_branch}}` (where PRs merge to)
+- Feature branches: Create your own (e.g., `feature/add-x`)
+- Requires verification: Yes
+- Requires clean tree: Yes
+
+Only verified checkpoints should be pushed to feature branches for PR review.

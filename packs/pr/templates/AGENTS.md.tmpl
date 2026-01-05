@@ -1,0 +1,120 @@
+# Agent Guidelines
+
+This repo uses **Runr** for reliable agent-driven development with PR workflow.
+
+## Workflow: Feature Branches + Pull Requests
+
+### How it works
+
+1. **Create feature branch** before starting work
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Run verified task** with Runr
+   ```bash
+   runr run --task task.md
+   ```
+
+3. **Runr creates checkpoints** as it progresses
+   - Each checkpoint is a git commit with full audit trail
+   - Only verified checkpoints are marked as "good"
+
+4. **Generate proof packet** when verified
+   ```bash
+   runr bundle <run_id>
+   ```
+   This creates a reviewable evidence packet showing:
+   - What changed (diff)
+   - Why it changed (task + plan)
+   - How it was verified (test results, checks)
+
+5. **Create PR** with proof packet
+   ```bash
+   # Push your feature branch
+   git push -u origin feature/your-feature-name
+
+   # Create PR (manual or via gh cli)
+   gh pr create --title "Feature: X" --body-file .runr/runs/<run_id>/bundle.md
+   ```
+
+6. **Review proof packet** instead of reading all code
+   - Reviewer sees: task → plan → implementation → verification
+   - Focus on "did it solve the right problem correctly?"
+
+7. **Merge when approved**
+   - PR merges feature branch to main
+   - Clean, verified commits only
+
+### Why this workflow?
+
+**Social artifacts:** PRs provide:
+- Review ritual (even for solo developers)
+- Discussion thread attached to change
+- Historical context ("why did we do this?")
+
+**Proof packets:** Bundle provides:
+- Complete audit trail in one document
+- Verification evidence upfront
+- Faster review (don't need to reconstruct context)
+
+**Branch isolation:** Feature branches keep:
+- Experimental work separate from main
+- Multiple tasks in parallel
+- Easy to abandon failed experiments
+
+## Key Commands
+
+```bash
+# Start new task on feature branch
+git checkout -b feature/add-x
+runr run --task task.md
+
+# Generate reviewable proof packet
+runr bundle <run_id>
+
+# Push + create PR with proof packet
+git push -u origin feature/add-x
+gh pr create --title "Add X" --body-file .runr/runs/<run_id>/bundle.md
+
+# Resume if interrupted
+runr run --resume
+```
+
+## Configuration
+
+See `runr.config.json`:
+- `integration_branch`: `main` (where PRs merge to)
+- `release_branch`: `main` (same as integration for PR workflow)
+- `require_verification`: `true` (only verified checkpoints are "good")
+- `protected_branches`: `["main"]` (prevent accidental direct pushes)
+
+## Directory Structure
+
+```
+.runr/
+├── runs/
+│   └── <run_id>/
+│       ├── bundle.md          # Proof packet for PR body
+│       ├── final_patch.diff   # Complete change
+│       └── timeline.jsonl     # Full audit trail
+└── checkpoints/
+    └── <sha>.json             # Checkpoint metadata
+```
+
+## Tips
+
+1. **One feature per branch** - Keep PRs focused and reviewable
+2. **Use bundle as PR description** - Reviewers get full context upfront
+3. **Verify before pushing** - Only push verified checkpoints
+4. **Small, frequent PRs** - Easier to review than giant changes
+5. **Archive proof packets** - `.runr/runs/` is your audit trail
+
+## Future: PR Integration (v2)
+
+Later versions may add:
+- `runr submit --pr` to auto-create PR with proof packet
+- PR status updates when verification completes
+- Auto-merge when verified + approved
+
+For now: manual PR creation with bundle.md as description works great.

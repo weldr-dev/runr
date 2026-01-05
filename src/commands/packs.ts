@@ -38,7 +38,9 @@ export async function packsCommand(options: PacksCommandOptions = {}): Promise<v
 
   if (validPacks.length > 0) {
     console.log('Usage:');
-    console.log(`  runr init --pack <name>           # Initialize with pack`);
+    console.log(`  runr init --pack solo             # Solo dev workflow (dev→main)`);
+    console.log(`  runr init --pack pr               # PR workflow (feature→main)`);
+    console.log(`  runr init --pack trunk            # Trunk-based (main only)`);
     console.log(`  runr init --pack solo --dry-run   # Preview changes`);
     console.log('');
   }
