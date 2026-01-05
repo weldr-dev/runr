@@ -3,14 +3,14 @@
 **Sprint Goal:** Make Runr the reliability railroad tracks - opinionated about trust, flexible about style
 
 **Duration:** 1-2 weeks
-**Status:** Planning
+**Status:** Complete (2026-01-05)
 
 **v1 Scope (Ship This):**
-- 📋 Workflow config (minimal: 5 fields)
-- 📋 Profiles as presets (just default mapping)
-- 📋 `runr bundle <run_id>` (deterministic markdown)
-- 📋 `runr submit <run_id> --to <branch>` (cherry-pick only)
-- 📋 Timeline events + validation
+- ✅ Workflow config (minimal: 5 fields)
+- ✅ Profiles as presets (just default mapping)
+- ✅ `runr bundle <run_id>` (deterministic markdown)
+- ✅ `runr submit <run_id> --to <branch>` (cherry-pick only)
+- ✅ Timeline events + validation
 
 **v2 Scope (Explicitly Deferred):**
 - Bundle templates

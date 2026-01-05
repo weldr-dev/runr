@@ -427,11 +427,18 @@ cat .runr/runs/<run_id>/timeline.jsonl | tail -20
 **Completed:**
 - ✅ Checkpoint sidecar metadata (commit `1d43ffd`)
 - ✅ Sprint planning (checkpoint resilience + workflow v1)
-- ✅ Workflow v1 implementation task file (deterministic + unambiguous)
+- ✅ Workflow v1 implementation (commits `ae5070b`, `8b04f6c`, `ba34d72`)
+  - M0: Workflow config + init --workflow flag
+  - M1: Bundle command (deterministic markdown)
+  - M2: Submit command (cherry-pick with validation)
+  - M3: Dogfooded on real Runr repo
+- ✅ Bundle and submit commands ready for production use
+
+**Available now:**
+- `runr bundle <run_id>` - Generate evidence packet
+- `runr submit <run_id> --to <branch>` - Cherry-pick verified checkpoint
 
 **Next up:**
-- ⏸️ Execute workflow v1: M0 → M1 → M2 → M3
-- ⏸️ Dogfood bundle + submit commands
 - ⏸️ Adopt dev-branch + bundle/submit workflow as steady state
 
 **Backlog:**
