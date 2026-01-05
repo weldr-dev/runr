@@ -1,0 +1,92 @@
+{
+  "agent": {
+    "name": "hello-world",
+    "version": "1"
+  },
+  "scope": {
+    "allowlist": [
+      "src/**"
+    ],
+    "denylist": [
+      "node_modules/**",
+      ".env"
+    ],
+    "lockfiles": [
+      "package-lock.json",
+      "pnpm-lock.yaml",
+      "yarn.lock"
+    ],
+    "presets": [
+      "typescript",
+      "vitest"
+    ],
+    "env_allowlist": [
+      "node_modules",
+      "node_modules/**",
+      ".next/**",
+      "dist/**",
+      "build/**",
+      ".turbo/**",
+      ".eslintcache",
+      "coverage/**"
+    ]
+  },
+  "verification": {
+    "tier0": [
+      "npm run typecheck"
+    ],
+    "tier1": [
+      "npm run build"
+    ],
+    "tier2": [
+      "npm run test"
+    ],
+    "risk_triggers": [],
+    "max_verify_time_per_milestone": 600
+  },
+  "repo": {},
+  "workers": {
+    "codex": {
+      "bin": "codex",
+      "args": [
+        "exec",
+        "--full-auto",
+        "--json"
+      ],
+      "output": "jsonl"
+    },
+    "claude": {
+      "bin": "claude",
+      "args": [
+        "-p",
+        "--output-format",
+        "json",
+        "--dangerously-skip-permissions"
+      ],
+      "output": "json"
+    }
+  },
+  "phases": {
+    "plan": "claude",
+    "implement": "codex",
+    "review": "claude"
+  },
+  "resilience": {
+    "auto_resume": false,
+    "max_auto_resumes": 1,
+    "auto_resume_delays_ms": [
+      30000,
+      120000,
+      300000
+    ],
+    "max_worker_call_minutes": 45,
+    "max_review_rounds": 2
+  },
+  "workflow": {
+    "profile": "solo",
+    "integration_branch": "dev",
+    "submit_strategy": "cherry-pick",
+    "require_clean_tree": true,
+    "require_verification": true
+  }
+}

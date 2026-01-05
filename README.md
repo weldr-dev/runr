@@ -37,6 +37,18 @@ PLAN → IMPLEMENT → VERIFY → REVIEW → CHECKPOINT → done
 
 > **Status**: v0.3.0 — Renamed from `agent-runner`. Early, opinionated, evolving.
 
+## 90-Second Demo
+
+Want to see it work? Try the [Hello World demo](dogfood/hello-world/):
+
+```bash
+cd dogfood/hello-world
+npm install
+runr run --task .runr/tasks/add-farewell.md --worktree
+```
+
+Complete walkthrough in [dogfood/hello-world/README.md](dogfood/hello-world/README.md).
+
 ## Meta-Agent Quickstart (Recommended)
 
 **The easiest way to use Runr:** Let your coding agent drive it.
@@ -97,6 +109,8 @@ The agent becomes your operator. Runr stays the reliable execution layer.
 
 ## Quick Start (Direct CLI)
 
+**⚠️ CRITICAL: Do not run agents on uncommitted work. Commit or stash first.**
+
 ```bash
 # Install
 npm install -g @weldr/runr
@@ -104,6 +118,9 @@ npm install -g @weldr/runr
 # Initialize in your project
 cd /your/project
 runr init --pack solo
+
+# Check tree is clean (MUST be empty before running tasks)
+git status --porcelain
 
 # Run a task
 runr run --task .runr/tasks/example-feature.md --worktree
