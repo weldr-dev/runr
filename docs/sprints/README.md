@@ -4,21 +4,32 @@ This directory contains sprint plans and detailed specifications for Runr develo
 
 ---
 
-## Current Sprint
+## Active Sprints
 
 ### [Checkpoint Resilience Sprint](./checkpoint-resilience-sprint.md)
 
-**Status:** Planning Complete
+**Status:** In Progress (1/4 complete)
 **Goal:** Make checkpoint/resume mechanism bulletproof and add essential forensics infrastructure
 
-**Key Deliverables:**
-1. [Checkpoint Metadata Sidecar](./specs/checkpoint-metadata-sidecar.md) - Decouple metadata from git commit messages
-2. [Structured allow_deps with Allowlist](./specs/allow-deps-allowlist.md) - Safe, auditable dependency changes
-3. [Stop Reason Registry](./specs/stop-reason-registry.md) - Central taxonomy with consistent diagnosis
-4. [RunState Schema Versioning](./specs/runstate-schema-version.md) - Enable future schema evolution
+**Progress:**
+- ✅ Checkpoint Metadata Sidecar (completed Jan 5, commit `1d43ffd`)
+- ⏸️ Structured allow_deps with Allowlist (next)
+- 📋 Stop Reason Registry (backlog)
+- 📋 RunState Schema Versioning (backlog)
 
-**Total Effort:** ~600 LOC, 1-2 weeks
-**Risk:** Low (all changes are additive and backward-compatible)
+### [Runr-Native Workflow Sprint](./runr-native-workflow-sprint.md)
+
+**Status:** Planning
+**Goal:** Make Runr the reliability railroad tracks - opinionated about trust, flexible about style
+
+**Key Deliverables:**
+1. Workflow Profiles - Choose your integration style (solo/PR/trunk modes)
+2. `runr bundle` command - Generate evidence packet from run artifacts
+3. `runr submit` command - Safe merge of verified checkpoint to integration branch
+4. Workflow config schema - Configure workflow preferences
+
+**Total Effort:** ~800 LOC, 2-3 weeks
+**Risk:** Medium (git operations in submit command)
 
 ---
 
