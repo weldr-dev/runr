@@ -1,0 +1,40 @@
+{
+  "pack_version": 1,
+  "name": "trunk",
+  "display_name": "Trunk-Based Development (main only)",
+  "description": "Commit directly to main with verification, minimal branching overhead.",
+  "defaults": {
+    "profile": "trunk",
+    "integration_branch": "main",
+    "release_branch": "main",
+    "submit_strategy": "cherry-pick",
+    "require_clean_tree": true,
+    "require_verification": true,
+    "protected_branches": []
+  },
+  "templates": {
+    "AGENTS.md": "templates/AGENTS.md.tmpl",
+    "CLAUDE.md": "templates/CLAUDE.md.tmpl",
+    "bundle.md": "templates/bundle.md.tmpl"
+  },
+  "init_actions": [
+    {
+      "type": "ensure_gitignore_entry",
+      "path": ".gitignore",
+      "line": ".runr/"
+    },
+    {
+      "type": "create_file_if_missing",
+      "path": "AGENTS.md",
+      "template": "AGENTS.md",
+      "mode": "0644"
+    },
+    {
+      "type": "create_file_if_missing",
+      "path": "CLAUDE.md",
+      "template": "CLAUDE.md",
+      "mode": "0644",
+      "when": { "flag": "with_claude" }
+    }
+  ]
+}

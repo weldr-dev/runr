@@ -1,0 +1,59 @@
+# Agent Development Guide
+
+## Project: {{project_name}}
+
+{{project_about}}
+
+## Workflow: Trunk-Based Development
+
+This project uses **trunk-based development**:
+
+- All work happens on `main` branch (or short-lived feature branches)
+- Runr creates verified checkpoints with full test evidence
+- Changes are submitted directly to `main` after verification
+
+**Key principle**: Main is always green. Only verified changes land.
+
+## Verification Requirements
+
+All checkpoints must pass verification before submit:
+
+{{verification_commands}}
+
+## Working with Runr
+
+### Create a verified checkpoint
+
+```bash
+runr run --task .runr/tasks/my-task.md --worktree
+```
+
+This creates a checkpoint with full verification evidence.
+
+### Submit verified changes to main
+
+```bash
+runr submit <checkpoint-id>
+```
+
+This applies the verified checkpoint to `main` (requires clean tree + verification evidence).
+
+### View bundle/evidence
+
+```bash
+runr bundle <checkpoint-id>
+```
+
+Shows the complete change bundle with verification results.
+
+## Guidelines for Agents
+
+1. **Read first**: Always read files before modifying
+2. **Verify incrementally**: Don't wait until the end to verify
+3. **Keep changes focused**: Smaller checkpoints are easier to review and submit
+4. **Trust verification**: If verification passes, the change is trustable
+5. **Main is always deployable**: Never break main with unverified changes
+
+## Project Structure
+
+See the existing codebase for structure. Runr automatically detects verification commands from your project setup.

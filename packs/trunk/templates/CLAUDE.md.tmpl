@@ -1,0 +1,46 @@
+# Claude Code Integration
+
+This project uses Runr with Claude Code for agent tasks.
+
+## Quick Start
+
+1. Ensure Claude Code is installed and configured
+2. Create tasks in `.runr/tasks/`
+3. Run: `runr run --task .runr/tasks/your-task.md --worktree`
+
+## How Runr Works with Claude
+
+Runr orchestrates Claude through a phase-gated workflow:
+
+1. **Plan**: Claude reads the task and plans implementation
+2. **Implement**: Worker executes the plan, making changes
+3. **Review**: Claude reviews changes against requirements
+4. **Verify**: Runr runs verification commands
+5. **Checkpoint**: If verified, create checkpoint with evidence
+
+## Configuration
+
+See `.runr/runr.config.json` for:
+
+- Worker configuration (Claude/Codex)
+- Phase assignments
+- Verification tiers
+- Scope and file patterns
+
+## Tips for Claude
+
+- Always verify incrementally during implementation
+- If verification fails, fix issues before review
+- Keep changes focused on task requirements
+- Use verification results to guide decisions
+
+## Workflow: {{pack_name}}
+
+This project uses the **{{pack_name}}** pack:
+
+- Integration branch: `{{integration_branch}}`
+- Release branch: `{{release_branch}}`
+- Requires verification: Yes
+- Requires clean tree: Yes
+
+Only verified checkpoints can be submitted to production branches.
