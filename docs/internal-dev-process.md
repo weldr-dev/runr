@@ -448,6 +448,102 @@ cat .runr/runs/<run_id>/timeline.jsonl | tail -20
 
 ---
 
+## How We Ship
+
+**Integration flow:** `dev` → accumulate changes → bundle + review → `main` → tag → push
+
+### Merge Gate (dev → main)
+
+**Before integrating dev to main:**
+
+1. **Build verification:**
+   ```bash
+   git checkout dev
+   npm run build
+   npm test
+   ```
+
+2. **Review changes:**
+   ```bash
+   git log main..dev --oneline
+   git diff main..dev --stat
+   ```
+
+3. **Integration:**
+   ```bash
+   git checkout main
+   git merge dev
+   # or cherry-pick if selective integration needed
+   git cherry-pick <commit-range>
+   ```
+
+4. **Final verification:**
+   ```bash
+   npm run build
+   npm test
+   ```
+
+5. **Tag release (if ready):**
+   ```bash
+   npm version patch|minor|major
+   git push origin main --tags
+   ```
+
+---
+
+## Release Checklist
+
+**Pre-release verification:**
+
+- [ ] All tests pass on main (`npm test`)
+- [ ] Build succeeds without warnings (`npm run build`)
+- [ ] CHANGELOG.md updated with release notes
+- [ ] Version bumped in package.json (`npm version`)
+- [ ] README.md reflects new features/changes
+- [ ] Breaking changes documented (if any)
+
+**Release steps:**
+
+1. **Finalize version:**
+   ```bash
+   git checkout main
+   git pull origin main
+   npm version [patch|minor|major]
+   ```
+
+2. **Tag and push:**
+   ```bash
+   git push origin main --tags
+   ```
+
+3. **Publish (when ready):**
+   ```bash
+   npm publish
+   # or automated via GitHub Actions
+   ```
+
+4. **Sync dev:**
+   ```bash
+   git checkout dev
+   git merge main
+   git push origin dev
+   ```
+
+**Post-release:**
+
+- [ ] GitHub release created with notes
+- [ ] Announcement in relevant channels (if major)
+- [ ] Documentation site updated (if exists)
+- [ ] Known issues documented
+
+**Notes:**
+- Prefer semantic versioning (major.minor.patch)
+- Tag format: `v1.2.3`
+- Keep dev and main in sync after release
+- Use `--no-publish` flag for private testing
+
+---
+
 ## References
 
 - [Workflow v1 Implementation Task](./.runr/tasks/workflow-v1-implementation.md)
