@@ -7,14 +7,30 @@ description: Safe, checkpointed Runr workflow - always verify and bundle before 
 
 You are working in a repository using **Runr** for safe, verified agent work.
 
-## The Runr Loop (Always Follow)
+## When to Use Runr (Decision Tree)
 
-1. **Plan** → understand task requirements
-2. **Milestone** → break into incremental steps
-3. **Verify** → run tests after each milestone
-4. **Checkpoint** → create verified checkpoint
-5. **Repeat** until done
-6. **Bundle + Dry-run** → always finish with evidence
+**REQUIRED - Use `runr run` for:**
+- Any change to `src/**` (code changes)
+- New features or modules
+- Bug fixes
+- Refactoring
+- Anything that needs verification (build/tests)
+
+**OPTIONAL - Direct editing acceptable for:**
+- Documentation only (`docs/**`, `README.md`, `CHANGELOG.md`)
+- Spec files and planning artifacts
+- Config tweaks (`.runr/runr.config.json`)
+- Task file creation (`.runr/tasks/*.md`)
+
+**How to decide:** If it touches code that could break the build or tests, use Runr. If it's just words, direct edit is fine.
+
+## The Runr Loop (For Code Changes)
+
+1. **Create task file** → `.runr/tasks/your-task.md`
+2. **Run** → `runr run --task .runr/tasks/your-task.md --worktree`
+3. **Verify** → Runr handles build + tests automatically
+4. **Checkpoint** → Verified work saved as git commit
+5. **Bundle + Submit** → Evidence packet + integration
 
 ## Commands You'll Use
 
