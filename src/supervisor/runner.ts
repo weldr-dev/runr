@@ -30,6 +30,7 @@ import { runVerification } from '../verification/engine.js';
 import { stopRun, updatePhase, prepareForResume } from './state-machine.js';
 import { buildJournal } from '../journal/builder.js';
 import { renderJournal } from '../journal/renderer.js';
+import { writeReceipt, extractBaseSha, deriveTerminalState } from '../receipt/writer.js';
 import {
   getActiveRuns,
   checkFileCollisions,
@@ -772,6 +773,28 @@ async function runSupervisorOnce(options: SupervisorOptions): Promise<void> {
     } catch (err) {
       // Never crash on journal generation failure
       console.warn(`Warning: Failed to generate journal: ${(err as Error).message}`);
+    }
+
+    // Auto-write receipt artifacts at terminal state
+    try {
+      const finalState = options.runStore.readState();
+      if (finalState.phase === 'STOPPED') {
+        const baseSha = extractBaseSha(options.runStore.path);
+        const terminalState = deriveTerminalState(finalState.stop_reason);
+        const verificationTier = finalState.last_verification_evidence?.tiers_run?.[0] ?? null;
+
+        await writeReceipt({
+          runStore: options.runStore,
+          repoPath: options.repoPath,
+          baseSha,
+          checkpointSha: finalState.checkpoint_commit_sha ?? null,
+          verificationTier,
+          terminalState
+        });
+      }
+    } catch (err) {
+      // Never crash on receipt generation failure
+      console.warn(`Warning: Failed to generate receipt: ${(err as Error).message}`);
     }
   }
 }
