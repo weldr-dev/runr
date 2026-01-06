@@ -666,11 +666,13 @@ program
   .option('--repo <path>', 'Target repo path', '.')
   .option('--tool <name>', 'Tool to use: auto (default), claude, codex', 'auto')
   .option('--allow-dirty', 'Allow uncommitted changes (not recommended)', false)
+  .option('--interactive', 'Ask for permission on each tool use (default: auto-approve)', false)
   .action(async (options) => {
     await metaCommand({
       repo: options.repo,
       tool: options.tool as 'auto' | 'claude' | 'codex',
-      allowDirty: options.allowDirty
+      allowDirty: options.allowDirty,
+      interactive: options.interactive
     });
   });
 

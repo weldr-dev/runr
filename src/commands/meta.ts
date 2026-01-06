@@ -7,6 +7,7 @@ export interface MetaOptions {
   repo?: string;
   tool?: 'auto' | 'claude' | 'codex';
   allowDirty?: boolean;
+  interactive?: boolean; // If true, ask for permission on each tool use (default: false)
 }
 
 /**
@@ -147,7 +148,7 @@ function checkClaudeIntegration(repoPath: string): {
 /**
  * Launch the meta-agent tool
  */
-async function launchTool(tool: 'claude' | 'codex', repoPath: string): Promise<void> {
+async function launchTool(tool: 'claude' | 'codex', repoPath: string, interactive: boolean): Promise<void> {
   console.log(`\nLaunching ${tool === 'claude' ? 'Claude Code' : 'Codex CLI'} with Runr workflow...\n`);
 
   if (tool === 'claude') {
@@ -166,13 +167,25 @@ async function launchTool(tool: 'claude' | 'codex', repoPath: string): Promise<v
     console.log('- AGENTS.md (workflow guide, read by Codex)');
   }
 
-  console.log('\nExit with Ctrl+C\n');
+  if (!interactive && tool === 'claude') {
+    console.log('\nPermission mode: auto-approve tool use (bypass confirmations)');
+  }
+  console.log('Exit with Ctrl+C\n');
   console.log('─'.repeat(60));
   console.log();
 
   // Launch the tool in interactive mode
   try {
-    await execa(tool, [], {
+    // Build args based on tool
+    const args: string[] = [];
+
+    if (tool === 'claude' && !interactive) {
+      // Use permission mode to bypass confirmation dialogs
+      // This gives the "zero ceremony" UX - agent can execute runr commands without asking
+      args.push('--permission-mode', 'dontAsk');
+    }
+
+    await execa(tool, args, {
       cwd: repoPath,
       stdio: 'inherit'
     });
@@ -267,5 +280,5 @@ export async function metaCommand(options: MetaOptions): Promise<void> {
   }
 
   // Step 5: Launch tool
-  await launchTool(tool, repoPath);
+  await launchTool(tool, repoPath, options.interactive || false);
 }
