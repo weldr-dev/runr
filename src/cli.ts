@@ -24,6 +24,7 @@ import { bundleCommand } from './commands/bundle.js';
 import { submitCommand } from './commands/submit.js';
 import { metaCommand } from './commands/meta.js';
 import { interveneCommand } from './commands/intervene.js';
+import { auditCommand } from './commands/audit.js';
 import { CollisionPolicy } from './orchestrator/types.js';
 
 const program = new Command();
@@ -694,6 +695,25 @@ program
       reason: options.reason,
       note: options.note,
       commands: options.cmd,
+      json: options.json
+    });
+  });
+
+// audit - View project history by provenance
+program
+  .command('audit')
+  .description('View project history classified by provenance (checkpoints, interventions, gaps)')
+  .option('--repo <path>', 'Target repo path', '.')
+  .option('--range <range>', 'Git range (e.g., main~50..main)')
+  .option('--run <id>', 'Filter to commits for specific run ID')
+  .option('--limit <n>', 'Number of commits to analyze (default: 50)', '50')
+  .option('--json', 'Output JSON', false)
+  .action(async (options) => {
+    await auditCommand({
+      repo: options.repo,
+      range: options.range,
+      runId: options.run,
+      limit: parseInt(options.limit, 10),
       json: options.json
     });
   });
