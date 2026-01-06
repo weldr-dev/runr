@@ -242,9 +242,41 @@ export async function submitCommand(options: SubmitOptions): Promise<void> {
         }
       });
 
-      console.error('Submit failed: cherry-pick conflict');
-      console.error(`Conflicted files (${conflictedFiles.length}):`);
-      conflictedFiles.forEach(f => console.error(`  ${f}`));
+      // Verify tree is actually clean after abort
+      const treeClean = await isWorkingTreeClean(options.repo);
+      const currentBranch = await getCurrentBranch(options.repo);
+      const branchRestored = currentBranch === startingBranch;
+
+      // Print conflict message with recovery recipe
+      console.error('');
+      console.error('⚠️  Submit conflict');
+      console.error('');
+      console.error(`Files:  ${conflictedFiles.join(', ')}`);
+      console.error('');
+
+      if (branchRestored && treeClean) {
+        console.error('Branch restored. Tree is clean.');
+      } else if (!branchRestored) {
+        console.error(`⚠️  Warning: Could not restore to ${startingBranch}. Currently on ${currentBranch}.`);
+      } else if (!treeClean) {
+        console.error('⚠️  Warning: Tree is not clean after abort. Run: git status');
+      }
+
+      console.error('');
+      console.error('Resolve manually:');
+      console.error(`  git checkout ${targetBranch}`);
+      console.error(`  git cherry-pick ${checkpointSha}`);
+      console.error('  # fix conflicts');
+      console.error('  git add . && git commit --no-edit');
+
+      // Tip for CHANGELOG conflicts (common pattern)
+      if (conflictedFiles.some(f => f.toLowerCase().includes('changelog'))) {
+        console.error('');
+        console.error('Tip: Conflicts are common on CHANGELOG.md; consider moving');
+        console.error('     changelog updates into a dedicated task.');
+      }
+
+      console.error('');
       process.exitCode = 1;
       return;
     }

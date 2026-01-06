@@ -361,6 +361,85 @@ describe('runr submit', () => {
     expect(event.payload.strategy).toBe('cherry-pick');
   });
 
+  it('should handle cherry-pick conflict with clean abort and recovery recipe', async () => {
+    // Setup: Create run with checkpoint that will conflict
+    const runId = 'test-run-submit-conflict';
+    const runDir = path.join(repoPath, '.runr', 'runs', runId);
+    await fs.mkdir(runDir, { recursive: true });
+
+    // Create a file on main that will conflict
+    await fs.writeFile(path.join(repoPath, 'CHANGELOG.md'), '# Changelog\n\n## v1.0.0\n- Initial\n');
+    await execa('git', ['add', '.'], { cwd: repoPath });
+    await execa('git', ['commit', '-m', 'docs: add changelog'], { cwd: repoPath });
+
+    // Create dev branch with conflicting change
+    await execa('git', ['checkout', '-b', 'dev'], { cwd: repoPath });
+    await fs.writeFile(path.join(repoPath, 'CHANGELOG.md'), '# Changelog\n\n## v2.0.0\n- Breaking change\n');
+    await execa('git', ['add', '.'], { cwd: repoPath });
+    await execa('git', ['commit', '-m', 'docs: update changelog for v2'], { cwd: repoPath });
+    const { stdout: checkpointSha } = await execa('git', ['rev-parse', 'HEAD'], { cwd: repoPath });
+
+    // Make a different change on main that conflicts
+    await execa('git', ['checkout', 'main'], { cwd: repoPath });
+    await fs.writeFile(path.join(repoPath, 'CHANGELOG.md'), '# Changelog\n\n## v1.1.0\n- Hotfix\n');
+    await execa('git', ['add', '.'], { cwd: repoPath });
+    await execa('git', ['commit', '-m', 'docs: hotfix changelog'], { cwd: repoPath });
+
+    // Go back to dev as starting branch
+    await execa('git', ['checkout', 'dev'], { cwd: repoPath });
+
+    // Create run state
+    const state = {
+      run_id: runId,
+      checkpoint_commit_sha: checkpointSha.trim()
+    };
+    await fs.writeFile(path.join(runDir, 'state.json'), JSON.stringify(state, null, 2));
+
+    // Create config
+    const config = {
+      agent: { name: 'test-agent', version: '1' },
+      scope: { allowlist: ['**/*'], denylist: [], lockfiles: [], presets: [], env_allowlist: [] },
+      verification: { tier0: [], tier1: [], tier2: [], risk_triggers: [], max_verify_time_per_milestone: 600 },
+      workflow: { profile: 'pr', integration_branch: 'main', require_verification: false, require_clean_tree: true, submit_strategy: 'cherry-pick' }
+    };
+    await fs.mkdir(path.join(repoPath, '.runr'), { recursive: true });
+    await fs.writeFile(path.join(repoPath, '.runr', 'runr.config.json'), JSON.stringify(config, null, 2));
+    await fs.writeFile(path.join(runDir, 'timeline.jsonl'), '');
+
+    // Run submit and expect conflict
+    let stderr = '';
+    try {
+      await execa('node', [path.join(process.cwd(), 'dist/cli.js'), 'submit', runId, '--repo', repoPath]);
+      expect.fail('Should have thrown error');
+    } catch (error: any) {
+      expect(error.exitCode).toBe(1);
+      stderr = error.stderr;
+    }
+
+    // Invariant 1: Branch restored to starting branch (dev)
+    const { stdout: currentBranch } = await execa('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: repoPath });
+    expect(currentBranch.trim()).toBe('dev');
+
+    // Invariant 2: Tree is clean (no leftover conflict markers)
+    const { stdout: status } = await execa('git', ['status', '--porcelain'], { cwd: repoPath });
+    expect(status.trim()).toBe('');
+
+    // Invariant 3: Timeline event contains conflicted files
+    const timelineContent = await fs.readFile(path.join(runDir, 'timeline.jsonl'), 'utf-8');
+    expect(timelineContent).toContain('submit_conflict');
+    const event = JSON.parse(timelineContent.trim());
+    expect(event.type).toBe('submit_conflict');
+    expect(event.payload.conflicted_files).toContain('CHANGELOG.md');
+
+    // Invariant 4: Console output has recovery recipe with actual sha/branch
+    expect(stderr).toContain('Submit conflict');
+    expect(stderr).toContain('CHANGELOG.md');
+    expect(stderr).toContain('Branch restored. Tree is clean.');
+    expect(stderr).toContain('git checkout main');
+    expect(stderr).toContain(`git cherry-pick ${checkpointSha.trim()}`);
+    expect(stderr).toContain('Tip: Conflicts are common on CHANGELOG.md');
+  });
+
   it('should restore starting branch after operation', async () => {
     // Setup: Create run with checkpoint
     const runId = 'test-run-submit-5';
