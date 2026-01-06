@@ -168,7 +168,7 @@ async function launchTool(tool: 'claude' | 'codex', repoPath: string, interactiv
   }
 
   if (!interactive && tool === 'claude') {
-    console.log('\nPermission mode: auto-approve tool use (bypass confirmations)');
+    console.log('\nPermission mode: skip all permissions (allows Bash, Edit, etc.)');
   }
   console.log('Exit with Ctrl+C\n');
   console.log('─'.repeat(60));
@@ -180,9 +180,10 @@ async function launchTool(tool: 'claude' | 'codex', repoPath: string, interactiv
     const args: string[] = [];
 
     if (tool === 'claude' && !interactive) {
-      // Use permission mode to bypass confirmation dialogs
-      // This gives the "zero ceremony" UX - agent can execute runr commands without asking
-      args.push('--permission-mode', 'dontAsk');
+      // Use dangerously-skip-permissions to bypass all confirmation dialogs
+      // This matches what Runr uses when running Claude as a worker
+      // Allows the agent to use Bash (for runr commands), Edit, and other tools
+      args.push('--dangerously-skip-permissions');
     }
 
     await execa(tool, args, {
