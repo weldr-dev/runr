@@ -15,7 +15,11 @@
   "templates": {
     "AGENTS.md": "templates/AGENTS.md.tmpl",
     "CLAUDE.md": "templates/CLAUDE.md.tmpl",
-    "bundle.md": "templates/bundle.md.tmpl"
+    "bundle.md": "templates/bundle.md.tmpl",
+    "claude-skill": "templates/claude-skill.md.tmpl",
+    "claude-cmd-bundle": "templates/claude-cmd-bundle.md.tmpl",
+    "claude-cmd-submit": "templates/claude-cmd-submit.md.tmpl",
+    "claude-cmd-resume": "templates/claude-cmd-resume.md.tmpl"
   },
   "init_actions": [
     {
@@ -43,6 +47,34 @@
       "type": "create_file_if_missing",
       "path": "CLAUDE.md",
       "template": "CLAUDE.md",
+      "mode": "0644",
+      "when": { "flag": "with_claude" }
+    },
+    {
+      "type": "create_file_if_missing",
+      "path": ".claude/skills/runr-workflow/SKILL.md",
+      "template": "claude-skill",
+      "mode": "0644",
+      "when": { "flag": "with_claude" }
+    },
+    {
+      "type": "create_file_if_missing",
+      "path": ".claude/commands/runr-bundle.md",
+      "template": "claude-cmd-bundle",
+      "mode": "0644",
+      "when": { "flag": "with_claude" }
+    },
+    {
+      "type": "create_file_if_missing",
+      "path": ".claude/commands/runr-submit.md",
+      "template": "claude-cmd-submit",
+      "mode": "0644",
+      "when": { "flag": "with_claude" }
+    },
+    {
+      "type": "create_file_if_missing",
+      "path": ".claude/commands/runr-resume.md",
+      "template": "claude-cmd-resume",
       "mode": "0644",
       "when": { "flag": "with_claude" }
     }

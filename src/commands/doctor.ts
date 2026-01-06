@@ -332,6 +332,59 @@ async function checkRunrDirectory(repoPath: string): Promise<{
 }
 
 /**
+ * Check if AGENTS.md exists (for meta-agent workflows)
+ */
+function checkAgentsMd(repoPath: string): {
+  exists: boolean;
+  path?: string;
+} {
+  const agentsMdPath = path.join(repoPath, 'AGENTS.md');
+  return {
+    exists: fs.existsSync(agentsMdPath),
+    path: agentsMdPath
+  };
+}
+
+/**
+ * Check Claude Code integration status
+ */
+function checkClaudeIntegration(repoPath: string): {
+  claudeDetected: boolean;
+  skillsPresent: boolean;
+  commandsPresent: boolean;
+  missingFiles?: string[];
+} {
+  const claudeDir = path.join(repoPath, '.claude');
+  const skillPath = path.join(repoPath, '.claude/skills/runr-workflow/SKILL.md');
+  const commandPaths = [
+    path.join(repoPath, '.claude/commands/runr-bundle.md'),
+    path.join(repoPath, '.claude/commands/runr-submit.md'),
+    path.join(repoPath, '.claude/commands/runr-resume.md')
+  ];
+
+  const claudeDetected = fs.existsSync(claudeDir);
+  const skillsPresent = fs.existsSync(skillPath);
+  const commandsPresent = commandPaths.every(p => fs.existsSync(p));
+
+  const missingFiles: string[] = [];
+  if (claudeDetected) {
+    if (!skillsPresent) missingFiles.push('.claude/skills/runr-workflow/SKILL.md');
+    commandPaths.forEach(p => {
+      if (!fs.existsSync(p)) {
+        missingFiles.push(path.relative(repoPath, p));
+      }
+    });
+  }
+
+  return {
+    claudeDetected,
+    skillsPresent,
+    commandsPresent,
+    missingFiles: missingFiles.length > 0 ? missingFiles : undefined
+  };
+}
+
+/**
  * Check worktree sanity
  */
 async function checkWorktrees(repoPath: string): Promise<{
@@ -434,6 +487,9 @@ export async function doctorCommand(options: DoctorOptions): Promise<void> {
       if (treeCheck.ignoredCount && treeCheck.ignoredCount > 0) {
         console.log(`  Ignored noise: ${treeCheck.ignoredCount} files in .runr/`);
       }
+      console.log('\n⚠️  Meta-Agent Safety Warning:');
+      console.log('   Never run agents on uncommitted work - you risk data loss.');
+      console.log('   Commit or stash before using `runr meta` or `runr run`.');
     }
   } else {
     console.log(`Working tree: FAIL - ${treeCheck.error}`);
@@ -487,6 +543,33 @@ export async function doctorCommand(options: DoctorOptions): Promise<void> {
     }
   } else {
     console.log('Worktrees: not used');
+  }
+
+  // Check 8: AGENTS.md (for meta-agent workflows)
+  const agentsCheck = checkAgentsMd(repoPath);
+  if (agentsCheck.exists) {
+    console.log('AGENTS.md: present ✓');
+  } else {
+    console.log('⚠️  AGENTS.md: missing');
+    console.log('   Run "runr init --pack solo" to create workflow documentation');
+  }
+
+  // Check 9: Claude Code integration (if .claude/ exists)
+  const claudeCheck = checkClaudeIntegration(repoPath);
+  if (claudeCheck.claudeDetected) {
+    if (claudeCheck.skillsPresent && claudeCheck.commandsPresent) {
+      console.log('Claude Code integration: complete ✓');
+    } else {
+      console.log('Claude Code integration: incomplete');
+      if (claudeCheck.missingFiles) {
+        console.log('  Missing:');
+        claudeCheck.missingFiles.forEach(file => console.log(`    - ${file}`));
+        console.log('  Run "runr init --pack solo --with-claude" to complete setup');
+      }
+    }
+  } else {
+    console.log('Claude Code integration: not configured');
+    console.log('  (optional) Run "runr init --pack solo --with-claude" to add Claude Code support');
   }
 
   // Exit with appropriate code

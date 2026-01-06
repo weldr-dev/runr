@@ -6,14 +6,23 @@
 
 *When verification fails after 3 checkpoints, progress isn't lost — Runr saves verified work as git commits.*
 
-## Quickstart
+## Quickstart (One Command)
+
+The fastest way to start using Runr is with a meta-agent (Claude Code or Codex CLI):
 
 ```bash
+# Install Runr
 npm install -g @weldr/runr
+
+# Initialize with Claude Code integration
 cd your-repo
-runr init
-runr run --task .runr/tasks/your-task.md --worktree
+runr init --pack solo --with-claude
+
+# Launch meta-agent (blocks if tree is dirty)
+runr meta
 ```
+
+The meta-agent will use Runr automatically, following workflow rules from `AGENTS.md` and `.claude/skills/`.
 
 **If it stops:** Run the suggested command in `.runr/runs/<run_id>/handoffs/stop.json`
 
@@ -51,57 +60,60 @@ Complete walkthrough in [dogfood/hello-world/README.md](dogfood/hello-world/READ
 
 ## Meta-Agent Quickstart (Recommended)
 
-**The easiest way to use Runr:** Let your coding agent drive it.
+**The easiest way to use Runr:** One command, zero ceremony.
 
-Runr works as a **reliable execution backend**. Instead of learning CLI commands, your agent (Claude Code, Codex, etc.) operates Runr for you — handling runs, interpreting failures, and resuming from checkpoints.
+Runr works as a **reliable execution backend** for meta-agents (Claude Code, Codex CLI). The meta-agent operates Runr for you — handling runs, interpreting failures, and resuming from checkpoints.
 
-### Setup (One-Time)
+### Setup (One Command)
 
 ```bash
-# 1. Install Runr
+# Install Runr globally
 npm install -g @weldr/runr
 
-# 2. Verify environment
-runr doctor
+# Initialize with Claude Code integration (creates AGENTS.md + .claude/ skills)
+cd your-repo
+runr init --pack solo --with-claude
 
-# 3. Create minimal config
-mkdir -p .runr/tasks
-cat > .runr/runr.config.json << 'EOF'
-{
-  "agent": { "name": "my-project", "version": "1" },
-  "scope": {
-    "presets": ["typescript", "vitest"]
-  },
-  "verification": {
-    "tier0": ["npm run typecheck"],
-    "tier1": ["npm test"]
-  }
-}
-EOF
+# Verify setup
+runr doctor
 ```
 
-### Usage
+### Launch Meta-Agent
 
-Just tell your coding agent:
+```bash
+# Ensure working tree is clean (commit or stash first)
+git status
 
-> "Use Runr to add user authentication with OAuth2. Create checkpoints after each milestone."
+# Launch Claude Code with Runr workflow context
+runr meta
+```
+
+**Safety:** `runr meta` blocks if you have uncommitted changes (prevents data loss). Override with `--allow-dirty` if needed.
+
+The meta-agent will automatically:
+- Follow workflow rules from `AGENTS.md`
+- Use safety playbooks from `.claude/skills/runr-workflow`
+- Have `/runr-bundle`, `/runr-submit`, `/runr-resume` slash commands available
+
+### What the Meta-Agent Does
 
 The agent will:
-1. Create a task file (`.runr/tasks/add-auth.md`)
+1. Create task files (`.runr/tasks/your-task.md`)
 2. Run `runr run --task ... --worktree`
 3. Monitor progress with `runr status`
 4. Handle failures, resume from checkpoints
-5. Report results with commit links
-
-**See [RUNR_OPERATOR.md](./RUNR_OPERATOR.md)** for the complete agent integration guide.
+5. Bundle evidence and submit verified work
 
 ### Why This Works
 
-Most devs already have a coding agent open. Telling them:
-- "Drop this in your agent, and it'll drive Runr for you"
-
-…has near-zero friction compared to:
+Instead of:
+- "Copy this 500-line prompt and paste it into your agent"
 - "Learn these CLI commands, create config files, understand phase gates"
+
+You get:
+- **One command:** `runr meta` (safe, native, zero ceremony)
+- **Auto-discovered workflow:** Agent reads `AGENTS.md` + `.claude/skills/`
+- **Built-in safety:** Dirty tree blocking, deletion contracts, evidence discipline
 
 The agent becomes your operator. Runr stays the reliable execution layer.
 
@@ -173,8 +185,10 @@ Available: `nextjs`, `react`, `drizzle`, `prisma`, `vitest`, `jest`, `playwright
 
 | Command | What it does |
 |---------|--------------|
+| `runr meta` | Launch meta-agent (Claude/Codex) with workflow context |
 | `runr init` | Initialize config (auto-detect verify commands) |
 | `runr init --pack <name>` | Initialize with workflow pack (solo/trunk) |
+| `runr init --pack solo --with-claude` | Initialize with Claude Code integration |
 | `runr packs` | List available workflow packs |
 | `runr run --task <file>` | Start a task |
 | `runr resume <id>` | Continue from checkpoint |
@@ -188,7 +202,7 @@ Available: `nextjs`, `react`, `drizzle`, `prisma`, `vitest`, `jest`, `playwright
 | `runr note <message>` | Add timestamped note to run |
 | `runr open [id]` | Open journal in $EDITOR |
 | `runr gc` | Clean up old runs |
-| `runr doctor` | Check environment |
+| `runr doctor` | Check environment + meta-agent integration |
 
 ### Aliases
 

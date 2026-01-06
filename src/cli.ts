@@ -22,6 +22,7 @@ import { watchCommand } from './commands/watch.js';
 import { journalCommand, noteCommand, openCommand } from './commands/journal.js';
 import { bundleCommand } from './commands/bundle.js';
 import { submitCommand } from './commands/submit.js';
+import { metaCommand } from './commands/meta.js';
 import { CollisionPolicy } from './orchestrator/types.js';
 
 const program = new Command();
@@ -655,6 +656,21 @@ program
       dryRun: options.dryRun,
       push: options.push,
       config: options.config
+    });
+  });
+
+// meta - Launch meta-agent with safety checks
+program
+  .command('meta')
+  .description('Launch meta-agent (Claude Code/Codex) with Runr workflow context')
+  .option('--repo <path>', 'Target repo path', '.')
+  .option('--tool <name>', 'Tool to use: auto (default), claude, codex', 'auto')
+  .option('--allow-dirty', 'Allow uncommitted changes (not recommended)', false)
+  .action(async (options) => {
+    await metaCommand({
+      repo: options.repo,
+      tool: options.tool as 'auto' | 'claude' | 'codex',
+      allowDirty: options.allowDirty
     });
   });
 
