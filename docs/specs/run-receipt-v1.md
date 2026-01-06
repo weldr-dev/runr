@@ -87,6 +87,7 @@ Resume:  runr resume 20260106041301 (fix errors first)
 
 ```
 .runr/runs/<id>/
+  receipt.json        # baseline + checkpoint metadata (always)
   diff.patch          # or diff.patch.gz if huge
   diffstat.txt        # always, even if patch is compressed
   files.txt           # list of changed files, one per line
@@ -94,35 +95,79 @@ Resume:  runr resume 20260106041301 (fix errors first)
   transcript.meta.json # if not captured (pointer)
 ```
 
-### Size Limits
+### receipt.json (Baseline Definition)
 
-**Compress if:**
-- Diff > 50KB **OR**
-- Changed lines > 5000 **OR**
+**Always written** at terminal state with deterministic baseline:
+
+```json
+{
+  "base_sha": "abc123...",        // repo HEAD at run start (or worktree base)
+  "checkpoint_sha": "def456...",  // verified checkpoint (if exists)
+  "verification_tier": "tier1",   // or null if not verified
+  "terminal_state": "complete",   // complete, stopped, failed
+  "files_changed": 23,
+  "lines_added": 147,
+  "lines_deleted": 34
+}
+```
+
+**Baseline rule:**
+- `base_sha` = Git HEAD at run initialization (before any changes)
+- Diff = `git diff base_sha..checkpoint_sha` (or base_sha..HEAD if no checkpoint)
+- This prevents "what did I compare against?" confusion when branch moves
+
+### Size Limits (Multi-Dimensional)
+
+**Compress patch if ANY:**
+- Diff size > 50KB **OR**
+- Changed lines > 2000 **OR**
 - Changed files > 100
+
+**Cap file listings:**
+- Console: show max 20 files, then "...N more files"
+- files.txt: list max 500 files, then append "...truncated, N more files"
+- Reason: prevents console spam and huge file lists
 
 When compressed:
 - Write `.diff.patch.gz`
-- Write `.diffstat.txt` (uncompressed summary)
+- Write `.diffstat.txt` (always uncompressed, full summary)
 - Console prints: "Review: .runr/runs/<id>/diff.patch.gz (large changeset)"
 
-### Transcript Handling
+### Patch Generation Flags
+
+Use robust git diff flags:
+
+```bash
+git diff --patch --binary --find-renames base_sha..checkpoint_sha
+```
+
+- `--patch`: Generate patch format
+- `--binary`: Include binary files (or document v1 doesn't support binary)
+- `--find-renames`: Better output for renamed files
+
+**Binary files in v1:** Include in diff or document as unsupported (decide in implementation).
+
+### Transcript Handling (Best-Effort Contract)
 
 **If Runr captures output:**
 - Write `.runr/runs/<id>/transcript.log`
 - Console prints: "Transcript: .runr/runs/<id>/transcript.log"
 
-**If meta-agent owns output:**
-- Write `.runr/runs/<id>/transcript.meta.json`:
+**If meta-agent owns output (cannot capture):**
+- **MUST** still create `.runr/runs/<id>/transcript.meta.json`:
   ```json
   {
     "captured_by": "claude_code",
     "session_id": "...",
+    "started_at": "2026-01-06T04:13:01Z",
+    "ended_at": "2026-01-06T04:18:32Z",
     "path_hint": null,
     "note": "Transcript captured by operator"
   }
   ```
 - Console prints: "Transcript: (captured by operator)"
+
+**Contract:** The UI never has a missing link - either transcript.log exists or meta.json explains why not.
 
 ---
 
@@ -236,10 +281,15 @@ This breaks the "branch restored, tree clean" invariant, which is a core safety 
 
 ### Phase 4: Testing
 - [ ] Test Run Receipt output for all terminal states
-- [ ] Test diff compression triggers
+- [ ] Test diff compression triggers (size, lines, files)
 - [ ] Test task-local allowlist override
 - [ ] Test scope violation stop + resume flow
-- [ ] Test submit conflict abort + recovery
+- [ ] **Test submit conflict abort invariants (critical):**
+  - [ ] Conflict occurs on cherry-pick
+  - [ ] Branch returns to original
+  - [ ] Tree is clean (no leftover files)
+  - [ ] Timeline event written with conflicted file list
+  - [ ] Console shows recovery recipe
 
 ---
 
