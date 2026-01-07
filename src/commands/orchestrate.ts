@@ -1003,3 +1003,46 @@ function outputWaitResult(
     }
   }
 }
+
+/**
+ * Options for orchestrate receipt command.
+ */
+export interface OrchestrateReceiptOptions {
+  orchestratorId: string;
+  repo: string;
+  json: boolean;
+  write: boolean;
+}
+
+/**
+ * Generate and display orchestration receipt.
+ */
+export async function receiptCommand(options: OrchestrateReceiptOptions): Promise<void> {
+  const { getReceipt, writeReceipt, generateReceiptMarkdown } = await import('../orchestrator/receipt.js');
+  const repoPath = path.resolve(options.repo);
+
+  // Get receipt (from cache or generate from state)
+  const receipt = getReceipt(repoPath, options.orchestratorId);
+
+  if (!receipt) {
+    console.error(`Orchestration not found: ${options.orchestratorId}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Write artifacts if requested
+  if (options.write) {
+    const paths = writeReceipt(receipt, repoPath);
+    console.log(`Receipt written:`);
+    console.log(`  JSON: ${paths.json}`);
+    console.log(`  MD: ${paths.md}`);
+    console.log('');
+  }
+
+  // Output
+  if (options.json) {
+    console.log(JSON.stringify(receipt, null, 2));
+  } else {
+    console.log(generateReceiptMarkdown(receipt));
+  }
+}

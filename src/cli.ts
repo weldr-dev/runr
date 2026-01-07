@@ -12,7 +12,7 @@ import { doctorCommand } from './commands/doctor.js';
 import { followCommand, findBestRunToFollow } from './commands/follow.js';
 import { gcCommand } from './commands/gc.js';
 import { waitCommand, findLatestRunId as findLatestRunIdForWait } from './commands/wait.js';
-import { orchestrateCommand, resumeOrchestrationCommand, waitOrchestrationCommand } from './commands/orchestrate.js';
+import { orchestrateCommand, resumeOrchestrationCommand, waitOrchestrationCommand, receiptCommand } from './commands/orchestrate.js';
 import { pathsCommand } from './commands/paths.js';
 import { metricsCommand } from './commands/metrics.js';
 import { versionCommand } from './commands/version.js';
@@ -487,6 +487,22 @@ orchestrateCmd
       for: options.for as 'terminal' | 'stop' | 'complete',
       timeout: options.timeout ? Number.parseInt(options.timeout, 10) : undefined,
       json: options.json
+    });
+  });
+
+orchestrateCmd
+  .command('receipt')
+  .description('Generate and display orchestration receipt (manager dashboard)')
+  .argument('<orchestratorId>', 'Orchestrator ID (or "latest")')
+  .option('--repo <path>', 'Target repo path (default: current directory)', '.')
+  .option('--json', 'Output JSON instead of markdown', false)
+  .option('--write', 'Write receipt.json and receipt.md to orchestration directory', false)
+  .action(async (orchestratorId: string, options) => {
+    await receiptCommand({
+      orchestratorId,
+      repo: options.repo,
+      json: options.json,
+      write: options.write
     });
   });
 

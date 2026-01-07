@@ -419,13 +419,15 @@ export function generateOrchestrationMarkdown(
  * Order is critical:
  * 1. summary.json
  * 2. orchestration.md
- * 3. complete.json OR stop.json (LAST - signals terminal)
+ * 3. receipt.json and receipt.md
+ * 4. complete.json OR stop.json (LAST - signals terminal)
  */
 export function writeTerminalArtifacts(
   state: OrchestratorState,
   repoPath: string
 ): void {
   const handoffsDir = getHandoffsDir(repoPath, state.orchestrator_id);
+  const orchDir = getOrchestrationDir(repoPath, state.orchestrator_id);
   fs.mkdirSync(handoffsDir, { recursive: true });
 
   const isComplete = state.status === 'complete';
@@ -444,7 +446,20 @@ export function writeTerminalArtifacts(
     markdown
   );
 
-  // 3. Write complete.json OR stop.json (LAST)
+  // 3. Write receipt artifacts (manager dashboard)
+  try {
+    // Dynamic import to avoid circular dependency
+    import('./receipt.js').then(({ buildReceipt, writeReceipt }) => {
+      const receipt = buildReceipt(state, repoPath);
+      writeReceipt(receipt, repoPath);
+    }).catch(() => {
+      // Ignore receipt generation errors - not critical
+    });
+  } catch {
+    // Ignore receipt generation errors - not critical
+  }
+
+  // 4. Write complete.json OR stop.json (LAST)
   if (isComplete) {
     const completeArtifact = buildWaitResult(state, repoPath);
     fs.writeFileSync(
