@@ -294,29 +294,138 @@ export interface CheckCommitOptions {
 }
 
 /**
+ * Runr trailers that indicate proper attribution.
+ */
+const RUNR_TRAILERS = [
+  /^Runr-Run-Id:\s*.+$/m,
+  /^Runr-Intervention:\s*true$/m,
+  /^Runr-Checkpoint:\s*true$/m
+];
+
+/**
+ * Check if commit message has Runr trailers.
+ */
+function hasRunrTrailers(commitMessage: string): boolean {
+  return RUNR_TRAILERS.some(pattern => pattern.test(commitMessage));
+}
+
+/**
+ * Check if this is a merge commit (skip check).
+ */
+function isMergeCommit(msgFile: string): boolean {
+  // Git uses specific filenames for merge commits
+  const filename = path.basename(msgFile);
+  return filename === 'MERGE_MSG' || filename === 'SQUASH_MSG';
+}
+
+/**
+ * Get current workflow mode from config.
+ */
+function getWorkflowMode(repoPath: string): 'flow' | 'ledger' {
+  const configPath = path.join(repoPath, '.runr', 'runr.config.json');
+  if (!fs.existsSync(configPath)) {
+    return 'flow'; // Default to flow mode
+  }
+
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    return config.workflow?.mode === 'ledger' ? 'ledger' : 'flow';
+  } catch {
+    return 'flow';
+  }
+}
+
+/**
  * Check commit against run state (called by git hook).
  *
- * In this version (02a), we only print a warning and always allow.
- * Enforcement is added in 02b.
+ * Mode-aware behavior:
+ * - Flow mode: warn but allow commits without attribution
+ * - Ledger mode: block commits without attribution
  */
 export async function checkCommitCommand(options: CheckCommitOptions): Promise<void> {
   const repoPath = path.resolve(options.repo);
 
-  const activeState = loadActiveState(repoPath);
-
-  if (activeState.status === 'STOPPED') {
-    console.log('');
-    console.log('⚠️  Warning: A Runr run is in STOPPED state.');
-    console.log(`   Run ID: ${activeState.run_id}`);
-    if (activeState.stop_reason) {
-      console.log(`   Reason: ${activeState.stop_reason}`);
-    }
-    console.log('');
-    console.log('   Consider running "runr submit" to integrate verified work,');
-    console.log('   or "runr intervene" to record your changes.');
-    console.log('');
+  // Skip check for merge commits
+  if (isMergeCommit(options.msgFile)) {
+    process.exitCode = 0;
+    return;
   }
 
-  // Always allow (enforcement added in 02b)
-  process.exitCode = 0;
+  // Check if .runr directory exists
+  const runrDir = path.join(repoPath, '.runr');
+  if (!fs.existsSync(runrDir)) {
+    process.exitCode = 0;
+    return;
+  }
+
+  // Load active state
+  const activeState = loadActiveState(repoPath);
+
+  // If no stopped run, allow
+  if (activeState.status !== 'STOPPED') {
+    process.exitCode = 0;
+    return;
+  }
+
+  // Read commit message
+  let commitMessage = '';
+  try {
+    commitMessage = fs.readFileSync(options.msgFile, 'utf-8');
+  } catch {
+    // Can't read commit message, fail open
+    process.exitCode = 0;
+    return;
+  }
+
+  // Check for Runr trailers
+  if (hasRunrTrailers(commitMessage)) {
+    // Properly attributed commit, allow
+    process.exitCode = 0;
+    return;
+  }
+
+  // Check for override environment variable
+  const allowGap = process.env.RUNR_ALLOW_GAP === '1';
+
+  // Get workflow mode
+  const mode = getWorkflowMode(repoPath);
+
+  // Format the provenance warning/error message
+  const formatMessage = (isError: boolean) => {
+    const icon = isError ? '❌' : '⚠️';
+    const title = isError
+      ? 'Provenance required (Ledger mode)'
+      : 'Provenance gap detected';
+
+    console.error('');
+    console.error(`${icon}  ${title}`);
+    console.error('');
+    console.error(`Run ${activeState.run_id} is STOPPED (${activeState.stop_reason || 'unknown'}).`);
+    console.error('This commit has no Runr attribution.');
+    console.error('');
+    console.error('To add attribution:');
+    console.error(`  runr intervene ${activeState.run_id} --reason ${activeState.stop_reason || 'manual'} \\`);
+    console.error('    --note "description" --commit "your message"');
+    console.error('');
+
+    if (isError) {
+      console.error('To override (not recommended):');
+      console.error('  RUNR_ALLOW_GAP=1 git commit ...');
+      console.error('  # or: git commit --no-verify');
+      console.error('');
+    } else {
+      console.error('Proceeding anyway (Flow mode).');
+      console.error('');
+    }
+  };
+
+  if (mode === 'ledger' && !allowGap) {
+    // Ledger mode: block commit
+    formatMessage(true);
+    process.exitCode = 1;
+  } else {
+    // Flow mode or override: warn but allow
+    formatMessage(false);
+    process.exitCode = 0;
+  }
 }
