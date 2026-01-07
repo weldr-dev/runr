@@ -5,6 +5,11 @@
  * 1. resume - try again
  * 2. intervene - record manual fix
  * 3. audit - see what happened
+ *
+ * For review_loop_detected, also shows:
+ * - Reviewer requested items
+ * - Commands to satisfy
+ * - Suggested intervention command
  */
 
 import { RunState } from '../types/schemas.js';
@@ -22,6 +27,11 @@ export interface StopContext {
   milestonesTotal: number;
   lastError?: string;
   phase?: string;
+  // Extended fields for review_loop_detected
+  reviewRound?: number;
+  maxReviewRounds?: number;
+  reviewerRequests?: string[];
+  commandsToSatisfy?: string[];
 }
 
 /**
@@ -108,7 +118,13 @@ export function formatStopFooter(ctx: StopContext): string {
   const lines: string[] = [];
 
   lines.push(SEPARATOR);
-  lines.push(`STOPPED: ${ctx.stopReason}`);
+
+  // Header with optional round info
+  if (ctx.stopReason === 'review_loop_detected' && ctx.reviewRound && ctx.maxReviewRounds) {
+    lines.push(`STOPPED: ${ctx.stopReason} (round ${ctx.reviewRound}/${ctx.maxReviewRounds})`);
+  } else {
+    lines.push(`STOPPED: ${ctx.stopReason}`);
+  }
   lines.push('');
 
   // Last checkpoint line
@@ -118,10 +134,46 @@ export function formatStopFooter(ctx: StopContext): string {
     lines.push(`No checkpoint (milestone ${ctx.milestoneIndex + 1}/${ctx.milestonesTotal})`);
   }
 
-  // Context line based on stop reason
-  const contextLine = getContextLine(ctx);
-  if (contextLine) {
-    lines.push(contextLine);
+  // Enhanced output for review_loop_detected
+  if (ctx.stopReason === 'review_loop_detected') {
+    // Show reviewer requests if available
+    if (ctx.reviewerRequests && ctx.reviewerRequests.length > 0) {
+      lines.push('');
+      lines.push('Reviewer requested:');
+      ctx.reviewerRequests.slice(0, 3).forEach((req, i) => {
+        lines.push(`  ${i + 1}. ${req}`);
+      });
+      if (ctx.reviewerRequests.length > 3) {
+        lines.push(`  ... and ${ctx.reviewerRequests.length - 3} more`);
+      }
+    }
+
+    // Show commands to satisfy if available
+    if (ctx.commandsToSatisfy && ctx.commandsToSatisfy.length > 0) {
+      lines.push('');
+      lines.push('Commands to satisfy:');
+      for (const cmd of ctx.commandsToSatisfy) {
+        lines.push(`  ${cmd}`);
+      }
+    }
+
+    // Show suggested intervention
+    lines.push('');
+    lines.push('Suggested intervention:');
+    if (ctx.commandsToSatisfy && ctx.commandsToSatisfy.length > 0) {
+      const cmdArgs = ctx.commandsToSatisfy.map(c => `--cmd "${c}"`).join(' ');
+      lines.push(`  runr intervene ${ctx.runId} --reason review_loop \\`);
+      lines.push(`    --note "Fixed review requests" ${cmdArgs}`);
+    } else {
+      lines.push(`  runr intervene ${ctx.runId} --reason review_loop \\`);
+      lines.push(`    --note "Fixed review requests" --cmd "npm run build""`);
+    }
+  } else {
+    // Context line based on stop reason (for non-review_loop cases)
+    const contextLine = getContextLine(ctx);
+    if (contextLine) {
+      lines.push(contextLine);
+    }
   }
 
   lines.push('');
@@ -139,8 +191,17 @@ export function formatStopFooter(ctx: StopContext): string {
 
 /**
  * Build stop context from run state.
+ * Extended version accepts optional review loop data.
  */
-export function buildStopContext(state: RunState): StopContext {
+export function buildStopContext(
+  state: RunState,
+  reviewLoopData?: {
+    reviewRound?: number;
+    maxReviewRounds?: number;
+    reviewerRequests?: string[];
+    commandsToSatisfy?: string[];
+  }
+): StopContext {
   return {
     runId: state.run_id,
     stopReason: state.stop_reason || 'unknown',
@@ -148,15 +209,29 @@ export function buildStopContext(state: RunState): StopContext {
     milestoneIndex: state.milestone_index,
     milestonesTotal: state.milestones.length,
     lastError: state.last_error,
-    phase: state.phase
+    phase: state.phase,
+    // Extended review loop fields
+    reviewRound: reviewLoopData?.reviewRound ?? state.review_rounds,
+    maxReviewRounds: reviewLoopData?.maxReviewRounds,
+    reviewerRequests: reviewLoopData?.reviewerRequests,
+    commandsToSatisfy: reviewLoopData?.commandsToSatisfy
   };
 }
 
 /**
  * Print stop footer to console.
+ * If reviewLoopData is provided, includes enhanced diagnostics.
  */
-export function printStopFooter(state: RunState): void {
-  const ctx = buildStopContext(state);
+export function printStopFooter(
+  state: RunState,
+  reviewLoopData?: {
+    reviewRound?: number;
+    maxReviewRounds?: number;
+    reviewerRequests?: string[];
+    commandsToSatisfy?: string[];
+  }
+): void {
+  const ctx = buildStopContext(state, reviewLoopData);
   console.log('');
   console.log(formatStopFooter(ctx));
 }

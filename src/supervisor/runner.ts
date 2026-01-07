@@ -37,6 +37,10 @@ import {
   formatFileCollisionError
 } from './collision.js';
 import {
+  parseReviewFeedback,
+  mapToCommand
+} from '../review/check-parser.js';
+import {
   validateNoChangesEvidence,
   formatEvidenceErrors
 } from './evidence-gate.js';
@@ -1566,6 +1570,12 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
 
     if (sameFingerprint || exceededRounds) {
       const reason = sameFingerprint ? 'identical_review_feedback' : 'max_review_rounds_exceeded';
+
+      // Parse review changes to extract actionable commands
+      const parsedReview = parseReviewFeedback(changesText);
+      const reviewerRequests = review.changes.slice(0, 5);
+      const commandsToSatisfy = parsedReview.commandsToSatisfy;
+
       options.runStore.appendEvent({
         type: 'review_loop_detected',
         source: 'supervisor',
@@ -1574,25 +1584,59 @@ async function handleReview(state: RunState, options: SupervisorOptions): Promis
           review_rounds: currentRounds,
           max_review_rounds: maxRounds,
           same_fingerprint: sameFingerprint,
-          last_changes: review.changes.slice(0, 2) // First 2 items for context
+          last_changes: review.changes.slice(0, 2), // First 2 items for context
+          // Enhanced fields for diagnostics
+          reviewer_requests: reviewerRequests,
+          commands_to_satisfy: commandsToSatisfy
         }
       });
 
-      // Write review digest for debugging
+      // Write enhanced review digest for debugging
       const digestLines = [
         '# Review Digest',
         '',
         `**Milestone:** ${state.milestone_index + 1} of ${state.milestones.length}`,
-        `**Review Rounds:** ${currentRounds}`,
+        `**Review Rounds:** ${currentRounds} (max: ${maxRounds})`,
         `**Stop Reason:** ${reason}`,
         '',
-        '## Last Requested Changes',
+        '## Reviewer Requested Changes',
         '',
         ...review.changes.map((change, i) => `${i + 1}. ${change}`),
-        '',
-        '## Status',
-        `- **Verdict:** ${review.status}`
+        ''
       ];
+
+      // Add commands to satisfy section if we found any
+      if (commandsToSatisfy.length > 0) {
+        digestLines.push('## Commands to Satisfy');
+        digestLines.push('');
+        digestLines.push('Run these commands to address the requested changes:');
+        digestLines.push('');
+        digestLines.push('```bash');
+        commandsToSatisfy.forEach(cmd => digestLines.push(cmd));
+        digestLines.push('```');
+        digestLines.push('');
+      }
+
+      // Add suggested intervention
+      digestLines.push('## Suggested Intervention');
+      digestLines.push('');
+      if (commandsToSatisfy.length > 0) {
+        const cmdArgs = commandsToSatisfy.map(c => `--cmd "${c}"`).join(' ');
+        digestLines.push('```bash');
+        digestLines.push(`runr intervene ${state.run_id} --reason review_loop \\`);
+        digestLines.push(`  --note "Fixed review requests" ${cmdArgs}`);
+        digestLines.push('```');
+      } else {
+        digestLines.push('```bash');
+        digestLines.push(`runr intervene ${state.run_id} --reason review_loop \\`);
+        digestLines.push(`  --note "Fixed review requests" --cmd "npm run build"`);
+        digestLines.push('```');
+      }
+
+      digestLines.push('');
+      digestLines.push('## Status');
+      digestLines.push(`- **Verdict:** ${review.status}`);
+
       options.runStore.writeMemo('review_digest.md', digestLines.join('\n'));
 
       const errorMsg = sameFingerprint

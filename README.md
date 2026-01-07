@@ -1,34 +1,40 @@
 # Runr
 
-**Stop losing 30 minutes when the agent derails.**
+> Turn agent coding into resumable, reviewable work—without killing momentum.
 
 ![Failure Recovery](demo/failure-checkpoint.gif)
 
-*When verification fails after 3 checkpoints, progress isn't lost — Runr saves verified work as git commits.*
-
-## Quickstart (One Command)
-
-The fastest way to start using Runr is with a meta-agent (Claude Code or Codex CLI):
+## 60-Second Demo
 
 ```bash
-# Install Runr
 npm install -g @weldr/runr
-
-# Initialize with Claude Code integration
-cd your-repo
-runr init --pack solo --with-claude
-
-# Launch meta-agent (blocks if tree is dirty)
-runr meta
+runr init --pack solo
+runr run --task .runr/tasks/example-task.md
+# If it stops: runr intervene latest --reason manual_fix --note "fixed"
+runr submit latest --to dev
 ```
 
-The meta-agent will use Runr automatically, following workflow rules from `AGENTS.md` and `.claude/skills/`.
+## Two Modes
 
-**If it stops:** Run the suggested command in `.runr/runs/<run_id>/handoffs/stop.json`
+**Flow** — Ship fast, record what you can
+**Ledger** — Audit-first, everything on the record
 
-![Next Action](demo/next-action.gif)
+[→ Hybrid Workflow Guide](docs/hybrid-workflow-guide.md)
 
-*Runr writes a stop handoff so agents know exactly what to do next — no guessing, no hallucinating.*
+## What You Get
+
+- **Checkpoints** — Every milestone is a resumable state
+- **Receipts** — Diffs, verification logs, intervention records
+- **Hybrid provenance** — Manual fixes don't become black holes
+
+## Quick Links
+
+- [Why Runr?](docs/why-runr.md)
+- [Hybrid Workflow](docs/hybrid-workflow-guide.md)
+- [CLI Reference](docs/cli.md)
+- [Configuration](docs/configuration.md)
+
+---
 
 ## How It Works
 
@@ -44,7 +50,7 @@ PLAN → IMPLEMENT → VERIFY → REVIEW → CHECKPOINT → done
 - **Stop handoffs** — Structured diagnostics with next actions
 - **Scope guards** — Files outside scope are protected
 
-> **Status**: v0.3.0 — Renamed from `agent-runner`. Early, opinionated, evolving.
+> **Status**: v0.7.x — Hybrid workflow with provenance tracking. Early, opinionated, evolving.
 
 ## 90-Second Demo
 

@@ -111,6 +111,27 @@ export class RunStore {
     return this.lastEvent;
   }
 
+  /**
+   * Read all events from the timeline.
+   */
+  readTimeline(): Event[] {
+    if (!fs.existsSync(this.timelinePath)) {
+      return [];
+    }
+    const content = fs.readFileSync(this.timelinePath, 'utf-8');
+    const events: Event[] = [];
+    for (const line of content.split('\n')) {
+      if (line.trim()) {
+        try {
+          events.push(JSON.parse(line) as Event);
+        } catch {
+          // Skip malformed lines
+        }
+      }
+    }
+    return events;
+  }
+
   recordWorkerCall(info: WorkerCallInfo): void {
     this.lastWorkerCall = info;
   }

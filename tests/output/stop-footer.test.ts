@@ -114,19 +114,43 @@ describe('Stop Footer', () => {
       expect(footer).toContain('milestone 1/2');
     });
 
-    it('should include context line for review_loop_detected', () => {
+    it('should show enhanced output for review_loop_detected with data', () => {
       const ctx: StopContext = {
         runId: 'run-222',
         stopReason: 'review_loop_detected',
         milestoneIndex: 0,
         milestonesTotal: 1,
-        lastError: 'Unmet: type errors, test coverage'
+        reviewRound: 3,
+        maxReviewRounds: 2,
+        reviewerRequests: ['Fix type errors', 'Add test coverage'],
+        commandsToSatisfy: ['npm run typecheck', 'npm test']
       };
 
       const footer = formatStopFooter(ctx);
 
-      expect(footer).toContain('Unmet:');
-      expect(footer).toContain('type errors');
+      expect(footer).toContain('STOPPED: review_loop_detected (round 3/2)');
+      expect(footer).toContain('Reviewer requested:');
+      expect(footer).toContain('Fix type errors');
+      expect(footer).toContain('Add test coverage');
+      expect(footer).toContain('Commands to satisfy:');
+      expect(footer).toContain('npm run typecheck');
+      expect(footer).toContain('npm test');
+      expect(footer).toContain('Suggested intervention:');
+      expect(footer).toContain('runr intervene run-222');
+    });
+
+    it('should show basic review_loop_detected without enhanced data', () => {
+      const ctx: StopContext = {
+        runId: 'run-223',
+        stopReason: 'review_loop_detected',
+        milestoneIndex: 0,
+        milestonesTotal: 1
+      };
+
+      const footer = formatStopFooter(ctx);
+
+      expect(footer).toContain('STOPPED: review_loop_detected');
+      expect(footer).toContain('Suggested intervention:');
     });
 
     it('should include context line for stalled_timeout', () => {

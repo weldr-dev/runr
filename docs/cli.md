@@ -480,3 +480,195 @@ runr orchestrate wait <orchestratorId|latest> [options]
 | `--for <condition>` | terminal, stop, complete | `terminal` |
 | `--timeout <ms>` | Timeout in milliseconds | - |
 | `--json` / `--no-json` | Output format | `--json` |
+
+### runr orchestrate receipt
+
+Generate orchestration receipt (manager dashboard).
+
+```bash
+runr orchestrate receipt <orchestratorId|latest> [options]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--repo <path>` | Target repo path | `.` |
+| `--output <path>` | Write receipt to file | stdout |
+| `--json` | Output JSON instead of markdown | `false` |
+
+---
+
+## Hybrid Workflow Commands
+
+Commands for recording manual work and tracking provenance.
+
+### runr mode
+
+View or switch workflow mode.
+
+```bash
+runr mode [flow|ledger]
+```
+
+**Examples:**
+```bash
+# View current mode
+runr mode
+
+# Switch to ledger mode (audit-first)
+runr mode ledger
+
+# Switch to flow mode (productivity-first)
+runr mode flow
+```
+
+---
+
+### runr intervene
+
+Record manual work done outside Runr's normal flow.
+
+```bash
+runr intervene <runId|latest> [options]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--repo <path>` | Target repo path | `.` |
+| `--reason <reason>` | Intervention reason (required) | - |
+| `--note <text>` | Description of what was done | - |
+| `--cmd <command>` | Command to run and capture (repeatable) | - |
+| `--since <sha>` | Attribute commits since SHA | - |
+| `--commit <msg>` | Create commit with Runr trailers | - |
+| `--amend-last` | Amend last checkpoint (Flow mode only) | `false` |
+
+**Reasons:**
+- `review_loop` - Fixing issues from review cycle
+- `stalled_timeout` - Recovering from stalled run
+- `verification_failed` - Fixing verification failures
+- `scope_violation` - Handling out-of-scope changes
+- `manual_fix` - General manual work
+- `other` - Catch-all
+
+**Examples:**
+```bash
+# Basic intervention
+runr intervene latest --reason manual_fix --note "Fixed import issue"
+
+# With commands to run and capture
+runr intervene latest --reason review_loop --note "Fixed TS errors" \
+  --cmd "npm run typecheck" --cmd "npm test"
+
+# Retroactive attribution
+runr intervene latest --reason scope_violation --note "Manual changes" \
+  --since abc123
+
+# Create commit with Runr trailers
+runr intervene latest --reason manual_fix --note "Hotfix" \
+  --commit "Fix production bug"
+```
+
+---
+
+### runr audit
+
+View project history classified by provenance.
+
+```bash
+runr audit [options]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--repo <path>` | Target repo path | `.` |
+| `--range <range>` | Git commit range | `HEAD~50..HEAD` |
+| `--limit <n>` | Max commits to show | `50` |
+| `--run <runId>` | Filter to specific run | - |
+| `--coverage` | Show coverage summary | `false` |
+| `--fail-under <pct>` | Exit 1 if coverage below threshold | - |
+| `--json` | Output JSON format | `false` |
+
+**Classifications:**
+- `CHECKPOINT` - Runr checkpoint with receipt
+- `INTERVENTION` - Recorded via `runr intervene`
+- `INFERRED` - Within intervention SHA range
+- `ATTRIBUTED` - Has Runr trailers but no receipt
+- `GAP` - No attribution (audit gap)
+
+**Examples:**
+```bash
+# View last 50 commits
+runr audit
+
+# Custom range
+runr audit --range main~100..main
+
+# JSON output for dashboards
+runr audit --coverage --json
+
+# CI mode: fail if coverage below threshold
+runr audit --fail-under 60
+```
+
+---
+
+## Git Hooks Commands
+
+Manage Runr git hooks for provenance enforcement.
+
+### runr hooks install
+
+Install git hooks for the repository.
+
+```bash
+runr hooks install [options]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--repo <path>` | Target repo path |
+
+Installs a commit-msg hook that:
+- In **Flow mode**: warns on provenance gaps but allows commit
+- In **Ledger mode**: blocks commits without Runr attribution
+
+---
+
+### runr hooks uninstall
+
+Remove Runr git hooks.
+
+```bash
+runr hooks uninstall [options]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--repo <path>` | Target repo path |
+
+---
+
+### runr hooks status
+
+Check if hooks are installed and their mode.
+
+```bash
+runr hooks status [options]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--repo <path>` | Target repo path |
+
+---
+
+## Command Groups (Quick Reference)
+
+| Group | Commands | Purpose |
+|-------|----------|---------|
+| **Setup** | init, doctor, mode | Configure project and environment |
+| **Execution** | run, resume, status, follow, wait | Run and monitor tasks |
+| **Recording** | intervene, note | Record manual work |
+| **Integration** | bundle, submit | Package and submit verified work |
+| **Audit** | audit, journal, report | Review provenance and history |
+| **Maintenance** | gc, hooks | Cleanup and git hooks |
+| **Orchestration** | orchestrate run/resume/wait/receipt | Multi-task execution |

@@ -672,7 +672,35 @@ export async function runCommand(options: RunOptions): Promise<void> {
 
       // Print stop footer with next steps (unless JSON mode)
       if (!options.json) {
-        printStopFooter(finalState);
+        // Extract review loop data from timeline if available
+        let reviewLoopData: {
+          reviewRound?: number;
+          maxReviewRounds?: number;
+          reviewerRequests?: string[];
+          commandsToSatisfy?: string[];
+        } | undefined;
+
+        if (finalState.stop_reason === 'review_loop_detected') {
+          // Find the review_loop_detected event in the timeline
+          const events = runStore.readTimeline();
+          const reviewLoopEvent = events.find((e: { type: string }) => e.type === 'review_loop_detected');
+          if (reviewLoopEvent?.payload) {
+            const payload = reviewLoopEvent.payload as {
+              review_rounds?: number;
+              max_review_rounds?: number;
+              reviewer_requests?: string[];
+              commands_to_satisfy?: string[];
+            };
+            reviewLoopData = {
+              reviewRound: payload.review_rounds,
+              maxReviewRounds: payload.max_review_rounds,
+              reviewerRequests: payload.reviewer_requests,
+              commandsToSatisfy: payload.commands_to_satisfy
+            };
+          }
+        }
+
+        printStopFooter(finalState, reviewLoopData);
       }
     }
   }

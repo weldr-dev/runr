@@ -202,6 +202,28 @@ runr intervene <run_id> --reason manual_fix \
   --since <commit_before_your_changes>
 ```
 
+## Git Hooks (Optional)
+
+Automatically enforce provenance discipline:
+
+```bash
+runr hooks install
+```
+
+**In Flow mode:** Warns on provenance gaps but allows commit
+**In Ledger mode:** Blocks commits without Runr attribution
+
+The hook checks for:
+- `Runr-Run-Id:` trailer (from checkpoint commits)
+- `Runr-Intervention:` trailer (from `runr intervene --commit`)
+- `Runr-Checkpoint:` trailer (from checkpoint commits)
+
+If a stopped run exists and you commit without trailers, the hook will either warn (Flow) or block (Ledger).
+
+Override in emergencies: `RUNR_ALLOW_GAP=1 git commit ...`
+
+To uninstall: `runr hooks uninstall`
+
 ## Troubleshooting
 
 ### "Too many gaps in audit"
