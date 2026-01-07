@@ -17,6 +17,7 @@ import {
   checkAllowlistOverlaps,
   formatAllowlistWarning
 } from '../supervisor/collision.js';
+import { updateActiveState, clearActiveState } from './hooks.js';
 
 export interface RunOptions {
   repo: string;
@@ -634,6 +635,13 @@ export async function runCommand(options: RunOptions): Promise<void> {
 
   if (runStore) {
     runStore.writeSummary('# Summary\n\nRun initialized. Supervisor loop not yet executed.');
+
+    // Update sentinel file to indicate run is active
+    updateActiveState(options.repo, {
+      run_id: runId,
+      status: 'RUNNING'
+    });
+
     await runSupervisorLoop({
       runStore,
       repoPath: effectiveRepoPath,
@@ -647,6 +655,20 @@ export async function runCommand(options: RunOptions): Promise<void> {
       forceParallel: options.forceParallel,
       ownedPaths: ownsNormalized
     });
+
+    // Update sentinel file based on final run state
+    const finalState = runStore.readState();
+    if (finalState.stop_reason === 'complete') {
+      // Run finished successfully
+      clearActiveState(options.repo);
+    } else if (finalState.stop_reason) {
+      // Run stopped with an error
+      updateActiveState(options.repo, {
+        run_id: runId,
+        status: 'STOPPED',
+        stop_reason: finalState.stop_reason
+      });
+    }
   }
 
   if (!options.json) {

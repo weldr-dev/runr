@@ -26,6 +26,7 @@ import { metaCommand } from './commands/meta.js';
 import { interveneCommand } from './commands/intervene.js';
 import { auditCommand } from './commands/audit.js';
 import { modeCommand, type WorkflowMode } from './commands/mode.js';
+import { installCommand as hooksInstallCommand, uninstallCommand as hooksUninstallCommand, statusCommand as hooksStatusCommand, checkCommitCommand } from './commands/hooks.js';
 import { CollisionPolicy } from './orchestrator/types.js';
 
 const program = new Command();
@@ -405,6 +406,44 @@ program
       timeout: options.timeout ? Number.parseInt(options.timeout, 10) : undefined,
       json: options.json
     });
+  });
+
+// Hooks subcommands
+const hooksCmd = program
+  .command('hooks')
+  .description('Manage Runr git hooks for provenance tracking');
+
+hooksCmd
+  .command('install')
+  .description('Install Runr git hooks')
+  .option('--repo <path>', 'Target repo path (default: current directory)', '.')
+  .action(async (options) => {
+    await hooksInstallCommand({ repo: options.repo });
+  });
+
+hooksCmd
+  .command('uninstall')
+  .description('Remove Runr git hooks and restore backups')
+  .option('--repo <path>', 'Target repo path (default: current directory)', '.')
+  .action(async (options) => {
+    await hooksUninstallCommand({ repo: options.repo });
+  });
+
+hooksCmd
+  .command('status')
+  .description('Show git hooks status')
+  .option('--repo <path>', 'Target repo path (default: current directory)', '.')
+  .action(async (options) => {
+    await hooksStatusCommand({ repo: options.repo });
+  });
+
+hooksCmd
+  .command('check-commit')
+  .description('Check commit against run state (internal, called by git hook)')
+  .argument('<msgFile>', 'Path to commit message file')
+  .option('--repo <path>', 'Target repo path (default: current directory)', '.')
+  .action(async (msgFile: string, options) => {
+    await checkCommitCommand({ repo: options.repo, msgFile });
   });
 
 // Orchestrate subcommands

@@ -5,6 +5,7 @@ import { RunStore } from '../store/run-store.js';
 import { RunState } from '../types/schemas.js';
 import { loadConfig, resolveConfigPath } from '../config/load.js';
 import { AgentConfig, WorkflowConfig } from '../config/schema.js';
+import { clearActiveState } from './hooks.js';
 
 export interface SubmitOptions {
   repo: string;
@@ -414,6 +415,9 @@ export async function submitCommand(options: SubmitOptions): Promise<void> {
         submitted_at: new Date().toISOString()
       }
     });
+
+    // Clear active state sentinel (run is now submitted)
+    clearActiveState(options.repo);
 
     console.log(`✓ Submitted ${checkpointSha} to ${targetBranch}`);
   } catch (error) {
