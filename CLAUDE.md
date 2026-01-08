@@ -38,7 +38,7 @@ These invariants are enforced by wrappers:
 
 **P0-1 Determinism (bundle):**
 - Same run_id → identical markdown output
-- Quick check: `runr evidence bundle <id> > /tmp/a && runr evidence bundle <id> > /tmp/b && diff /tmp/a /tmp/b`
+- Quick check: `runr runs bundle <id> > /tmp/a && runr runs bundle <id> > /tmp/b && diff /tmp/a /tmp/b`
 
 **P0-2 Dry-run safety (submit):**
 - `submit --dry-run` changes **nothing**: no branch change, no file changes, no new timeline events
@@ -54,7 +54,7 @@ These invariants are enforced by wrappers:
 
 **Bundle evidence:**
 ```bash
-runr evidence bundle <run_id> --output /tmp/bundle-<run_id>.md
+runr runs bundle <run_id> --output /tmp/bundle-<run_id>.md
 ```
 
 **Submit to integration branch:**
@@ -106,7 +106,7 @@ If you are a meta-agent driving Runr workflows, you MUST obey these rules:
 **Rule 3: Must end with bundle + dry-run**
 - Every task execution must end with:
   ```bash
-  runr evidence bundle <run_id> --output /tmp/bundle-<run_id>.md
+  runr runs bundle <run_id> --output /tmp/bundle-<run_id>.md
   runr submit <run_id> --to dev --dry-run
   runr submit <run_id> --to dev
   ```

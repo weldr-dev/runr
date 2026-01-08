@@ -48,8 +48,8 @@ Runr's guard automatically filters out gitignored files to prevent tool pollutio
 - Gitignore rules are evaluated at runtime, not from repo history
 - Tracked files that are later gitignored will still appear in changed files if modified
 
-## Guards-only command
-`agent-run guards-only` runs preflight without executing the supervisor loop. It still writes run artifacts unless `--no-write` is set.
+## Guard command
+`runr tools guard` runs preflight without executing the supervisor loop. It still writes run artifacts unless `--no-write` is set.
 
 ## See Also
 - [Verification](verification.md) - Post-implement verification tiers

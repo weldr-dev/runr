@@ -49,7 +49,7 @@ describe('Stop Footer', () => {
 
       expect(steps.resume).toBe('runr resume run-123');
       expect(steps.intervene).toBe('runr intervene run-123 --reason review_loop_detected --note "..."');
-      expect(steps.audit).toBe('runr evidence audit --run run-123');
+      expect(steps.audit).toBe('runr runs audit --run run-123');
     });
 
     it('should use manual as default reason', () => {
@@ -96,7 +96,7 @@ describe('Stop Footer', () => {
       expect(footer).toContain('milestone 2/3');
       expect(footer).toContain('runr resume run-789');
       expect(footer).toContain('runr intervene run-789');
-      expect(footer).toContain('runr evidence audit --run run-789');
+      expect(footer).toContain('runr runs audit --run run-789');
     });
 
     it('should show no checkpoint when not present', () => {

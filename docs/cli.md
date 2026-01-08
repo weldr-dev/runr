@@ -393,12 +393,12 @@ runr version [options]
 
 ---
 
-### runr guards-only
+### runr tools guard
 
 Run only preflight guards without executing.
 
 ```bash
-runr guards-only --task <path> [options]
+runr tools guard --task <path> [options]
 ```
 
 | Flag | Description |

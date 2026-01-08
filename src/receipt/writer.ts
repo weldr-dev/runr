@@ -370,7 +370,7 @@ export function printRunReceipt(options: PrintReceiptOptions): void {
   } else if (terminalState === 'stopped') {
     console.log(`Resume:  runr resume ${runId}`);
   } else {
-    console.log(`Bundle:  runr evidence bundle ${runId}`);
+    console.log(`Bundle:  runr runs bundle ${runId}`);
   }
   console.log('');
 }

@@ -250,7 +250,7 @@ interface WorkerConfig {
 | `compare` | Compare metrics between two runs |
 | `follow` | Tail run timeline in real-time |
 | `doctor` | Check worker CLI availability and health |
-| `guards-only` | Validate task scope without executing agent |
+| `tools guard` | Validate task scope without executing agent |
 | `preflight` | Validate repo state, config, scope, and workers |
 
 **Preflight Checks**:

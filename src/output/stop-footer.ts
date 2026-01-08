@@ -106,7 +106,7 @@ export function buildNextSteps(runId: string, stopReason: string): NextSteps {
   return {
     resume: `runr resume ${runId}`,
     intervene: `runr intervene ${runId} --reason ${stopReason || 'manual'} --note "..."`,
-    audit: `runr evidence audit --run ${runId}`
+    audit: `runr runs audit --run ${runId}`
   };
 }
 

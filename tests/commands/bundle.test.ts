@@ -75,7 +75,7 @@ describe('runr bundle', () => {
     // Run bundle command
     const { stdout } = await execa(
       'node',
-      [path.join(process.cwd(), 'dist/cli.js'), 'evidence', 'bundle', runId, '--repo', repoPath]
+      [path.join(process.cwd(), 'dist/cli.js'), 'runs', 'bundle', runId, '--repo', repoPath]
     );
 
     // Verify output
@@ -114,12 +114,12 @@ describe('runr bundle', () => {
     // Run bundle twice
     const { stdout: output1 } = await execa(
       'node',
-      [path.join(process.cwd(), 'dist/cli.js'), 'evidence', 'bundle', runId, '--repo', repoPath]
+      [path.join(process.cwd(), 'dist/cli.js'), 'runs', 'bundle', runId, '--repo', repoPath]
     );
 
     const { stdout: output2 } = await execa(
       'node',
-      [path.join(process.cwd(), 'dist/cli.js'), 'evidence', 'bundle', runId, '--repo', repoPath]
+      [path.join(process.cwd(), 'dist/cli.js'), 'runs', 'bundle', runId, '--repo', repoPath]
     );
 
     // Outputs should be identical
@@ -144,7 +144,7 @@ describe('runr bundle', () => {
     // Run bundle command
     const { stdout } = await execa(
       'node',
-      [path.join(process.cwd(), 'dist/cli.js'), 'evidence', 'bundle', runId, '--repo', repoPath]
+      [path.join(process.cwd(), 'dist/cli.js'), 'runs', 'bundle', runId, '--repo', repoPath]
     );
 
     // Should show "none" for missing checkpoint

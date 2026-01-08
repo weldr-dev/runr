@@ -2,17 +2,17 @@
 /**
  * Runr CLI - Phase-gated orchestration for agent tasks
  *
- * Core commands (what README should show):
+ * Core commands:
  *   runr                 - Front door: status + next actions
  *   runr run             - Start a new run
  *   runr continue        - Do the obvious next thing
  *   runr report          - View run details
+ *   runr init            - Initialize configuration
  *
- * Advanced (namespace groups):
+ * Advanced:
  *   runr orch ...        - Multi-step orchestrations
- *   runr evidence ...    - Audit trail & bundles
+ *   runr runs ...        - Audit trail & bundles
  *   runr tools ...       - Diagnostics & maintenance
- *   runr config ...      - Settings
  */
 
 import { Command } from 'commander';
@@ -61,13 +61,27 @@ if (invokedAs === 'agent') {
   console.warn('\x1b[33m⚠ Deprecation: The "agent" command is deprecated. Use "runr" instead.\x1b[0m\n');
 }
 
+// Custom help with examples
+program.addHelpText('after', `
+Examples:
+  runr                       Show status and next actions
+  runr run --task <file>     Start a new task
+  runr continue              Do the next obvious thing
+  runr report latest         Inspect what happened
+
+Advanced:
+  runr orch run --config <file>   Start multi-step orchestration
+  runr runs bundle <id>           Generate evidence bundle
+  runr tools doctor               Check system health
+`);
+
 program
   .name('runr')
-  .description('Phase-gated orchestration for agent tasks')
+  .description('Autopilot for agent tasks')
   .version('0.7.1');
 
 // ============================================================================
-// CORE COMMANDS (what README should show)
+// CORE COMMANDS (the 5 commands everyone needs)
 // ============================================================================
 
 program
@@ -160,6 +174,36 @@ program
   });
 
 program
+  .command('init')
+  .description('Initialize Runr configuration')
+  .option('--repo <path>', 'Path to repository', '.')
+  .option('--pack <name>', 'Workflow pack: solo, pr, trunk')
+  .option('--about <description>', 'Project description')
+  .option('--with-claude', 'Create CLAUDE.md guide', false)
+  .option('--dry-run', 'Preview without making changes', false)
+  .option('--workflow <profile>', 'Workflow profile: solo, pr, trunk')
+  .option('--interactive', 'Launch interactive setup wizard', false)
+  .option('--print', 'Display generated config without writing', false)
+  .option('--force', 'Overwrite existing config', false)
+  .action(async (options) => {
+    await initCommand({
+      repo: options.repo,
+      workflow: options.workflow,
+      pack: options.pack,
+      about: options.about,
+      withClaude: options.withClaude,
+      interactive: options.interactive,
+      print: options.print,
+      force: options.force,
+      dryRun: options.dryRun
+    });
+  });
+
+// ============================================================================
+// ADVANCED COMMANDS (escape hatches, still visible)
+// ============================================================================
+
+program
   .command('resume')
   .description('Resume a stopped run')
   .argument('<runId>', 'Run ID')
@@ -190,34 +234,8 @@ program
   });
 
 program
-  .command('status')
-  .description('Show run status')
-  .argument('[runId]', 'Run ID (defaults to latest)')
-  .option('--repo <path>', 'Target repo path', '.')
-  .option('--all', 'Show status of all runs', false)
-  .action(async (runId: string | undefined, options) => {
-    if (options.all) {
-      await statusAllCommand({ repo: options.repo });
-    } else {
-      const { findLatestRunId } = await import('./store/run-utils.js');
-      const resolvedRunId = runId || findLatestRunId(options.repo);
-
-      if (!resolvedRunId) {
-        console.error('Error: No runs found. Specify --run-id or create a run first.');
-        process.exit(1);
-      }
-
-      await statusCommand({ runId: resolvedRunId, repo: options.repo });
-    }
-  });
-
-// ============================================================================
-// WORKFLOW COMMANDS (still top-level, but "advanced")
-// ============================================================================
-
-program
   .command('intervene')
-  .description('Record manual work done outside Runr flow')
+  .description('Record manual work done outside Runr')
   .argument('<runId>', 'Run ID (or "latest")')
   .requiredOption('--reason <type>', 'Why intervention was needed')
   .requiredOption('--note <text>', 'Description of what was done')
@@ -271,7 +289,7 @@ program
 
 program
   .command('meta')
-  .description('Launch meta-agent with Runr workflow context')
+  .description('Launch meta-agent with Runr context')
   .option('--repo <path>', 'Target repo path', '.')
   .option('--tool <name>', 'Tool to use: auto, claude, codex', 'auto')
   .option('--allow-dirty', 'Allow uncommitted changes', false)
@@ -282,32 +300,6 @@ program
       tool: options.tool as 'auto' | 'claude' | 'codex',
       allowDirty: options.allowDirty,
       interactive: options.interactive
-    });
-  });
-
-program
-  .command('init')
-  .description('Initialize Runr configuration')
-  .option('--repo <path>', 'Path to repository', '.')
-  .option('--pack <name>', 'Workflow pack: solo, pr, trunk')
-  .option('--about <description>', 'Project description')
-  .option('--with-claude', 'Create CLAUDE.md guide', false)
-  .option('--dry-run', 'Preview without making changes', false)
-  .option('--workflow <profile>', 'Workflow profile: solo, pr, trunk')
-  .option('--interactive', 'Launch interactive setup wizard', false)
-  .option('--print', 'Display generated config without writing', false)
-  .option('--force', 'Overwrite existing config', false)
-  .action(async (options) => {
-    await initCommand({
-      repo: options.repo,
-      workflow: options.workflow,
-      pack: options.pack,
-      about: options.about,
-      withClaude: options.withClaude,
-      interactive: options.interactive,
-      print: options.print,
-      force: options.force,
-      dryRun: options.dryRun
     });
   });
 
@@ -397,7 +389,7 @@ orchCmd
 
 orchCmd
   .command('receipt')
-  .description('Generate orchestration receipt (manager dashboard)')
+  .description('Generate orchestration receipt')
   .argument('<orchestratorId>', 'Orchestrator ID (or "latest")')
   .option('--repo <path>', 'Target repo path', '.')
   .option('--json', 'Output JSON instead of markdown', false)
@@ -412,16 +404,16 @@ orchCmd
   });
 
 // ============================================================================
-// EVIDENCE GROUP (runr evidence ...)
+// RUNS GROUP (runr runs ...) - formerly "evidence"
 // ============================================================================
 
-const evidenceCmd = program
-  .command('evidence')
-  .description('Audit trail & evidence bundles');
+const runsCmd = program
+  .command('runs')
+  .description('Run history & evidence');
 
-evidenceCmd
+runsCmd
   .command('bundle')
-  .description('Generate deterministic evidence packet')
+  .description('Generate deterministic evidence bundle')
   .argument('<runId>', 'Run ID to bundle')
   .option('--repo <path>', 'Target repo path', '.')
   .option('--output <path>', 'Output file path (default: stdout)')
@@ -433,7 +425,7 @@ evidenceCmd
     });
   });
 
-evidenceCmd
+runsCmd
   .command('audit')
   .description('View project history by provenance')
   .option('--repo <path>', 'Target repo path', '.')
@@ -459,7 +451,7 @@ evidenceCmd
     });
   });
 
-evidenceCmd
+runsCmd
   .command('summarize')
   .description('Generate summary.json from run KPIs')
   .argument('<runId>', 'Run ID (or "latest")')
@@ -475,6 +467,14 @@ evidenceCmd
       resolvedRunId = latest;
     }
     await summarizeCommand({ runId: resolvedRunId, repo: options.repo });
+  });
+
+runsCmd
+  .command('list')
+  .description('Show all runs')
+  .option('--repo <path>', 'Target repo path', '.')
+  .action(async (options) => {
+    await statusAllCommand({ repo: options.repo });
   });
 
 // ============================================================================
@@ -542,7 +542,7 @@ toolsCmd
 
 toolsCmd
   .command('follow')
-  .description('Tail run timeline and exit on termination')
+  .description('Tail run timeline in real-time')
   .argument('[runId]', 'Run ID (or "latest")')
   .option('--repo <path>', 'Target repo path', '.')
   .action(async (runId: string | undefined, options) => {
@@ -623,7 +623,7 @@ toolsCmd
 
 toolsCmd
   .command('next')
-  .description('Print suggested next command from stop handoff')
+  .description('Print suggested next command')
   .argument('<runId>', 'Run ID (or "latest")')
   .option('--repo <path>', 'Target repo path', '.')
   .action(async (runId: string, options) => {
@@ -658,7 +658,7 @@ toolsCmd
   });
 
 toolsCmd
-  .command('guards-only')
+  .command('guard')
   .description('Run entry guards without executing')
   .option('--repo <path>', 'Target repo path', '.')
   .requiredOption('--task <path>', 'Task brief file')
@@ -699,11 +699,12 @@ configCmd
   });
 
 // ============================================================================
-// HOOKS GROUP (runr hooks ...)
+// HIDDEN COMMANDS (setup plumbing, accessible but not in default help)
 // ============================================================================
 
+// Hooks group - hidden from main help
 const hooksCmd = program
-  .command('hooks')
+  .command('hooks', { hidden: true })
   .description('Git hooks for provenance tracking');
 
 hooksCmd
@@ -739,12 +740,9 @@ hooksCmd
     await checkCommitCommand({ repo: options.repo, msgFile });
   });
 
-// ============================================================================
-// JOURNAL GROUP (runr journal ...)
-// ============================================================================
-
+// Journal group - hidden from main help
 const journalCmd = program
-  .command('journal')
+  .command('journal', { hidden: true })
   .description('Run journals and notes');
 
 journalCmd
@@ -788,8 +786,31 @@ journalCmd
     });
   });
 
+// Status command - hidden (runr without args is the front door)
+program
+  .command('status', { hidden: true })
+  .description('Show run status')
+  .argument('[runId]', 'Run ID (defaults to latest)')
+  .option('--repo <path>', 'Target repo path', '.')
+  .option('--all', 'Show status of all runs', false)
+  .action(async (runId: string | undefined, options) => {
+    if (options.all) {
+      await statusAllCommand({ repo: options.repo });
+    } else {
+      const { findLatestRunId } = await import('./store/run-utils.js');
+      const resolvedRunId = runId || findLatestRunId(options.repo);
+
+      if (!resolvedRunId) {
+        console.error('Error: No runs found. Specify --run-id or create a run first.');
+        process.exit(1);
+      }
+
+      await statusCommand({ runId: resolvedRunId, repo: options.repo });
+    }
+  });
+
 // ============================================================================
-// FRONT DOOR & HELP
+// FRONT DOOR
 // ============================================================================
 
 /**

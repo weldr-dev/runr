@@ -45,7 +45,7 @@ agent run --task .agent/tasks/my-task.md --dry-run
 ### Pre-flight Check Only
 
 ```bash
-agent guards-only --task .agent/tasks/my-task.md
+runr tools guard --task .runr/tasks/my-task.md
 ```
 
 ## Monitoring a Run
