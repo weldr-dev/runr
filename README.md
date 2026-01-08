@@ -7,7 +7,8 @@
 ## Try it (2 minutes)
 
 ```bash
-npx @weldr/runr@latest init --demo
+npm install -g @weldr/runr
+runr init --demo
 cd runr-demo
 npm install
 
