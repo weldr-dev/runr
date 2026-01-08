@@ -185,6 +185,8 @@ program
   .option('--interactive', 'Launch interactive setup wizard', false)
   .option('--print', 'Display generated config without writing', false)
   .option('--force', 'Overwrite existing config', false)
+  .option('--demo', 'Create a self-contained demo project', false)
+  .option('--demo-dir <path>', 'Directory for demo project', 'runr-demo')
   .action(async (options) => {
     await initCommand({
       repo: options.repo,
@@ -195,7 +197,9 @@ program
       interactive: options.interactive,
       print: options.print,
       force: options.force,
-      dryRun: options.dryRun
+      dryRun: options.dryRun,
+      demo: options.demo,
+      demoDir: options.demoDir
     });
   });
 

@@ -4,7 +4,36 @@
 
 ![Failure Recovery](demo/failure-checkpoint.gif)
 
-## 60-second demo
+## Try it (2 minutes)
+
+```bash
+npm install -g @weldr/runr
+runr init --demo
+cd runr-demo
+npm install
+
+# Task 1: success
+runr run --task .runr/tasks/00-success.md
+runr report latest
+
+# Task 2: failure + recovery
+runr run --task .runr/tasks/01-intentional-fail.md
+runr                 # shows STOPPED + 3 next actions
+runr continue
+runr report latest
+
+# Task 3: scope guard (expected to stop)
+runr run --task .runr/tasks/02-scope-violation.md
+# STOPPED: scope guard. Runr tells you what to do.
+```
+
+The demo creates a self-contained TypeScript project with three tasks: success, a failure that stops with next actions (then `continue`), and a scope guard stop.
+
+**Runr is language-agnostic.** The demo is JS/TS because it's the fastest proof. Other languages work by swapping verification commands (e.g., `pytest -q` for Python, `go test ./...` for Go).
+
+---
+
+## In your own repo
 
 ```bash
 npm install -g @weldr/runr
@@ -16,7 +45,7 @@ runr run --task .runr/tasks/example-task.md
 # If it stops, do the obvious next thing
 runr continue
 
-# Inspect what happened (receipts, diffs, logs)
+# Inspect what happened
 runr report latest
 ```
 
