@@ -27,7 +27,14 @@ import { interveneCommand } from './commands/intervene.js';
 import { auditCommand } from './commands/audit.js';
 import { modeCommand, type WorkflowMode } from './commands/mode.js';
 import { installCommand as hooksInstallCommand, uninstallCommand as hooksUninstallCommand, statusCommand as hooksStatusCommand, checkCommitCommand } from './commands/hooks.js';
+import { continueCommand } from './commands/continue.js';
 import { CollisionPolicy } from './orchestrator/types.js';
+import { resolveRepoState } from './ux/state.js';
+import { computeBrain } from './ux/brain.js';
+import { formatFrontDoor, formatJson as formatBrainJson } from './ux/render.js';
+import type { StopDiagnosisJson } from './diagnosis/types.js';
+import type { StopDiagnostics } from './diagnosis/stop-explainer.js';
+import fs from 'node:fs';
 
 const program = new Command();
 
@@ -809,4 +816,106 @@ program
     });
   });
 
-program.parseAsync();
+// continue - Do the obvious next thing
+program
+  .command('continue')
+  .description('Continue from where you left off (auto-fix/resume/orchestrate)')
+  .option('--repo <path>', 'Target repo path', '.')
+  .option('--confirm', 'Prompt before executing', false)
+  .option('--force', 'Override ledger mode restrictions', false)
+  .option('--json', 'Output JSON', false)
+  .action(async (options) => {
+    await continueCommand({
+      repo: options.repo,
+      confirm: options.confirm,
+      force: options.force,
+      json: options.json,
+    });
+  });
+
+/**
+ * Load diagnosis data for a stopped run.
+ */
+async function loadDiagnosisData(
+  stopJsonPath: string | null,
+  diagnosticsPath: string | null
+): Promise<{ stopDiagnosis: StopDiagnosisJson | null; stopExplainer: StopDiagnostics | null }> {
+  let stopDiagnosis: StopDiagnosisJson | null = null;
+  let stopExplainer: StopDiagnostics | null = null;
+
+  if (stopJsonPath && fs.existsSync(stopJsonPath)) {
+    try {
+      stopDiagnosis = JSON.parse(fs.readFileSync(stopJsonPath, 'utf-8'));
+    } catch {
+      // Ignore parse errors
+    }
+  }
+
+  if (diagnosticsPath && fs.existsSync(diagnosticsPath)) {
+    try {
+      stopExplainer = JSON.parse(fs.readFileSync(diagnosticsPath, 'utf-8'));
+    } catch {
+      // Ignore parse errors
+    }
+  }
+
+  return { stopDiagnosis, stopExplainer };
+}
+
+/**
+ * Front door command - shows status and next actions when runr is called with no args.
+ */
+async function frontDoorCommand(options: { repo: string; json?: boolean }): Promise<void> {
+  const repoPath = options.repo || process.cwd();
+
+  // Resolve repo state
+  const state = await resolveRepoState(repoPath);
+
+  // Load diagnosis data if we have a stopped run
+  let stopDiagnosis: StopDiagnosisJson | null = null;
+  let stopExplainer: StopDiagnostics | null = null;
+
+  if (state.latestStopped) {
+    const diagData = await loadDiagnosisData(
+      state.latestStopped.stopJsonPath,
+      state.latestStopped.diagnosticsPath
+    );
+    stopDiagnosis = diagData.stopDiagnosis;
+    stopExplainer = diagData.stopExplainer;
+  }
+
+  // Compute brain output
+  const brainOutput = computeBrain({
+    state,
+    stopDiagnosis,
+    stopExplainer,
+  });
+
+  // Render output
+  if (options.json) {
+    console.log(formatBrainJson(brainOutput));
+  } else {
+    console.log(formatFrontDoor(brainOutput));
+  }
+}
+
+// Handle no-args case: show front door instead of help
+const args = process.argv.slice(2);
+const hasCommand = args.length > 0 && !args[0].startsWith('-');
+const isHelp = args.includes('--help') || args.includes('-h');
+const isVersion = args.includes('--version') || args.includes('-V');
+
+if (!hasCommand && !isHelp && !isVersion) {
+  // No command provided - show front door
+  const jsonFlag = args.includes('--json');
+  const repoIdx = args.indexOf('--repo');
+  const repo = repoIdx !== -1 && args[repoIdx + 1] ? args[repoIdx + 1] : '.';
+
+  frontDoorCommand({ repo, json: jsonFlag }).catch((err) => {
+    console.error('Error:', err.message);
+    process.exitCode = 1;
+  });
+} else {
+  // Normal command parsing
+  program.parseAsync();
+}

@@ -5,3 +5,4 @@
 export * from './types.js';
 export * from './analyzer.js';
 export * from './formatter.js';
+export * from './stop-explainer.js';
