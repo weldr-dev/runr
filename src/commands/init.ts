@@ -579,35 +579,51 @@ This demonstrates Runr's safety guardrails.
   // README.md
   const readme = `# Runr Demo
 
-This is a demo project to try Runr in 2 minutes.
+Try Runr in 2 minutes.
 
-## Quick Start
+## Step 1: Install
 
 \`\`\`bash
-# Install dependencies
 npm install
+\`\`\`
 
-# See what Runr knows
-runr
+## Step 2: Run the tasks
 
-# Run the first task (quick win)
+### Task 00: Success (quick win)
+
+\`\`\`bash
 runr run --task .runr/tasks/00-success.md
+\`\`\`
 
-# If it stops, do the obvious next thing
-runr continue
+**Expected:** Completes cleanly. The agent adds a multiply function and test.
 
-# Inspect what happened
+\`\`\`bash
+runr report latest   # see what happened
+\`\`\`
+
+### Task 01: Failure + Recovery
+
+\`\`\`bash
+runr run --task .runr/tasks/01-intentional-fail.md
+\`\`\`
+
+**Expected:** STOPPED (verification failed or review loop). This is intentional.
+
+\`\`\`bash
+runr                 # shows STOPPED + 3 next actions
+runr continue        # attempt auto-fix
 runr report latest
 \`\`\`
 
-## What to expect
+### Task 02: Scope Guard
 
-1. **Task 00** (success): Implements a multiply function. Should complete cleanly.
+\`\`\`bash
+runr run --task .runr/tasks/02-scope-violation.md
+\`\`\`
 
-2. **Task 01** (intentional-fail): May trigger a stop. Run \`runr continue\` to recover.
+**Expected:** STOPPED (scope guard). README.md is in the denylist.
 
-3. **Task 02** (scope-violation): Will stop because README.md is outside the allowed scope.
-   This demonstrates the safety guardrails.
+This demonstrates the safety guardrails — Runr won't let the agent touch forbidden files.
 
 ## The point
 
