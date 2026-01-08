@@ -40,7 +40,32 @@ runr init [options]
 |------|-------------|---------|
 | `--repo <path>` | Target repo path | `.` |
 | `--pack <name>` | Initialize with workflow pack | - |
+| `--demo` | Create self-contained demo project | `false` |
+| `--demo-dir <path>` | Directory for demo project | `runr-demo` |
+| `--with-claude` | Include Claude Code integration files | `false` |
 | `--dry-run` | Preview changes without writing | `false` |
+
+**Demo Mode:**
+
+Create a self-contained TypeScript demo project to try Runr in 2 minutes:
+
+```bash
+runr init --demo
+cd runr-demo
+npm install
+
+# Task 1: success
+runr run --task .runr/tasks/00-success.md
+runr report latest
+
+# Task 2: failure + recovery
+runr run --task .runr/tasks/01-intentional-fail.md
+runr continue
+runr report latest
+
+# Task 3: scope guard (expected to stop)
+runr run --task .runr/tasks/02-scope-violation.md
+```
 
 **Workflow Packs:**
 
@@ -142,6 +167,83 @@ runr resume <runId> [options]
 | `--allow-deps` | Allow lockfile changes | `false` |
 | `--force` | Resume despite env mismatch | `false` |
 | `--auto-resume` | Continue auto-resuming | `false` |
+
+---
+
+### runr continue
+
+Do the next obvious thing for a stopped run. Smart alias that determines the appropriate action.
+
+```bash
+runr continue [runId|latest]
+```
+
+**Behavior:**
+- If run stopped with recoverable error: attempts auto-fix and resumes
+- If verification failed: shows error and suggests fix
+- If complete: reports success
+
+This is the recommended command after a run stops - it handles the most common recovery scenarios.
+
+**Example:**
+```bash
+runr run --task .runr/tasks/feature.md --worktree
+# ... run stops with verification_failed
+runr continue   # Auto-diagnose and attempt recovery
+```
+
+---
+
+### runr meta
+
+Launch meta-agent mode with full workflow context.
+
+```bash
+runr meta [options]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--repo <path>` | Target repo path | `.` |
+
+**What it does:**
+- Launches Claude Code with Runr workflow context loaded
+- Agent has access to `/runr-bundle`, `/runr-submit`, `/runr-resume` commands
+- Follows workflow rules from `AGENTS.md`
+- Uses safety playbooks from `.claude/skills/runr-workflow`
+
+**Requirements:**
+- Clean working tree (blocks if uncommitted changes)
+- Claude Code CLI installed and authenticated
+
+**Example:**
+```bash
+runr init --pack solo --with-claude
+runr meta
+# Claude Code launches with full Runr integration
+```
+
+---
+
+### runr watch
+
+Monitor a run with optional auto-resume on transient failures.
+
+```bash
+runr watch <runId|latest> [options]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--repo <path>` | Target repo path | `.` |
+| `--auto-resume` | Auto-resume on transient failures | `false` |
+| `--max-attempts <n>` | Max resume attempts | `3` |
+
+**Example:**
+```bash
+# Monitor and auto-recover from timeouts
+runr watch latest --auto-resume --max-attempts 3
+```
 
 ---
 

@@ -98,7 +98,7 @@ git push origin dev
 
 ### Execution Rules
 
-**One agent run per milestone:**
+**One Runr run per milestone:**
 1. Agent implements M0 → runs verification → commits
 2. Agent implements M1 → verifies on real run ids → commits
 3. Agent implements M2 → tests in sandbox only → commits
@@ -219,8 +219,8 @@ git push
 ### Pattern 2: Agent Task with Verification (Runr)
 
 ```bash
-# Start agent run
-runr run -f .runr/tasks/some-task.md
+# Start Runr run
+runr run --task .runr/tasks/some-task.md
 
 # Agent completes with verified checkpoint
 # Review bundle
@@ -244,7 +244,7 @@ git push origin dev
 
 ```bash
 # Agent explores on feature branch
-runr run -f .runr/tasks/experimental-feature.md
+runr run --task .runr/tasks/experimental-feature.md
 
 # Review results
 runr bundle <run_id>

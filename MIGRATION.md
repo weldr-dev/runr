@@ -144,6 +144,58 @@ Packs now automatically add `.runr/runs/`, `.runr-worktrees/`, and `.runr/orches
 
 See [CHANGELOG.md](CHANGELOG.md) for complete release notes.
 
+### What's New in v0.7.x
+
+Version 0.7.x introduces several major features:
+
+#### Hybrid Workflow (Flow/Ledger Modes)
+
+Switch between productivity-first and audit-first modes:
+
+```bash
+# View current mode
+runr config mode
+
+# Switch to flow mode (warns on gaps, doesn't block)
+runr config mode flow
+
+# Switch to ledger mode (blocks commits without attribution)
+runr config mode ledger
+```
+
+#### Git Hooks for Provenance
+
+```bash
+# Install commit-msg hook
+runr hooks install
+
+# Check hook status
+runr hooks status
+```
+
+Hooks enforce provenance tracking based on your workflow mode.
+
+#### Demo Project
+
+Try Runr in 2 minutes with the new `--demo` flag:
+
+```bash
+runr init --demo
+cd runr-demo
+npm install
+runr run --task .runr/tasks/00-success.md
+```
+
+#### New Commands
+
+- `runr continue` — Smart recovery, does the next obvious thing
+- `runr meta` — Launch meta-agent mode with Claude Code
+- `runr watch` — Monitor runs with auto-resume
+- `runr intervene` — Record manual work for provenance
+- `runr audit` — View provenance coverage
+
+See [CHANGELOG.md](CHANGELOG.md) for complete v0.7.x release notes.
+
 ## Migrating to Workflow Packs (Optional)
 
 If you want to use the new workflow packs (v0.5.0+), you can reinitialize your project:

@@ -1,6 +1,6 @@
-# Agent Framework Runbook
+# Runr Runbook
 
-Operational guide for starting, monitoring, and troubleshooting agent runs.
+Operational guide for starting, monitoring, and troubleshooting Runr runs.
 
 For command details, see [CLI Reference](cli.md). For configuration, see [Configuration Reference](configuration.md).
 
@@ -9,29 +9,29 @@ For command details, see [CLI Reference](cli.md). For configuration, see [Config
 ### Basic Run
 
 ```bash
-agent run --task .agent/tasks/my-task.md
+runr run --task .runr/tasks/my-task.md
 ```
 
 ### Common Options
 
 ```bash
 # Run with worktree isolation (recommended)
-agent run --task .agent/tasks/my-task.md --worktree
+runr run --task .runr/tasks/my-task.md --worktree
 
 # Set time budget (default: 120 minutes)
-agent run --task .agent/tasks/my-task.md --time 60
+runr run --task .runr/tasks/my-task.md --time 60
 
 # Set max ticks (default: 50)
-agent run --task .agent/tasks/my-task.md --max-ticks 20
+runr run --task .runr/tasks/my-task.md --max-ticks 20
 
 # Allow lockfile changes
-agent run --task .agent/tasks/my-task.md --allow-deps
+runr run --task .runr/tasks/my-task.md --allow-deps
 
 # Allow dirty worktree
-agent run --task .agent/tasks/my-task.md --allow-dirty
+runr run --task .runr/tasks/my-task.md --allow-dirty
 
 # Custom config file
-agent run --task .agent/tasks/my-task.md --config ./custom.config.json
+runr run --task .runr/tasks/my-task.md --config ./custom.config.json
 ```
 
 ### Dry Run Mode
@@ -39,7 +39,7 @@ agent run --task .agent/tasks/my-task.md --config ./custom.config.json
 Initialize without executing:
 
 ```bash
-agent run --task .agent/tasks/my-task.md --dry-run
+runr run --task .runr/tasks/my-task.md --dry-run
 ```
 
 ### Pre-flight Check Only
@@ -53,36 +53,36 @@ runr tools guard --task .runr/tasks/my-task.md
 ### Live Tail
 
 ```bash
-agent follow latest
-agent follow <run_id>
+runr follow latest
+runr follow <run_id>
 ```
 
 ### Report
 
 ```bash
-agent report latest
-agent report <run_id> --tail 100
-agent report latest --kpi-only
+runr report latest
+runr report <run_id> --tail 100
+runr report latest --kpi-only
 ```
 
 ### Status
 
 ```bash
-agent status <run_id>
-agent status --all
+runr status <run_id>
+runr status --all
 ```
 
 ## Resuming a Run
 
 ```bash
 # Basic resume
-agent resume <run_id>
+runr resume <run_id>
 
 # With extended time
-agent resume <run_id> --time 60
+runr resume <run_id> --time 60
 
 # Force (ignore environment fingerprint mismatch)
-agent resume <run_id> --force
+runr resume <run_id> --force
 ```
 
 ### When to Resume
@@ -101,7 +101,7 @@ agent resume <run_id> --force
 ## Run Directory Structure
 
 ```
-.agent/runs/<run_id>/
+.runr/runs/<run_id>/
 ├── state.json           # Current run state
 ├── timeline.jsonl       # Event log (append-only)
 ├── config.snapshot.json # Config at run start
@@ -117,7 +117,7 @@ agent resume <run_id> --force
 
 **Worktrees (when enabled):**
 ```
-.agent-worktrees/<run_id>/
+.runr-worktrees/<run_id>/
 ```
 
 ## Common Workflows
@@ -126,34 +126,34 @@ agent resume <run_id> --force
 
 ```bash
 # Terminal 1: Start
-agent run --task .agent/tasks/my-task.md --worktree
+runr run --task .runr/tasks/my-task.md --worktree
 
 # Terminal 2: Follow
-agent follow latest
+runr follow latest
 ```
 
 ### Debug a Failed Run
 
 ```bash
 # Get report
-agent report <run_id>
+runr report <run_id>
 
 # Check raw state
-agent status <run_id>
+runr status <run_id>
 
 # View timeline
-cat .agent/runs/<run_id>/timeline.jsonl | jq .
+cat .runr/runs/<run_id>/timeline.jsonl | jq .
 
 # View verification logs
-cat .agent/runs/<run_id>/artifacts/tests_*.log
+cat .runr/runs/<run_id>/artifacts/tests_*.log
 ```
 
 ### Resume After Failure
 
 ```bash
-agent report <run_id>           # Check what failed
-agent resume <run_id> --force   # Resume
-agent follow <run_id>           # Monitor
+runr report <run_id>           # Check what failed
+runr resume <run_id> --force   # Resume
+runr follow <run_id>           # Monitor
 ```
 
 ## Troubleshooting
@@ -167,7 +167,7 @@ agent follow <run_id>           # Monitor
 git stash
 
 # Option 2: Allow it
-agent run --task task.md --allow-dirty
+runr run --task task.md --allow-dirty
 ```
 
 #### "Lockfile changes detected"
@@ -177,12 +177,12 @@ agent run --task task.md --allow-dirty
 git add package-lock.json && git commit -m "chore: update lockfile"
 
 # Option 2: Allow it
-agent run --task task.md --allow-deps
+runr run --task task.md --allow-deps
 ```
 
 #### "Config file not found"
 
-Create `.agent/agent.config.json`:
+Create `.runr/runr.config.json`:
 
 ```json
 {
@@ -195,7 +195,7 @@ Create `.agent/agent.config.json`:
 #### "Worker CLI not available"
 
 ```bash
-agent doctor
+runr doctor
 ```
 
 ### Verification Failures
@@ -204,10 +204,10 @@ agent doctor
 
 ```bash
 # Check logs
-cat .agent/runs/<run_id>/artifacts/tests_*.log
+cat .runr/runs/<run_id>/artifacts/tests_*.log
 
 # Check report
-agent report <run_id>
+runr report <run_id>
 ```
 
 Consider:
@@ -236,7 +236,7 @@ Increase timeout in config:
 ps aux | grep claude
 
 # Check timeline for call duration
-cat .agent/runs/<run_id>/timeline.jsonl | jq 'select(.type == "worker_call")'
+cat .runr/runs/<run_id>/timeline.jsonl | jq 'select(.type == "worker_call")'
 ```
 
 ### Worktree Issues
@@ -249,7 +249,7 @@ The worktree was deleted. Start a new run.
 
 ```bash
 # Check status
-cd .agent-worktrees/<run_id>
+cd .runr-worktrees/<run_id>
 git status
 
 # Option 1: Commit changes
@@ -262,7 +262,7 @@ git checkout -- . && git clean -fd
 #### "Cannot create worktree - already exists"
 
 ```bash
-git worktree remove --force .agent-worktrees/<old_run_id>
+git worktree remove --force .runr-worktrees/<old_run_id>
 git worktree prune
 ```
 
@@ -280,13 +280,13 @@ Use `--force` only when confident changes won't affect the run.
 
 ```bash
 # Full report
-agent report <run_id> --tail 500
+runr report <run_id> --tail 500
 
 # Raw state
-cat .agent/runs/<run_id>/state.json | jq .
+cat .runr/runs/<run_id>/state.json | jq .
 
 # Timeline analysis
-cat .agent/runs/<run_id>/timeline.jsonl | jq -s 'group_by(.type) | map({type: .[0].type, count: length})'
+cat .runr/runs/<run_id>/timeline.jsonl | jq -s 'group_by(.type) | map({type: .[0].type, count: length})'
 
 # Environment check
 node --version

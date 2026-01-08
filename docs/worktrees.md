@@ -1,17 +1,17 @@
 # Worktree Strategy
 
-Git worktrees provide isolated execution environments for agent runs, preventing cross-contamination between runs and protecting the main repository.
+Git worktrees provide isolated execution environments for Runr runs, preventing cross-contamination between runs and protecting the main repository.
 
 ## Overview
 
 When `--worktree` is enabled, the agent:
 
-1. Creates a git worktree at `.agent-worktrees/<run_id>/` (outside `.agent/`)
-2. Attaches it to a dedicated branch (`agent/<run_id>/<task_name>`)
+1. Creates a git worktree at `.runr-worktrees/<run_id>/` (outside `.runr/`)
+2. Attaches it to a dedicated branch (`runr/<run_id>/<task_name>`)
 3. Symlinks `node_modules` from the original repo (if present)
 4. Executes all operations in the worktree
 
-**Note**: Worktrees are stored in `.agent-worktrees/` (a sibling of `.agent/`, not inside it). This prevents conflicts with denylist patterns like `.agent/**` that could cause workers to refuse operations or create git dirtiness issues. Override with `AGENT_WORKTREES_DIR` env var.
+**Note**: Worktrees are stored in `.runr-worktrees/` (a sibling of `.runr/`, not inside it). This prevents conflicts with denylist patterns like `.runr/**` that could cause workers to refuse operations or create git dirtiness issues. Override with `RUNR_WORKTREES_DIR` env var.
 
 ## Benefits
 
@@ -107,8 +107,8 @@ node dist/cli.js gc --older-than 0
 ```
 
 The gc command:
-- Deletes `.agent-worktrees/<run_id>/` directories (current location)
-- Also cleans legacy locations: `.agent/worktrees/<run_id>/` (legacy v2) and `.agent/runs/<run_id>/worktree/` (legacy v1)
+- Deletes `.runr-worktrees/<run_id>/` directories (current location)
+- Also cleans legacy locations: `.runr/worktrees/<run_id>/` (legacy v2) and `.runr/runs/<run_id>/worktree/` (legacy v1)
 - Never touches artifacts, state, or timeline
 - Shows disk usage summary before/after
 
@@ -118,7 +118,7 @@ The gc command:
    - Prevents state leakage between runs
    - Makes runs reproducible
 
-2. **Run `npm install` before starting agent runs**
+2. **Run `npm install` before starting Runr runs**
    - Ensures dependencies are available for symlink
    - Faster than installing in each worktree
 
@@ -142,23 +142,23 @@ npx vitest run test/acceptance/worktree-fixes.test.ts
 
 **Goal:** Prove auto `.git/info/exclude` injection is enough.
 
-- Creates a brand-new repo with no `.gitignore` entries for `.agent*`
+- Creates a brand-new repo with no `.gitignore` entries for `.runr*`
 - Runs a trivial task
 - Verifies:
   - `.git/info/exclude` got updated with `.agent` patterns
-  - No guard noise from `.agent/**` artifacts
+  - No guard noise from `.runr/**` artifacts
 
 **Pass condition:** `guard=pass` and no "dirty worktree" caused by runner artifacts.
 
-### B) Worktree path can't trip `.agent/**` denylist
+### B) Worktree path can't trip `.runr/**` denylist
 
 **Goal:** Prove `implement_blocked` class is eliminated.
 
-- Verifies worktree directory is at `.agent-worktrees/` not `.agent/worktrees/`
-- Verifies `AGENT_WORKTREES_DIR` env var override code path exists
-- Confirms worktree absolute path contains no `/.agent/` segment
+- Verifies worktree directory is at `.runr-worktrees/` not `.runr/worktrees/`
+- Verifies `RUNR_WORKTREES_DIR` env var override code path exists
+- Confirms worktree absolute path contains no `/.runr/` segment
 
-**Pass condition:** Worktree path contains **no** `/.agent/` segment.
+**Pass condition:** Worktree path contains **no** `/.runr/` segment.
 
 ### C) "guard=fail" prints reasons + files
 

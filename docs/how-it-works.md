@@ -1,6 +1,6 @@
 # How It Works
 
-*A technical explanation of Agent Framework for developers.*
+*A technical explanation of Runr for developers.*
 
 > Want a simpler explanation? See [Overview](overview.md).
 
@@ -8,7 +8,7 @@
 
 ## Core Idea
 
-Agent Framework is an **orchestrator** that coordinates LLM workers (Claude, Codex) through a supervised, phase-based workflow. It doesn't generate code itself—it manages the process of generating, verifying, and committing code changes.
+Runr is an **orchestrator** that coordinates LLM workers (Claude, Codex) through a supervised, phase-based workflow. It doesn't generate code itself—it manages the process of generating, verifying, and committing code changes.
 
 The key insight: **reliability comes from structure, not from smarter models**.
 
@@ -125,7 +125,7 @@ The agent tracks review fingerprints. If the same `request_changes` feedback app
 With `--worktree`, each run operates in its own git worktree:
 
 ```
-.agent-worktrees/<run_id>/
+.runr-worktrees/<run_id>/
 ```
 
 This means:
@@ -137,10 +137,10 @@ This means:
 
 ## State and Persistence
 
-All run state lives in `.agent/runs/<run_id>/`:
+All run state lives in `.runr/runs/<run_id>/`:
 
 ```
-.agent/runs/<run_id>/
+.runr/runs/<run_id>/
 ├── state.json           # Current phase, milestone index, errors
 ├── timeline.jsonl       # Append-only event log
 ├── plan.md              # Generated milestones

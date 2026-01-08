@@ -3,7 +3,7 @@ Source: src/supervisor/verification-policy.ts, src/supervisor/runner.ts, src/ver
 
 # Verification
 
-Verification runs between IMPLEMENT and REVIEW. Commands are configured per tier in `agent.config.json`.
+Verification runs between IMPLEMENT and REVIEW. Commands are configured per tier in `runr.config.json`.
 
 ## Tier selection
 

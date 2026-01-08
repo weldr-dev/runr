@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-01-08
+
+**Documentation Consistency** - Complete rebrand cleanup.
+
+### Fixed
+
+- Complete documentation rebrand from `agent` → `runr` commands
+- Updated all path references from `.agent/` → `.runr/`
+- Fixed worktree path references (`.agent-worktrees/` → `.runr-worktrees/`)
+- Updated config file references (`agent.config.json` → `runr.config.json`)
+- Rebranded "Agent Framework" → "Runr" throughout docs
+
+### Added
+
+- Documentation for v0.7.x features in MIGRATION.md (modes, hooks, demo)
+- Missing CLI commands in docs/cli.md (`--demo`, `continue`, `meta`, `watch`)
+- Documentation audit document (docs/DOCS_AUDIT.md)
+
+## [0.7.2] - 2026-01-07
+
+**Rails-energy UX refresh** - 2-minute try-it flow.
+
+### Added
+
+- `runr init --demo` flag for self-contained TypeScript demo project
+- Demo includes 3 graduated tasks (success, fix-loop, scope-violation)
+- Built-in verification with TypeScript and Vitest
+
+## [0.7.1] - 2026-01-06
+
+**Sprint Complete** - Git hooks and mode-aware commit checking.
+
+### Added
+
+- Git hooks mechanism with `runr hooks install`
+- Mode-aware commit check behavior (flow vs ledger)
+- Orchestration receipt (manager dashboard)
+- Stop footer with clear next steps
+
 ## [0.7.0] - 2026-01-06
 
 **Hybrid Workflow Foundation** - Productivity + Auditability together.

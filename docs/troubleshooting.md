@@ -4,7 +4,7 @@ Source: src/commands/doctor.ts, src/workers/*.ts, src/supervisor/runner.ts, src/
 # Troubleshooting
 
 ## Doctor fails: command not found
-- Ensure the `bin` value in `agent.config.json` is on PATH.
+- Ensure the `bin` value in `runr.config.json` is on PATH.
 - Verify `codex --version` and `claude --version` work in your shell.
 
 ## Doctor fails: headless mode not supported
@@ -17,13 +17,13 @@ Symptoms:
 - Run stops with `plan_parse_failed`, `implement_parse_failed`, or `review_parse_failed`.
 
 Actions:
-- Inspect `runs/<run_id>/timeline.jsonl` for the output snippet.
+- Inspect `.runr/runs/<run_id>/timeline.jsonl` for the output snippet.
 - Verify workers are returning JSON between `BEGIN_JSON` and `END_JSON`.
 - Ensure Codex is configured for JSONL output (`--json`) and Claude uses JSON output (`--output-format json`).
 
 ## Verification failures
-- Check `runs/<run_id>/artifacts/tests_<tier>.log` for stderr/stdout.
-- Confirm commands in `agent.config.json` run in the target repo.
+- Check `.runr/runs/<run_id>/artifacts/tests_<tier>.log` for stderr/stdout.
+- Confirm commands in `runr.config.json` run in the target repo.
 
 ## Guard violations
 - Guard violations stop the run before or after implementation.
@@ -40,9 +40,9 @@ Actions:
 ## Worktree issues
 
 ### Worktree location
-Worktrees are now stored at `.agent-worktrees/<runId>/` (outside `.agent/`), not inside `.agent/worktrees/`.
+Worktrees are now stored at `.runr-worktrees/<runId>/` (outside `.runr/`), not inside `.agent/worktrees/`.
 
-This prevents conflicts with denylist patterns like `.agent/**` that could cause workers to refuse operations.
+This prevents conflicts with denylist patterns like `.runr/**` that could cause workers to refuse operations.
 
 Override the location with `AGENT_WORKTREES_DIR` env var (absolute or relative to repo).
 

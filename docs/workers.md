@@ -3,7 +3,7 @@ Source: src/workers/codex.ts, src/workers/claude.ts, src/workers/prompts.ts, src
 
 # Workers
 
-Workers are external CLIs configured in `agent.config.json` and invoked by the supervisor.
+Workers are external CLIs configured in `runr.config.json` and invoked by the supervisor.
 
 ## WorkerConfig
 Fields:
@@ -36,6 +36,6 @@ Fields:
 - Claude examples use `--dangerously-skip-permissions` for headless execution; this bypasses interactive permission prompts and should be used with care.
 
 ## See Also
-- [Configuration](configuration.md) - Worker configuration in agent.config.json
+- [Configuration](configuration.md) - Worker configuration in runr.config.json
 - [Architecture](architecture.md) - How workers fit into the system
 - [Troubleshooting](troubleshooting.md) - Common worker issues

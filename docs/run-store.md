@@ -3,11 +3,11 @@ Source: src/store/run-store.ts, src/commands/report.ts, src/supervisor/runner.ts
 
 # Run Store
 
-A run store lives under `.agent/runs/<run_id>/` and holds the state, timeline, and artifacts for a run.
+A run store lives under `.runr/runs/<run_id>/` and holds the state, timeline, and artifacts for a run.
 
 ## Directory layout
 ```
-.agent/runs/<run_id>/
+.runr/runs/<run_id>/
   artifacts/
     task.md
     tests_tier0.log

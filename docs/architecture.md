@@ -136,7 +136,7 @@ interface WorkerConfig {
 - `run-store.ts` - File I/O for state, artifacts, timeline, and memos
 
 **Responsibilities**:
-- Creates and manages run directories (`.agent/runs/{runId}/`)
+- Creates and manages run directories (`.runr/.runr/runs/{runId}/`)
 - Writes/reads JSON state (`state.json`) after each phase
 - Appends JSONL timeline events (`timeline.jsonl`) for observability
 - Stores artifacts (test logs, diffs, raw worker outputs)
@@ -145,7 +145,7 @@ interface WorkerConfig {
 
 **Run Directory Structure**:
 ```
-.agent/runs/{runId}/
+.runr/.runr/runs/{runId}/
 ├── state.json              # Current run state (phase, milestones, stats)
 ├── timeline.jsonl          # Event log (JSONL format)
 ├── plan.md                 # Generated milestones from plan phase
@@ -193,7 +193,7 @@ interface WorkerConfig {
 
 **Responsibilities**:
 - Validates configuration schema with comprehensive Zod schemas
-- Loads `agent.config.json` from repository root or custom path
+- Loads `runr.config.json` from repository root or custom path
 - Provides sensible defaults for all configuration options
 - Enforces required fields (scope allowlist, verification tiers)
 
@@ -311,7 +311,7 @@ This section explains the complete journey of a run from CLI invocation to compl
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                           CLI Invocation                                  │
-│            agent run --task .agent/tasks/task.md                         │
+│            runr run --task .runr/tasks/task.md                         │
 └─────────────────────────────────┬────────────────────────────────────────┘
                                   │
                                   ▼
@@ -324,7 +324,7 @@ This section explains the complete journey of a run from CLI invocation to compl
                                   ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                        RunStore Initialization                           │
-│  • Create run directory (.agent/runs/{runId}/)                           │
+│  • Create run directory (.runr/.runr/runs/{runId}/)                           │
 │  • Initialize state.json with INIT phase                                 │
 │  • Create timeline.jsonl for event logging                               │
 │  • Capture environment fingerprint                                       │
@@ -369,13 +369,13 @@ This section explains the complete journey of a run from CLI invocation to compl
 
 | Artifact | Location | Description |
 |----------|----------|-------------|
-| Run state | `.agent/runs/{runId}/state.json` | Current phase, milestones, worker stats |
-| Timeline | `.agent/runs/{runId}/timeline.jsonl` | Event log for observability |
-| Plan | `.agent/runs/{runId}/plan.md` | Generated milestones from PLAN phase |
-| Summary | `.agent/runs/{runId}/summary.md` | Final summary from FINALIZE |
-| Handoffs | `.agent/runs/{runId}/handoffs/*.md` | Memos passed between phases |
-| Test logs | `.agent/runs/{runId}/artifacts/tests_*.log` | Verification command outputs |
-| Stop memo | `.agent/runs/{runId}/handoffs/stop.md` | Context for resumption or debugging |
+| Run state | `.runr/.runr/runs/{runId}/state.json` | Current phase, milestones, worker stats |
+| Timeline | `.runr/.runr/runs/{runId}/timeline.jsonl` | Event log for observability |
+| Plan | `.runr/.runr/runs/{runId}/plan.md` | Generated milestones from PLAN phase |
+| Summary | `.runr/.runr/runs/{runId}/summary.md` | Final summary from FINALIZE |
+| Handoffs | `.runr/.runr/runs/{runId}/handoffs/*.md` | Memos passed between phases |
+| Test logs | `.runr/.runr/runs/{runId}/artifacts/tests_*.log` | Verification command outputs |
+| Stop memo | `.runr/.runr/runs/{runId}/handoffs/stop.md` | Context for resumption or debugging |
 
 ---
 
@@ -694,7 +694,7 @@ interface RunState {
 ```
 
 **Key Relationships**:
-- Written/read by `RunStore` to `runs/{runId}/state.json`
+- Written/read by `RunStore` to `.runr/runs/{runId}/state.json`
 - Updated after every phase transition by the supervisor
 - Contains embedded `Milestone[]` populated during PLAN phase
 - `scope_lock` derived from `AgentConfig.scope` at run creation
@@ -710,7 +710,7 @@ interface RunState {
 ```typescript
 class RunStore {
   // Directory paths
-  private runDir: string;       // Base directory: runs/{runId}/
+  private runDir: string;       // Base directory: .runr/runs/{runId}/
   private timelinePath: string; // Path to timeline.jsonl
   private seqPath: string;      // Path to seq.txt (event sequence counter)
 
@@ -745,7 +745,7 @@ class RunStore {
 
 **Directory Structure Created**:
 ```
-.agent/runs/{runId}/
+.runr/.runr/runs/{runId}/
 ├── state.json           # RunState persistence
 ├── timeline.jsonl       # Event log (JSONL)
 ├── seq.txt              # Event sequence counter
@@ -792,7 +792,7 @@ interface WorkerConfig {
 
 **Source**: `src/config/schema.ts:61-68`
 
-`AgentConfig` is the top-level configuration schema loaded from `agent.config.json`. It defines all operational parameters for a run.
+`AgentConfig` is the top-level configuration schema loaded from `runr.config.json`. It defines all operational parameters for a run.
 
 ```typescript
 interface AgentConfig {
@@ -845,7 +845,7 @@ interface AgentConfig {
 ```
 
 **Loading Process**:
-1. `src/config/load.ts` reads `agent.config.json` from repo root
+1. `src/config/load.ts` reads `runr.config.json` from repo root
 2. Zod schema validates and applies defaults
 3. Config snapshot written to run directory for auditability
 

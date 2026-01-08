@@ -1,8 +1,8 @@
-# Agent Framework Pilot Program
+# Runr Pilot Program
 
-Early adopter program for testing the Agent Framework on real projects.
+Early adopter program for testing the Runr on real projects.
 
-## What is Agent Framework?
+## What is Runr?
 
 A dual-LLM orchestrator that automates coding tasks with:
 
@@ -81,10 +81,10 @@ Add a GET /api/health endpoint that returns { status: "ok" }.
 ### 4. Run
 
 ```bash
-agent doctor          # Check environment
-agent run --task .agent/tasks/my-task.md --worktree --time 10
-agent follow latest   # Monitor progress
-agent report latest   # View results
+runr doctor          # Check environment
+runr run --task .runr/tasks/my-task.md --worktree --time 10
+runr follow latest   # Monitor progress
+runr report latest   # View results
 ```
 
 See [CLI Reference](cli.md) for all commands.
@@ -117,7 +117,7 @@ See [Troubleshooting](troubleshooting.md) for more.
 A: No. With `--worktree`, runs happen in isolated git worktrees.
 
 **Q: What if it breaks something?**
-A: The worktree is isolated. Delete it anytime with `agent gc`.
+A: The worktree is isolated. Delete it anytime with `runr gc`.
 
 **Q: Can I run multiple tasks?**
-A: Yes. Use `agent orchestrate run` for multi-track execution.
+A: Yes. Use `runr orchestrate run` for multi-track execution.

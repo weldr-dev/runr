@@ -197,10 +197,10 @@ runr run --task .runr/tasks/add-export.md --worktree --time 5
 cat src/greet.js  # Still the old version
 
 # The changes are in the worktree
-cat .agent-worktrees/*/src/greet.js  # New version
+cat .runr-worktrees/*/src/greet.js  # New version
 
 # Check the branch
-cd .agent-worktrees/*
+cd .runr-worktrees/*
 git log --oneline -3
 cd -
 ```
@@ -211,10 +211,10 @@ If you like the changes:
 
 ```bash
 # Get the branch name from the run
-agent status latest
+runr status latest
 
 # Merge it
-git merge agent/<run_id>/<slug>
+git merge runr/<run_id>/<slug>
 ```
 
 ---
@@ -310,10 +310,10 @@ It will likely stop with `time_budget_exceeded`.
 
 ```bash
 # Get the run ID
-agent status --all
+runr status --all
 
 # Resume with more time
-agent resume <run_id> --time 10
+runr resume <run_id> --time 10
 ```
 
 The run continues from where it left off, not from the beginning.
@@ -324,20 +324,20 @@ The run continues from where it left off, not from the beginning.
 
 ```bash
 # See all runs
-agent status --all
+runr status --all
 
 # Compare two runs
-agent compare <run_id_1> <run_id_2>
+runr compare <run_id_1> <run_id_2>
 
 # Clean up old worktrees
-agent gc --dry-run
-agent gc --older-than 1
+runr gc --dry-run
+runr gc --older-than 1
 
 # See where things are stored
-agent paths
+runr paths
 
 # Get aggregated metrics
-agent metrics
+runr metrics
 ```
 
 ---
@@ -347,7 +347,7 @@ agent metrics
 1. **Real project**: Try it on a real codebase with actual tests
 2. **Scope presets**: Add `"presets": ["typescript", "vitest"]` to your config
 3. **Risk triggers**: Add tier1 tests that run only when certain files change
-4. **Multi-track**: Try `agent orchestrate` for parallel task execution
+4. **Multi-track**: Try `runr orchestrate` for parallel task execution
 
 ---
 
@@ -356,7 +356,7 @@ agent metrics
 ### "Worker not found"
 
 ```bash
-agent doctor
+runr doctor
 ```
 
 Make sure Claude CLI is installed and authenticated.
@@ -376,10 +376,10 @@ Check if it's waiting for a worker response. Workers can take a few minutes.
 rm -rf .runr/runs/<run_id>
 
 # Delete the worktree (if used)
-rm -rf .agent-worktrees/<run_id>
+rm -rf .runr-worktrees/<run_id>
 
 # Or clean all old runs
-agent gc --older-than 0
+runr gc --older-than 0
 ```
 
 ---

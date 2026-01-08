@@ -1,6 +1,6 @@
 # Overview
 
-*A simple explanation of what Agent Framework does and why it exists.*
+*A simple explanation of what Runr does and why it exists.*
 
 > Want more technical detail? See [How It Works](how-it-works.md).
 
@@ -20,7 +20,7 @@ Most AI coding tools are like a worker who does things fast but doesn't check th
 
 ## The Solution
 
-Agent Framework is a **supervisor** for AI coding tools.
+Runr is a **supervisor** for AI coding tools.
 
 It doesn't write code itself. Instead, it:
 

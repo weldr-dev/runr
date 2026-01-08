@@ -226,16 +226,16 @@ The sql-indexes stall is a watchdog/liveness gap unrelated to isolation. Needs:
 ```bash
 # Retry failed courses with worktrees (recommended)
 cd /path/to/microcourses
-agent orchestrate plan.yaml --worktree
+runr orchestrate plan.yaml --worktree
 
 # Or retry individual courses
-agent run tasks/unit-testing.md --worktree
-agent run tasks/http-caching.md --worktree
-agent run tasks/web-security.md --worktree
-agent run tasks/sql-indexes.md --worktree
+runr run --task tasks/unit-testing.md --worktree
+runr run --task tasks/http-caching.md --worktree
+runr run --task tasks/web-security.md --worktree
+runr run --task tasks/sql-indexes.md --worktree
 
 # Check if parallel without worktree would work (requires owns: frontmatter)
-agent orchestrate plan.yaml --no-worktree
+runr orchestrate plan.yaml --no-worktree
 ```
 
 ## Appendix: Task Frontmatter Example

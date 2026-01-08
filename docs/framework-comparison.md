@@ -400,7 +400,7 @@ developer = Agent(
 Declarative scope with two enforcement points.
 
 ```typescript
-// agent.config.json
+// runr.config.json
 {
   "scope": {
     "allowlist": ["src/**", "tests/**", "*.config.js"],

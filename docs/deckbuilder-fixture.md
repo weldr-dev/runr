@@ -7,9 +7,9 @@ The `apps/deckbuilder` app is a reference target with a deterministic test suite
 
 ## Run the fixture task
 ```bash
-agent doctor --config apps/deckbuilder/agent.config.json
+runr doctor --config apps/deckbuilder/agent.config.json
 
-agent run \
+runr run \
   --task tasks/deckbuilder/001_engine_combat.md \
   --config apps/deckbuilder/agent.config.json
 ```

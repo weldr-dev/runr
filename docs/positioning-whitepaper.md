@@ -226,7 +226,7 @@ Risk triggers are glob patterns:
 Every run produces:
 
 ```
-.agent/runs/{runId}/
+.runr/runs/{runId}/
 ├── state.json              # Phase, milestones, stats
 ├── timeline.jsonl          # Sequenced event log
 ├── config.snapshot.json    # Config at run start

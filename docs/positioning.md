@@ -133,7 +133,7 @@ No infinite loops. No silent degradation.
 Every run produces:
 
 ```
-.agent/runs/{runId}/
+.runr/runs/{runId}/
 ├── state.json              # Current phase, milestones, stats
 ├── timeline.jsonl          # Every event with timestamps
 ├── plan.md                 # The milestone plan

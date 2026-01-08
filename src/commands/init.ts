@@ -414,77 +414,46 @@ async function ensureGitignoreEntry(repoPath: string, entry: string): Promise<bo
  * Generate the demo project
  */
 async function generateDemoProject(demoDir: string): Promise<void> {
-  // Create directory structure
   fs.mkdirSync(demoDir, { recursive: true });
   fs.mkdirSync(path.join(demoDir, 'src'), { recursive: true });
   fs.mkdirSync(path.join(demoDir, 'tests'), { recursive: true });
   fs.mkdirSync(path.join(demoDir, '.runr', 'tasks'), { recursive: true });
 
-  // package.json
   const packageJson = {
     name: 'runr-demo',
     version: '1.0.0',
     type: 'module',
-    scripts: {
-      test: 'vitest run',
-      typecheck: 'tsc --noEmit'
-    },
-    devDependencies: {
-      typescript: '^5.0.0',
-      vitest: '^1.0.0'
-    }
+    scripts: { test: 'vitest run', typecheck: 'tsc --noEmit' },
+    devDependencies: { typescript: '^5.0.0', vitest: '^1.0.0' }
   };
   fs.writeFileSync(path.join(demoDir, 'package.json'), JSON.stringify(packageJson, null, 2) + '\n');
 
-  // tsconfig.json
   const tsconfig = {
     compilerOptions: {
-      target: 'ES2022',
-      module: 'ESNext',
-      moduleResolution: 'node',
-      strict: true,
-      esModuleInterop: true,
-      skipLibCheck: true,
-      outDir: 'dist'
+      target: 'ES2022', module: 'ESNext', moduleResolution: 'node',
+      strict: true, esModuleInterop: true, skipLibCheck: true, outDir: 'dist'
     },
     include: ['src/**/*', 'tests/**/*']
   };
   fs.writeFileSync(path.join(demoDir, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2) + '\n');
 
-  // src/math.ts
-  const mathTs = `/**
+  fs.writeFileSync(path.join(demoDir, 'src', 'math.ts'), `/**
  * Simple math functions for demo
  */
-
-export function add(a: number, b: number): number {
-  return a + b;
-}
-
-export function subtract(a: number, b: number): number {
-  return a - b;
-}
-
+export function add(a: number, b: number): number { return a + b; }
+export function subtract(a: number, b: number): number { return a - b; }
 // TODO: implement multiply
-`;
-  fs.writeFileSync(path.join(demoDir, 'src', 'math.ts'), mathTs);
+`);
 
-  // tests/math.test.ts
-  const mathTestTs = `import { describe, it, expect } from 'vitest';
+  fs.writeFileSync(path.join(demoDir, 'tests', 'math.test.ts'), `import { describe, it, expect } from 'vitest';
 import { add, subtract } from '../src/math.js';
 
 describe('math', () => {
-  it('adds two numbers', () => {
-    expect(add(2, 3)).toBe(5);
-  });
-
-  it('subtracts two numbers', () => {
-    expect(subtract(5, 3)).toBe(2);
-  });
+  it('adds two numbers', () => { expect(add(2, 3)).toBe(5); });
+  it('subtracts two numbers', () => { expect(subtract(5, 3)).toBe(2); });
 });
-`;
-  fs.writeFileSync(path.join(demoDir, 'tests', 'math.test.ts'), mathTestTs);
+`);
 
-  // .runr/runr.config.json
   const runrConfig = {
     agent: { name: 'runr-demo', version: '1' },
     scope: {
@@ -493,34 +462,14 @@ describe('math', () => {
       lockfiles: ['package-lock.json'],
       presets: ['typescript', 'vitest']
     },
-    verification: {
-      tier0: ['npm run typecheck'],
-      tier1: ['npm test']
-    },
-    workers: {
-      claude: {
-        bin: 'claude',
-        args: ['-p', '--output-format', 'json', '--dangerously-skip-permissions'],
-        output: 'json'
-      }
-    },
-    phases: {
-      plan: 'claude',
-      implement: 'claude',
-      review: 'claude'
-    },
-    workflow: {
-      profile: 'solo',
-      mode: 'flow',
-      integration_branch: 'main',
-      require_verification: true,
-      require_clean_tree: true
-    }
+    verification: { tier0: ['npm run typecheck'], tier1: ['npm test'] },
+    workers: { claude: { bin: 'claude', args: ['-p', '--output-format', 'json', '--dangerously-skip-permissions'], output: 'json' } },
+    phases: { plan: 'claude', implement: 'claude', review: 'claude' },
+    workflow: { profile: 'solo', mode: 'flow', integration_branch: 'main', require_verification: true, require_clean_tree: true }
   };
   fs.writeFileSync(path.join(demoDir, '.runr', 'runr.config.json'), JSON.stringify(runrConfig, null, 2) + '\n');
 
-  // Task 00: Success (quick win)
-  const task00 = `# Implement multiply function
+  fs.writeFileSync(path.join(demoDir, '.runr', 'tasks', '00-success.md'), `# Implement multiply function
 
 ## Goal
 Add a multiply function to src/math.ts and add a test for it.
@@ -532,33 +481,23 @@ Add a multiply function to src/math.ts and add a test for it.
 ## Success Criteria
 - npm run typecheck passes
 - npm test passes
-`;
-  fs.writeFileSync(path.join(demoDir, '.runr', 'tasks', '00-success.md'), task00);
+`);
 
-  // Task 01: Intentional fail (triggers review loop)
-  const task01 = `# Add divide function with edge case bug
+  fs.writeFileSync(path.join(demoDir, '.runr', 'tasks', '01-intentional-fail.md'), `# Add divide function with edge case
 
 ## Goal
-Add a divide function that intentionally has a bug the tests will catch.
+Add a divide function with tests including edge cases.
 
 ## Requirements
 - Add \`divide(a: number, b: number): number\` to src/math.ts
-- The function should return a / b
-- Add tests including a test for divide(10, 2) === 5
-- Add a test for divide(10, 0) that expects Infinity
+- Add tests including divide(10, 2) === 5 and divide(10, 0) === Infinity
 
 ## Success Criteria
 - npm run typecheck passes
 - npm test passes
+`);
 
-## Note
-This task is designed to potentially trigger a review loop if the implementation
-doesn't handle the Infinity case correctly on the first try.
-`;
-  fs.writeFileSync(path.join(demoDir, '.runr', 'tasks', '01-intentional-fail.md'), task01);
-
-  // Task 02: Scope violation (demonstrates guardrails)
-  const task02 = `# Update README with project description
+  fs.writeFileSync(path.join(demoDir, '.runr', 'tasks', '02-scope-violation.md'), `# Update README with project description
 
 ## Goal
 Update README.md to describe this math library.
@@ -572,12 +511,9 @@ Update README.md to describe this math library.
 
 ## Note
 This task will trigger a scope violation because README.md is in the denylist.
-This demonstrates Runr's safety guardrails.
-`;
-  fs.writeFileSync(path.join(demoDir, '.runr', 'tasks', '02-scope-violation.md'), task02);
+`);
 
-  // README.md
-  const readme = `# Runr Demo
+  fs.writeFileSync(path.join(demoDir, 'README.md'), `# Runr Demo
 
 Try Runr in 2 minutes.
 
@@ -607,7 +543,7 @@ runr report latest   # see what happened
 runr run --task .runr/tasks/01-intentional-fail.md
 \`\`\`
 
-**Expected:** STOPPED (verification failed or review loop). This is intentional.
+**Expected:** May stop (verification failed or review loop). This is intentional.
 
 \`\`\`bash
 runr                 # shows STOPPED + 3 next actions
@@ -623,7 +559,7 @@ runr run --task .runr/tasks/02-scope-violation.md
 
 **Expected:** STOPPED (scope guard). README.md is in the denylist.
 
-This demonstrates the safety guardrails — Runr won't let the agent touch forbidden files.
+This demonstrates the safety guardrails.
 
 ## The point
 
@@ -631,17 +567,9 @@ Runr stops with receipts and 3 next actions you can trust:
 - **continue** — auto-fix what's safe, then resume
 - **report** — open the run receipt: diffs + logs + timeline
 - **intervene** — record manual fixes
+`);
 
-That's the whole UX: keep momentum, keep receipts, never lose your place.
-`;
-  fs.writeFileSync(path.join(demoDir, 'README.md'), readme);
-
-  // .gitignore
-  const gitignore = `node_modules/
-dist/
-.runr/runs/
-`;
-  fs.writeFileSync(path.join(demoDir, '.gitignore'), gitignore);
+  fs.writeFileSync(path.join(demoDir, '.gitignore'), 'node_modules/\ndist/\n.runr/runs/\n');
 }
 
 /**
@@ -651,26 +579,19 @@ export async function initCommand(options: InitOptions): Promise<void> {
   // Handle --demo flag
   if (options.demo) {
     const demoDir = path.resolve(options.demoDir || 'runr-demo');
-
-    // Check if directory exists
     if (fs.existsSync(demoDir)) {
       if (!options.force) {
-        console.error(`Error: ${demoDir} already exists`);
-        console.error('Use --force to overwrite');
+        console.error(`Error: ${demoDir} already exists. Use --force to overwrite.`);
         process.exit(1);
       }
-      // Remove existing directory
       fs.rmSync(demoDir, { recursive: true, force: true });
     }
-
     console.log('Creating demo project...\n');
     await generateDemoProject(demoDir);
-
     console.log(`✅ Demo created at ${demoDir}\n`);
     console.log('Next steps:');
     console.log(`  cd ${path.basename(demoDir)}`);
     console.log('  npm install');
-    console.log('  runr');
     console.log('  runr run --task .runr/tasks/00-success.md');
     console.log('');
     console.log('See README.md in the demo for the full walkthrough.');

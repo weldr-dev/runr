@@ -58,7 +58,7 @@ If you can't create a GitHub issue, save the bug report as an artifact:
 
 ```bash
 # Create bug report file
-cat > .agent/artifacts/bug-report-$(date +%Y%m%d-%H%M%S).md <<'EOF'
+cat > .runr/artifacts/bug-report-$(date +%Y%m%d-%H%M%S).md <<'EOF'
 # Bug Report
 
 **Date**: <timestamp>
@@ -164,17 +164,17 @@ plan without waiting for actual execution.
 
 ## Reviewing Bug Reports
 
-Bug reports saved to `.agent/artifacts/` should be reviewed after runs:
+Bug reports saved to `.runr/artifacts/` should be reviewed after runs:
 
 ```bash
 # List all bug reports
-ls -la .agent/artifacts/bug-report-*.md
+ls -la .runr/artifacts/bug-report-*.md
 
 # Review a specific report
-cat .agent/artifacts/bug-report-20251230-141523.md
+cat .runr/artifacts/bug-report-20251230-141523.md
 
 # Bulk create GitHub issues from saved reports (manual review recommended)
-for f in .agent/artifacts/bug-report-*.md; do
+for f in .runr/artifacts/bug-report-*.md; do
   echo "=== $f ==="
   cat "$f"
   echo ""
