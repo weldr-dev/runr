@@ -738,6 +738,14 @@ Every stop has a headline. Every headline maps to a fix.
 `);
 
   fs.writeFileSync(path.join(demoDir, '.gitignore'), 'node_modules/\ndist/\n.runr/runs/\n.runr/task-status.json\n');
+
+  // Initialize git repo - runr requires a git repository
+  const { execSync } = await import('node:child_process');
+  execSync('git init', { cwd: demoDir, stdio: 'pipe' });
+  execSync('git config user.email "demo@runr.dev"', { cwd: demoDir, stdio: 'pipe' });
+  execSync('git config user.name "Runr Demo"', { cwd: demoDir, stdio: 'pipe' });
+  execSync('git add .', { cwd: demoDir, stdio: 'pipe' });
+  execSync('git commit -m "Initial demo setup"', { cwd: demoDir, stdio: 'pipe' });
 }
 
 /**

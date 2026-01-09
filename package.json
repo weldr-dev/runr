@@ -1,6 +1,6 @@
 {
   "name": "@weldr/runr",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "description": "Phase-gated orchestration for agent tasks",
   "type": "module",
   "bin": {
