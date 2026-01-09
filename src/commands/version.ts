@@ -79,7 +79,7 @@ export function getVersionInfo(): VersionOutput {
  */
 function formatVersion(info: VersionOutput): string {
   const lines: string[] = [];
-  lines.push(`Agent Runner v${info.agent_version}`);
+  lines.push(`Runr v${info.agent_version}`);
   lines.push(`  Artifact Schema: v${info.artifact_schema_version}`);
   lines.push(`  Node: ${info.node}`);
   lines.push(`  Platform: ${info.platform}`);

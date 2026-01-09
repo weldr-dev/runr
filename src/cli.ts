@@ -52,6 +52,14 @@ import { recordFrontDoor } from './ux/telemetry.js';
 import type { StopDiagnosisJson } from './diagnosis/types.js';
 import type { StopDiagnostics } from './diagnosis/stop-explainer.js';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Read version from package.json at module load time
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const packageJsonPath = path.resolve(__dirname, '../package.json');
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+const CLI_VERSION = packageJson.version as string;
 
 const program = new Command();
 
@@ -78,7 +86,7 @@ Advanced:
 program
   .name('runr')
   .description('Autopilot for agent tasks')
-  .version('0.7.1');
+  .version(CLI_VERSION);
 
 // ============================================================================
 // CORE COMMANDS (the 5 commands everyone needs)
