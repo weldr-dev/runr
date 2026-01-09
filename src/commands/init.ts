@@ -442,15 +442,19 @@ async function generateDemoProject(demoDir: string): Promise<void> {
  */
 export function add(a: number, b: number): number { return a + b; }
 export function subtract(a: number, b: number): number { return a - b; }
+export function divide(a: number, b: number): number { return a / b; }
 // TODO: implement multiply
 `);
 
   fs.writeFileSync(path.join(demoDir, 'tests', 'math.test.ts'), `import { describe, it, expect } from 'vitest';
-import { add, subtract } from '../src/math.js';
+import { add, subtract, divide } from '../src/math.js';
 
 describe('math', () => {
   it('adds two numbers', () => { expect(add(2, 3)).toBe(5); });
   it('subtracts two numbers', () => { expect(subtract(5, 3)).toBe(2); });
+  // INTENTIONAL BUG: expects 999 but divide(10, 2) returns 5
+  // Task 01 will fix this by changing 999 to 5
+  it('divides two numbers', () => { expect(divide(10, 2)).toBe(999); });
 });
 `);
 
@@ -483,21 +487,28 @@ Add a multiply function to src/math.ts and add a test for it.
 - npm test passes
 `);
 
-  fs.writeFileSync(path.join(demoDir, '.runr', 'tasks', '01-intentional-fail.md'), `# Add divide function with edge case
+  fs.writeFileSync(path.join(demoDir, '.runr', 'tasks', '01-fix-failing-test.md'), `# Fix the failing divide test
 
 ## Goal
-Add a divide function with tests including edge cases.
+The divide test is currently failing. Fix it.
+
+## Context
+Run \`npm test\` to see the failure. The test expects the wrong value.
 
 ## Requirements
-- Add \`divide(a: number, b: number): number\` to src/math.ts
-- Add tests including divide(10, 2) === 5 and divide(10, 0) === Infinity
+- Fix the failing test in tests/math.test.ts
+- The divide(10, 2) test should expect 5, not 999
 
 ## Success Criteria
 - npm run typecheck passes
 - npm test passes
+
+## Note
+This task demonstrates the autofix flow. When verification fails,
+run \`runr\` to see safe commands, then \`runr continue\` to auto-fix.
 `);
 
-  fs.writeFileSync(path.join(demoDir, '.runr', 'tasks', '02-scope-violation.md'), `# Update README with project description
+  fs.writeFileSync(path.join(demoDir, '.runr', 'tasks', '02-scope-violation.md'), `# Update README (will be blocked)
 
 ## Goal
 Update README.md to describe this math library.
@@ -509,64 +520,94 @@ Update README.md to describe this math library.
 ## Success Criteria
 - README.md contains function documentation
 
-## Note
-This task will trigger a scope violation because README.md is in the denylist.
+## Expected Behavior
+This task WILL be blocked by the scope guard.
+README.md is in the denylist (see .runr/runr.config.json).
+
+This demonstrates Runr's safety guardrails working correctly.
+Run \`runr report latest\` to see the guard violation details.
 `);
 
   fs.writeFileSync(path.join(demoDir, 'README.md'), `# Runr Demo
 
 Try Runr in 2 minutes.
 
-## Step 1: Install
+## Setup
 
 \`\`\`bash
 npm install
 \`\`\`
 
-## Step 2: Run the tasks
+---
 
-### Task 00: Success (quick win)
+## Task 1: Success (the happy path)
 
 \`\`\`bash
 runr run --task .runr/tasks/00-success.md
 \`\`\`
 
-**Expected:** Completes cleanly. The agent adds a multiply function and test.
+**What happens:** Agent adds a multiply function, tests pass, checkpoint created.
 
 \`\`\`bash
-runr report latest   # see what happened
+runr report latest   # See the run details
 \`\`\`
 
-### Task 01: Failure + Recovery
+---
+
+## Task 2: Autofix (the "wow" moment)
+
+This task has a **failing test** (intentional). Watch Runr detect it and offer safe commands.
 
 \`\`\`bash
-runr run --task .runr/tasks/01-intentional-fail.md
+runr run --task .runr/tasks/01-fix-failing-test.md
 \`\`\`
 
-**Expected:** May stop (verification failed or review loop). This is intentional.
+**What happens:** Verification fails (npm test fails). Run stops.
 
 \`\`\`bash
-runr                 # shows STOPPED + 3 next actions
-runr continue        # attempt auto-fix
-runr report latest
+runr                 # Shows STOPPED + 3 next actions
 \`\`\`
 
-### Task 02: Scope Guard
+You'll see safe commands like \`npm test\`. Now auto-fix:
+
+\`\`\`bash
+runr continue        # Runs safe commands, then resumes
+\`\`\`
+
+\`\`\`bash
+runr report latest   # See what was fixed
+\`\`\`
+
+---
+
+## Task 3: Guard (safety demo)
+
+This task tries to modify README.md, which is in the denylist.
 
 \`\`\`bash
 runr run --task .runr/tasks/02-scope-violation.md
 \`\`\`
 
-**Expected:** STOPPED (scope guard). README.md is in the denylist.
+**What happens:** STOPPED immediately. Scope guard blocks the change.
 
-This demonstrates the safety guardrails.
+\`\`\`bash
+runr                 # Shows BLOCKED headline + manual recipe
+runr report latest   # See the guard violation details
+\`\`\`
 
-## The point
+This is the safety layer working correctly. No \`--force\` can bypass scope.
 
-Runr stops with receipts and 3 next actions you can trust:
-- **continue** — auto-fix what's safe, then resume
-- **report** — open the run receipt: diffs + logs + timeline
-- **intervene** — record manual fixes
+---
+
+## The Point
+
+Runr stops with receipts and 3 actions you can trust:
+
+1. **continue** — run safe commands, then resume
+2. **report** — inspect the run: diffs, logs, timeline
+3. **intervene** — record manual fixes for provenance
+
+Every stop has a headline. Every headline maps to a fix.
 `);
 
   fs.writeFileSync(path.join(demoDir, '.gitignore'), 'node_modules/\ndist/\n.runr/runs/\n');
